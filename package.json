@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "release": "git checkout main && git pull --ff-only origin main && git merge --no-edit dev && git push origin main && git checkout dev && git push origin dev"
   },
   "dependencies": {
     "firebase": "^12.19.0",

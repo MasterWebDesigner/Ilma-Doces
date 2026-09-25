@@ -1,0 +1,10 @@
+#!/bin/sh
+# Bloqueia commits fora da branch dev (main so avanca via npm run release).
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+if [ "$branch" = "main" ]; then
+  echo "ERRO: commits diretos na branch 'main' sao proibidos." >&2
+  echo "Trabalhe na branch 'dev'. Para publicar em producao rode: npm run release" >&2
+  echo "(emergencia: git commit --no-verify)" >&2
+  exit 1
+fi
+exit 0
