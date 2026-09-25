@@ -1,0 +1,589 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span,
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  li,
+  td,
+  th,
+  label {
+    font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif !important;
+  }
+  body {
+    @apply bg-creme-50 text-chocolate-900 font-sans antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  }
+  h1, h2, h3 {
+    @apply font-sans text-chocolate-800 dark:text-neutral-100;
+  }
+  ::selection {
+    @apply bg-[#8B1D22] text-white;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold tracking-wide transition-all duration-300;
+  }
+  .btn-primary {
+    @apply bg-[#8B1D22] text-white shadow-lg hover:bg-[#721519] hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0;
+  }
+  .btn-chocolate {
+    @apply bg-chocolate-800 text-white shadow-lg hover:bg-chocolate-900 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0;
+  }
+  .input-field {
+    @apply w-full rounded-xl border border-chocolate-200 bg-white px-4 py-3 text-sm text-chocolate-900 outline-none transition-all placeholder:text-chocolate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:placeholder:text-neutral-500;
+  }
+  .label-field {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wider text-chocolate-500 dark:text-neutral-400;
+  }
+}
+
+/* ==========================================================================
+   ADMIN — MODO CLARO (paleta executiva)
+   Primária: #8B1D22 | Hover: #721519 | Canvas: #F9F8F6 | Cards: white
+   Contorno dos cards/seções: 1.5px + rgba(139, 29, 34, 0.35)
+   ========================================================================== */
+html:not(.dark) .admin-shell {
+  background-color: #f9f8f6;
+  color: #1c1917;
+}
+
+/* Canvas / shells */
+html:not(.dark) .admin-shell .bg-neutral-950,
+html:not(.dark) .admin-shell .bg-neutral-950\/50,
+html:not(.dark) .admin-shell .bg-neutral-950\/60 {
+  background-color: #f9f8f6 !important;
+}
+html:not(.dark) .admin-shell .bg-neutral-900\/60,
+html:not(.dark) .admin-shell .bg-neutral-900\/50 {
+  background-color: #fafaf9 !important;
+}
+
+/* Cards e painéis: branco + contorno vinho 1.5px/35% + sombra leve */
+html:not(.dark) .admin-shell .bg-neutral-900 {
+  background-color: #ffffff !important;
+  border-color: rgba(139, 29, 34, 0.35) !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+html:not(.dark) .admin-shell .bg-neutral-950 {
+  border-color: rgba(139, 29, 34, 0.35) !important;
+}
+
+/* Inputs, chips, superfícies secundárias */
+html:not(.dark) .admin-shell .bg-neutral-800,
+html:not(.dark) .admin-shell .bg-neutral-800\/30,
+html:not(.dark) .admin-shell .bg-neutral-800\/40,
+html:not(.dark) .admin-shell .bg-neutral-800\/50,
+html:not(.dark) .admin-shell .hover\:bg-neutral-800\/30:hover {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .admin-shell .bg-neutral-700,
+html:not(.dark) .admin-shell .bg-neutral-700\/50 {
+  background-color: #f5f5f4 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-neutral-700:hover,
+html:not(.dark) .admin-shell .hover\:bg-neutral-800:hover,
+html:not(.dark) .admin-shell .hover\:bg-neutral-600:hover {
+  background-color: #e7e5e4 !important;
+}
+
+/* Tipografia: títulos e valores em stone-900 */
+html:not(.dark) .admin-shell .text-white,
+html:not(.dark) .admin-shell .hover\:text-white:hover {
+  color: #1c1917 !important;
+}
+html:not(.dark) .admin-shell .text-neutral-200,
+html:not(.dark) .admin-shell .text-neutral-300 {
+  color: #44403c !important;
+}
+html:not(.dark) .admin-shell .text-neutral-400,
+html:not(.dark) .admin-shell .text-neutral-500,
+html:not(.dark) .admin-shell .text-neutral-600 {
+  color: #78716c !important;
+}
+html:not(.dark) .admin-shell .text-neutral-700 {
+  color: #57534e !important;
+}
+
+/* Contornos completos (cards, tabelas, métricas, filtros, containers): 1.5px + vinho 35% */
+html:not(.dark) .admin-shell .border.border-neutral-800,
+html:not(.dark) .admin-shell .border.border-neutral-700,
+html:not(.dark) .admin-shell .border.border-neutral-600,
+html:not(.dark) .admin-shell .border.border-neutral-800\/60,
+html:not(.dark) .admin-shell .border.border-neutral-800\/50,
+html:not(.dark) .admin-shell .border.border-neutral-700\/60,
+html:not(.dark) .admin-shell .border.bg-neutral-900,
+html:not(.dark) .admin-shell .border.bg-neutral-950 {
+  border-width: 1.5px !important;
+  border-color: rgba(139, 29, 34, 0.35) !important;
+}
+/* Divisórias internas (thead, headers de card): 1px suave, mesmo tom */
+html:not(.dark) .admin-shell .border-b.border-neutral-800,
+html:not(.dark) .admin-shell .border-t.border-neutral-800,
+html:not(.dark) .admin-shell .border-b.border-neutral-700 {
+  border-color: rgba(139, 29, 34, 0.35) !important;
+}
+html:not(.dark) .admin-shell .divide-neutral-800\/50 > * + *,
+html:not(.dark) .admin-shell .divide-neutral-800 > * + * {
+  border-color: rgba(139, 29, 34, 0.15) !important;
+}
+html:not(.dark) .admin-shell .placeholder-neutral-500::placeholder,
+html:not(.dark) .admin-shell .placeholder-neutral-600::placeholder {
+  color: #a8a29e !important;
+}
+
+/* Formulários (inputs mantêm 1px stone; focus em vinho) */
+html:not(.dark) .admin-shell input:not([type="checkbox"]):not([type="radio"]),
+html:not(.dark) .admin-shell select,
+html:not(.dark) .admin-shell textarea {
+  background-color: #ffffff !important;
+  border-width: 1px !important;
+  border-color: #d6d3d1 !important;
+  color: #292524 !important;
+}
+html:not(.dark) .admin-shell input:focus,
+html:not(.dark) .admin-shell select:focus,
+html:not(.dark) .admin-shell textarea:focus {
+  border-color: #8b1d22 !important;
+  box-shadow: 0 0 0 2px rgba(139, 29, 34, 0.2) !important;
+}
+
+/* Tabelas: header stone, linhas brancas */
+html:not(.dark) .admin-shell thead {
+  background-color: rgba(245, 245, 244, 0.8) !important;
+}
+html:not(.dark) .admin-shell thead th {
+  color: #57534e !important;
+  background-color: rgba(245, 245, 244, 0.8) !important;
+}
+html:not(.dark) .admin-shell tbody tr:hover {
+  background-color: rgba(250, 250, 249, 0.8) !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-neutral-800\/30:hover {
+  background-color: rgba(250, 250, 249, 0.8) !important;
+}
+
+/* Primária da marca */
+html:not(.dark) .admin-shell .bg-wine-500,
+html:not(.dark) .admin-shell .bg-wine-600,
+html:not(.dark) .admin-shell aside.bg-wine-600 {
+  background-color: #8b1d22 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-wine-600:hover {
+  background-color: #721519 !important;
+}
+html:not(.dark) .admin-shell .bg-wine-500\/10,
+html:not(.dark) .admin-shell .bg-wine-500\/15,
+html:not(.dark) .admin-shell .bg-wine-500\/20 {
+  background-color: #fdf2f2 !important;
+}
+html:not(.dark) .admin-shell .text-wine-400,
+html:not(.dark) .admin-shell .text-wine-300 {
+  color: #8b1d22 !important;
+}
+html:not(.dark) .admin-shell .border-wine-500\/30,
+html:not(.dark) .admin-shell .border-wine-500\/40 {
+  border-color: rgba(139, 29, 34, 0.35) !important;
+}
+html:not(.dark) .admin-shell .focus\:border-wine-500:focus {
+  border-color: #8b1d22 !important;
+}
+html:not(.dark) .admin-shell .shadow-wine-500\/20 {
+  box-shadow: 0 10px 15px -3px rgba(139, 29, 34, 0.15), 0 4px 6px -4px rgba(139, 29, 34, 0.15) !important;
+}
+
+/* KPIs e valores: verde/âmbar profissionais */
+html:not(.dark) .admin-shell .text-emerald-400,
+html:not(.dark) .admin-shell .text-emerald-400\/70,
+html:not(.dark) .admin-shell .text-emerald-400\/80 {
+  color: #047857 !important;
+}
+html:not(.dark) .admin-shell .text-amber-400,
+html:not(.dark) .admin-shell .text-amber-400\/80,
+html:not(.dark) .admin-shell .text-amber-500,
+html:not(.dark) .admin-shell .text-yellow-400 {
+  color: #92400e !important;
+}
+html:not(.dark) .admin-shell .text-red-400 {
+  color: #b91c1c !important;
+}
+html:not(.dark) .admin-shell .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+html:not(.dark) .admin-shell .text-purple-400 {
+  color: #6d28d9 !important;
+}
+html:not(.dark) .admin-shell .text-cyan-400 {
+  color: #0e7490 !important;
+}
+html:not(.dark) .admin-shell .text-indigo-400 {
+  color: #4338ca !important;
+}
+html:not(.dark) .admin-shell .text-pink-400,
+html:not(.dark) .admin-shell .text-pink-300 {
+  color: #8b1d22 !important;
+}
+html:not(.dark) .admin-shell .text-rose-400 {
+  color: #8b1d22 !important;
+}
+html:not(.dark) .admin-shell .text-emerald-300,
+html:not(.dark) .admin-shell .text-amber-300,
+html:not(.dark) .admin-shell .text-blue-300,
+html:not(.dark) .admin-shell .text-red-300 {
+  color: #1c1917 !important;
+}
+html:not(.dark) .admin-shell .text-emerald-400\/80 {
+  color: rgba(4, 120, 87, 0.85) !important;
+}
+html:not(.dark) .admin-shell .text-amber-400\/80 {
+  color: rgba(146, 64, 14, 0.85) !important;
+}
+
+/* Badges soft → fundo tint claro + texto alto contraste */
+html:not(.dark) .admin-shell .bg-emerald-500\/10,
+html:not(.dark) .admin-shell .bg-emerald-500\/15,
+html:not(.dark) .admin-shell .bg-emerald-500\/25,
+html:not(.dark) .admin-shell .bg-emerald-600\/20 {
+  background-color: #ecfdf5 !important;
+}
+html:not(.dark) .admin-shell .bg-emerald-950\/40,
+html:not(.dark) .admin-shell .bg-emerald-900\/40 {
+  background-color: #ecfdf5 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-emerald-900\/40:hover {
+  background-color: #d1fae5 !important;
+}
+html:not(.dark) .admin-shell .border-emerald-800\/50 {
+  border-color: #a7f3d0 !important;
+}
+html:not(.dark) .admin-shell .bg-amber-500\/10,
+html:not(.dark) .admin-shell .bg-amber-500\/5,
+html:not(.dark) .admin-shell .bg-amber-500\/15,
+html:not(.dark) .admin-shell .bg-amber-500\/20,
+html:not(.dark) .admin-shell .bg-amber-500\/25,
+html:not(.dark) .admin-shell .bg-yellow-500\/15 {
+  background-color: #fffbeb !important;
+}
+html:not(.dark) .admin-shell .border-amber-500\/20,
+html:not(.dark) .admin-shell .border-amber-500\/25,
+html:not(.dark) .admin-shell .border-amber-500\/35 {
+  border-color: #fde68a !important;
+}
+html:not(.dark) .admin-shell .text-yellow-400 {
+  color: #92400e !important;
+}
+html:not(.dark) .admin-shell .bg-red-500\/10,
+html:not(.dark) .admin-shell .bg-red-500\/15,
+html:not(.dark) .admin-shell .bg-red-500\/20 {
+  background-color: #fef2f2 !important;
+}
+html:not(.dark) .admin-shell .bg-blue-500\/10,
+html:not(.dark) .admin-shell .bg-blue-500\/15,
+html:not(.dark) .admin-shell .bg-blue-500\/20 {
+  background-color: #eff6ff !important;
+}
+html:not(.dark) .admin-shell .bg-purple-500\/15,
+html:not(.dark) .admin-shell .bg-purple-500\/10 {
+  background-color: #f5f3ff !important;
+}
+html:not(.dark) .admin-shell .bg-cyan-500\/15,
+html:not(.dark) .admin-shell .bg-cyan-500\/10 {
+  background-color: #ecfeff !important;
+}
+html:not(.dark) .admin-shell .bg-indigo-500\/15,
+html:not(.dark) .admin-shell .bg-indigo-500\/10 {
+  background-color: #eef2ff !important;
+}
+html:not(.dark) .admin-shell .bg-rose-500\/15,
+html:not(.dark) .admin-shell .bg-rose-500\/10 {
+  background-color: #fdf2f2 !important;
+}
+html:not(.dark) .admin-shell .bg-neutral-500\/15,
+html:not(.dark) .admin-shell .bg-neutral-700 {
+  background-color: #f5f5f4 !important;
+}
+html:not(.dark) .admin-shell .bg-pink-500\/15 {
+  background-color: #fdf2f2 !important;
+}
+html:not(.dark) .admin-shell .border-emerald-500\/30 {
+  border-color: #a7f3d0 !important;
+}
+html:not(.dark) .admin-shell .border-amber-500\/30,
+html:not(.dark) .admin-shell .border-amber-500\/40,
+html:not(.dark) .admin-shell .border-yellow-500\/30 {
+  border-color: #fde68a !important;
+}
+html:not(.dark) .admin-shell .border-red-500\/30 {
+  border-color: #fecaca !important;
+}
+html:not(.dark) .admin-shell .border-blue-500\/30 {
+  border-color: #bfdbfe !important;
+}
+html:not(.dark) .admin-shell .border-purple-500\/30 {
+  border-color: #ddd6fe !important;
+}
+html:not(.dark) .admin-shell .border-amber-500\/20,
+html:not(.dark) .admin-shell .border-amber-500\/50 {
+  border-color: #fde68a !important;
+}
+html:not(.dark) .admin-shell .border-emerald-500\/50 {
+  border-color: #a7f3d0 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-emerald-500\/20:hover,
+html:not(.dark) .admin-shell .hover\:bg-emerald-500\/25:hover,
+html:not(.dark) .admin-shell .hover\:bg-emerald-600\/30:hover {
+  background-color: #d1fae5 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-amber-500\/20:hover,
+html:not(.dark) .admin-shell .hover\:bg-amber-500\/25:hover {
+  background-color: #fef3c7 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-red-500\/20:hover {
+  background-color: #fee2e2 !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-blue-500\/25:hover {
+  background-color: #dbeafe !important;
+}
+html:not(.dark) .admin-shell .hover\:bg-wine-500\/20:hover {
+  background-color: #fbe4e4 !important;
+}
+
+/* Botões secundários neutros */
+html:not(.dark) .admin-shell .hover\:text-wine-400:hover {
+  color: #8b1d22 !important;
+}
+
+/* Status tabs/seleção em calendário */
+html:not(.dark) .admin-shell .bg-amber-500\/20 {
+  background-color: #fef3c7 !important;
+}
+html:not(.dark) .admin-shell .border-amber-500\/40 {
+  border-color: #fbbf24 !important;
+}
+html:not(.dark) .admin-shell .shadow-amber-500\/10 {
+  box-shadow: none !important;
+}
+html:not(.dark) .admin-shell .ring-1.ring-white\/20 {
+  box-shadow: 0 0 0 1px rgba(139, 29, 34, 0.25) !important;
+}
+
+/* ==========================================================================
+   ADMIN — LEGIBILIDADE (conteúdo principal; sidebar intacta)
+   8→10px | 9→11px | 10–11→12px (text-xs) | text-xs→14px (text-sm)
+   ========================================================================== */
+.admin-shell main .text-\[8px\] {
+  font-size: 10px !important;
+}
+.admin-shell main .text-\[9px\] {
+  font-size: 11px !important;
+}
+.admin-shell main .text-\[10px\],
+.admin-shell main .text-\[11px\] {
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
+}
+.admin-shell main .text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+.admin-shell main input::placeholder,
+.admin-shell main textarea::placeholder {
+  font-size: inherit;
+}
+
+/* File input button */
+html:not(.dark) .admin-shell .file\:text-white::file-selector-button {
+  color: #fff !important;
+  background-color: #8b1d22 !important;
+}
+
+/* Preserva texto branco sobre superfícies coloridas (sidebar, botões sólidos) */
+html:not(.dark) .admin-shell .bg-\[\#8B1D22\] .text-white,
+html:not(.dark) .admin-shell .bg-\[\#8B1D22\].text-white,
+html:not(.dark) .admin-shell .hover\:bg-\[\#8B1D22\]:hover .text-white,
+html:not(.dark) .admin-shell aside .text-white,
+html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\],
+html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\] .text-white\/70,
+html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\] .text-white\/65,
+html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\] .text-white\/90,
+html:not(.dark) .admin-shell aside .hover\:text-white:hover,
+html:not(.dark) .admin-shell .bg-wine-600 .text-white,
+html:not(.dark) .admin-shell .bg-wine-600 .hover\:text-white:hover,
+html:not(.dark) .admin-shell .bg-wine-500 .text-white,
+html:not(.dark) .admin-shell .bg-wine-500 .hover\:text-white:hover,
+html:not(.dark) .admin-shell .bg-wine-500.text-white,
+html:not(.dark) .admin-shell .bg-wine-500.hover\:text-white:hover,
+html:not(.dark) .admin-shell .bg-wine-600.text-white,
+html:not(.dark) .admin-shell .bg-red-600 .text-white,
+html:not(.dark) .admin-shell .bg-red-600.text-white,
+html:not(.dark) .admin-shell .bg-red-500 .text-white,
+html:not(.dark) .admin-shell .bg-red-500.text-white,
+html:not(.dark) .admin-shell .bg-blue-600 .text-white,
+html:not(.dark) .admin-shell .bg-blue-600.text-white,
+html:not(.dark) .admin-shell .bg-emerald-600 .text-white,
+html:not(.dark) .admin-shell .bg-emerald-600.text-white,
+html:not(.dark) .admin-shell .bg-emerald-500 .text-white,
+html:not(.dark) .admin-shell .bg-emerald-500.text-white,
+html:not(.dark) .admin-shell .bg-amber-500 .text-white,
+html:not(.dark) .admin-shell .bg-amber-500.text-white,
+html:not(.dark) .admin-shell .bg-amber-600 .text-white,
+html:not(.dark) .admin-shell .bg-amber-600.text-white,
+html:not(.dark) .admin-shell .bg-pink-500 .text-white,
+html:not(.dark) .admin-shell .bg-pink-500.text-white,
+html:not(.dark) .admin-shell .bg-purple-500 .text-white,
+html:not(.dark) .admin-shell .bg-purple-500.text-white,
+html:not(.dark) .admin-shell .bg-orange-500 .text-white,
+html:not(.dark) .admin-shell .bg-orange-500.text-white,
+html:not(.dark) .admin-shell .bg-cyan-500 .text-white,
+html:not(.dark) .admin-shell .bg-cyan-500.text-white {
+  color: #fff !important;
+}
+html:not(.dark) .admin-shell .bg-amber-500.text-black,
+html:not(.dark) .admin-shell .bg-amber-500 .text-black {
+  color: #1c1917 !important;
+}
+
+/* ==========================================================================
+   CARDÁPIO — filtro "⚡ Cardápio Rápido" e badge "⚡ Rápido" (só modo claro)
+   Dark: ativo bg-red-700 / badge red-950 | Light: ativo #8B1D22 / badge red-100
+   ========================================================================== */
+html:not(.dark) .admin-shell .pill-rapido.bg-red-700,
+html:not(.dark) .admin-shell .pill-rapido.bg-red-700.text-white {
+  background-color: #8b1d22 !important;
+  color: #ffffff !important;
+}
+html:not(.dark) .admin-shell .pill-rapido.bg-red-700:hover,
+html:not(.dark) .admin-shell .pill-rapido.bg-red-700.text-white:hover {
+  background-color: #721519 !important;
+  color: #ffffff !important;
+}
+html:not(.dark) .admin-shell .pill-rapido.bg-zinc-800 {
+  background-color: #f4f4f5 !important;
+  color: #3f3f46 !important;
+}
+html:not(.dark) .admin-shell .pill-rapido.bg-zinc-800:hover {
+  background-color: #e4e4e7 !important;
+  color: #27272a !important;
+}
+html:not(.dark) .admin-shell .badge-rapido.bg-red-950\/60 {
+  background-color: #fee2e2 !important;
+  color: #7f1d1d !important;
+  border-color: #fecaca !important;
+}
+html:not(.dark) .admin-shell .badge-rapido.bg-red-950\/60:hover {
+  background-color: #fecaca !important;
+  color: #7f1d1d !important;
+}
+
+/* Cart drawer dark surfaces */
+html.dark .cart-drawer {
+  background-color: #171717;
+  color: #f5f5f5;
+}
+html.dark .cart-drawer .bg-white {
+  background-color: #262626 !important;
+}
+html.dark .cart-drawer .bg-creme-50,
+html.dark .cart-drawer .bg-creme-100,
+html.dark .cart-drawer .bg-chocolate-50 {
+  background-color: #1f1f1f !important;
+}
+html.dark .cart-drawer .text-chocolate-800,
+html.dark .cart-drawer .text-chocolate-700,
+html.dark .cart-drawer .text-chocolate-600 {
+  color: #f5f5f5 !important;
+}
+html.dark .cart-drawer .text-chocolate-500,
+html.dark .cart-drawer .text-chocolate-400 {
+  color: #a3a3a3 !important;
+}
+html.dark .cart-drawer .border-chocolate-100,
+html.dark .cart-drawer .border-chocolate-200 {
+  border-color: #404040 !important;
+}
+html.dark .cart-drawer input,
+html.dark .cart-drawer textarea,
+html.dark .cart-drawer select {
+  color: #f5f5f5 !important;
+}
+
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* === ESTADOS DE ESTOQUE — CARDS DO CARDÁPIO ADMIN === */
+@keyframes pulse-glow-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 14px 4px rgba(239, 68, 68, 0.95); }
+}
+
+.animate-pulse-glow {
+  animation-duration: 2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.stock-out.animate-pulse-glow {
+  animation-name: pulse-glow-red;
+}
+
+.min-stock-warn .stock-qty {
+  color: #f59e0b !important;
+}
+
+.critical-stock-warn .stock-qty {
+  color: #f97339 !important;
+}
+
+html:not(.dark) .admin-shell .min-stock-warn .stock-qty {
+  color: #f59e0b !important;
+}
+
+html:not(.dark) .admin-shell .critical-stock-warn .stock-qty {
+  color: #f97339 !important;
+}
+
+.critical-stock-warn {
+  border-color: #f97339 !important;
+}
+
+html:not(.dark) .admin-shell .stock-out {
+  background-color: rgba(245, 245, 244, 0.6) !important;
+}
+
+html.dark .admin-shell .stock-out {
+  background-color: #3f3f46 !important;
+}
+
+html:not(.dark) .admin-shell .min-stock-warn {
+  border-color: #fbbf24 !important;
+}
+
+html:not(.dark) .admin-shell .critical-stock-warn {
+  border-color: #f97339 !important;
+}
+
+html:not(.dark) .admin-shell .stock-out {
+  border-color: rgba(139, 29, 34, 0.65) !important;
+}
