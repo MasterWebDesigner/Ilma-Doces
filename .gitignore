@@ -6,3 +6,4 @@ _backups/
 .vercel/
 *.log
 devlog.txt
+tsconfig.tsbuildinfo
