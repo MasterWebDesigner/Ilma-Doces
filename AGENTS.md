@@ -7,7 +7,7 @@
 - A branch `main` é exclusiva para **grandes lançamentos e versões estáveis**. Ela só avança pelo comando manual:
   - `npm run release` → faz checkout de `main`, merge da `dev`, push da `main` (isso sim dispara o deploy de produção na Vercel) e volta para a `dev`.
 - Pushes na `dev` **não geram deploys**: o `ignoreCommand` do `vercel.json` cancela qualquer build que não seja de produção (`VERCEL_ENV = production`).
-- Proteção local: hook `.githooks/pre-commit` (registrado via `git config core.hooksPath .githooks`) bloqueia commits na `main`. Emergência: `git commit --no-verify`.
+- Proteção local: hook `.githooks/pre-commit` bloqueia commits na `main`. Nesta máquina o `core.hooksPath` aponta para a cópia externa `C:/Users/Dan/.githooks-ilma` (assim funciona também na `main`, onde a pasta `.githooks` ainda não existe); em outra máquina rode `git config core.hooksPath .githooks`. Emergência: `git commit --no-verify`.
 
 ## Comandos de verificação antes de commitar
 
