@@ -106,7 +106,6 @@ export default function CredoresPage() {
   const [modalPagarOpen, setModalPagarOpen] = useState(false);
   const [pagarCredorId, setPagarCredorId] = useState<string | null>(null);
   const [pagarCompraId, setPagarCompraId] = useState<string | null>(null);
-  const [pagarEtapa, setPagarEtapa] = useState<"confirmar" | "agradecer">("confirmar");
   const [pagarMetodo, setPagarMetodo] = useState("PIX");
   const [pagarValor, setPagarValor] = useState(0);
   const [pagarNome, setPagarNome] = useState("");
@@ -115,6 +114,7 @@ export default function CredoresPage() {
 
   // Modal Pagamento / Baixa
   const [modalPagamentoOpen, setModalPagamentoOpen] = useState(false);
+  const [etapaPagamento, setEtapaPagamento] = useState<"form" | "confirmar">("form");
   const [credorPagamentoId, setCredorPagamentoId] = useState<string | null>(null);
   const [comprasSelecionadasBaixaIds, setComprasSelecionadasBaixaIds] = useState<string[]>([]);
   const [valorPagamento, setValorPagamento] = useState("");
@@ -203,6 +203,17 @@ export default function CredoresPage() {
     return (c.whatsapp || "").trim() || (config.whatsappLoja || "").trim() || (config.storePhone || "").trim();
   }
 
+  function lembreteEnviadoHoje(compra: CompraCredor): boolean {
+    return !!compra.ultimoLembreteEm && compra.ultimoLembreteEm.slice(0, 10) === hojeStr;
+  }
+
+  function formatarLembreteEnviado(iso: string): string {
+    const [data, hora] = iso.split("T");
+    const [ano, mes, dia] = (data || "").split("-");
+    const hhmm = (hora || "").slice(0, 5);
+    return `${dia}/${mes}/${ano}${hhmm ? ` ${hhmm}` : ""}`;
+  }
+
   function abrirCobranca(credorId: string, compra: CompraCredor, c: { nome: string; whatsapp: string }) {
     const atraso = diasAtraso(compra, hojeStr);
     const dados = {
@@ -213,6 +224,7 @@ export default function CredoresPage() {
       itens: compra.itens,
       descricaoFallback: compra.descricao,
       chavePix: config.chavePix || config.pixKey,
+      whatsappLoja: config.whatsappLoja || config.storePhone,
     };
     const texto = atraso > 0
       ? montarCobrancaAtraso({ ...dados, diasAtraso: atraso })
@@ -225,7 +237,6 @@ export default function CredoresPage() {
     const pendente = compra.valorPendente !== undefined ? compra.valorPendente : compra.valor;
     setPagarCredorId(credor.id);
     setPagarCompraId(compra.id);
-    setPagarEtapa("confirmar");
     setPagarMetodo("PIX");
     setPagarValor(pendente);
     setPagarNome(credor.nome);
@@ -234,25 +245,24 @@ export default function CredoresPage() {
     setModalPagarOpen(true);
   }
 
-  function confirmarMarcarPago() {
+  function finalizarBaixaPagar(comComprovante: boolean) {
     if (!pagarCredorId || !pagarCompraId || pagarValor <= 0) return;
     try {
       registrarBaixaCompra(pagarCredorId, pagarCompraId, pagarValor, pagarMetodo, getLocalDateStr());
-      setPagarEtapa("agradecer");
     } catch (err: any) {
       alert(err.message || "Erro ao registrar pagamento.");
+      return;
     }
-  }
-
-  function enviarAgradecimento() {
-    const credor = credoresAgrupados.find((c) => c.id === pagarCredorId);
-    const texto = montarAgradecimentoPagamento({
-      nome: pagarNome,
-      valor: pagarValor,
-      itens: pagarItens,
-      descricaoFallback: pagarDescricao,
-    });
-    window.open(urlWaMe(alvoWhatsApp(credor || { whatsapp: "" }), texto), "_blank");
+    if (comComprovante) {
+      const credor = credoresAgrupados.find((c) => c.id === pagarCredorId);
+      const texto = montarAgradecimentoPagamento({
+        nome: pagarNome,
+        valor: pagarValor,
+        itens: pagarItens,
+        descricaoFallback: pagarDescricao,
+      });
+      window.open(urlWaMe(alvoWhatsApp(credor || { whatsapp: "" }), texto), "_blank");
+    }
     setModalPagarOpen(false);
   }
 
@@ -479,6 +489,7 @@ export default function CredoresPage() {
   function abrirPagamento(credorId: string, e: React.MouseEvent) {
     e.stopPropagation();
     setCredorPagamentoId(credorId);
+    setEtapaPagamento("form");
     const credor = credoresAgrupados.find((c) => c.id === credorId);
     if (credor) {
       const openCompras = (credor.compras || []).filter((comp) => !comp.pago && (comp.valorPendente ?? comp.valor) > 0);
@@ -538,6 +549,17 @@ export default function CredoresPage() {
       }
     }
 
+    setEtapaPagamento("confirmar");
+  }
+
+  function executarBaixaPagamento(comComprovante: boolean) {
+    if (!credorPagamentoId || comprasSelecionadasBaixaIds.length === 0 || !valorPagamento) return;
+
+    const valorNum = parseFloat(valorPagamento.replace(",", "."));
+    if (isNaN(valorNum) || valorNum <= 0) return;
+
+    const credor = credoresAgrupados.find((c) => c.id === credorPagamentoId);
+
     try {
       if (comprasSelecionadasBaixaIds.length === 1) {
         registrarBaixaCompra(credorPagamentoId, comprasSelecionadasBaixaIds[0], valorNum, metodoPagamento, dataPagamento);
@@ -555,6 +577,16 @@ export default function CredoresPage() {
           registrarBaixaCompra(credorPagamentoId, id, valorAplicar, metodoPagamento, dataPagamento);
           restante -= valorAplicar;
         }
+      }
+
+      if (comComprovante && credor) {
+        const selecionadas = (credor.compras || []).filter((c) => comprasSelecionadasBaixaIds.includes(c.id));
+        const texto = montarAgradecimentoPagamento({
+          nome: credor.nome,
+          valor: valorNum,
+          descricaoFallback: selecionadas.map((c) => c.descricao).join(", "),
+        });
+        window.open(urlWaMe(alvoWhatsApp(credor), texto), "_blank");
       }
       setModalPagamentoOpen(false);
     } catch (err: any) {
@@ -1033,12 +1065,17 @@ export default function CredoresPage() {
                                        <p className="text-xs text-neutral-400">
                                          Entrada: <span className="text-white font-medium">{new Date((compra.data || getLocalDateStr()) + 'T12:00:00').toLocaleDateString('pt-BR')}</span> | Vencimento: <span className={`${compra.pago ? 'text-neutral-300' : 'text-amber-400'} font-medium`}>{new Date((compra.dataPrometida || compra.data || getLocalDateStr()) + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                                        </p>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusInd.cor}`}>
-                                            {statusInd.label}
-                                          </span>
-                                          {getOrderBadge(compra.referenciaId)}
-                                        </div>
+                                         <div className="flex items-center gap-2 flex-wrap">
+                                           <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusInd.cor}`}>
+                                             {statusInd.label}
+                                           </span>
+                                           {getOrderBadge(compra.referenciaId)}
+                                           {compraAberta(compra) && lembreteEnviadoHoje(compra) && (
+                                             <span className="inline-block rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-sky-300">
+                                               📩 Lembrete enviado hoje ({formatarLembreteEnviado(compra.ultimoLembreteEm!)})
+                                             </span>
+                                           )}
+                                         </div>
                                      </div>
                                      <div className="flex items-center gap-3">
                                        <div className="text-right">
@@ -1067,13 +1104,13 @@ export default function CredoresPage() {
                                            );
                                          })()}
                                        </div>
-                                        {deveCobrar(compra, hojeStr) && (
+                                        {(deveCobrar(compra, hojeStr) || lembreteEnviadoHoje(compra)) && (
                                           <button
                                             onClick={() => abrirCobranca(credor.id, compra, credor)}
                                             className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-emerald-500"
-                                            title="Cobrar via WhatsApp"
+                                            title={lembreteEnviadoHoje(compra) ? "Reenviar cobrança via WhatsApp" : "Cobrar via WhatsApp"}
                                           >
-                                            🟢 Cobrar
+                                            {lembreteEnviadoHoje(compra) ? "🟢 Reenviar" : "🟢 Cobrar"}
                                           </button>
                                         )}
                                         {compraAberta(compra) && (
@@ -1656,7 +1693,8 @@ export default function CredoresPage() {
       {modalPagamentoOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 shadow-2xl my-8">
-            <h3 className="text-lg font-bold text-white">Registrar Baixa / Pagamento (Inteligente & Parcial)</h3>
+            <h3 className="text-lg font-bold text-white">{etapaPagamento === "form" ? "Registrar Baixa / Pagamento (Inteligente & Parcial)" : "Confirmar Dar Baixa"}</h3>
+            {etapaPagamento === "form" ? (
             <form onSubmit={salvarPagamento} className="space-y-4">
               {/* Seleção de Compras (Múltipla) */}
               {(() => {
@@ -1776,6 +1814,40 @@ export default function CredoresPage() {
                 </button>
               </div>
             </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 space-y-1.5">
+                  <p className="text-sm font-bold text-white">{credoresAgrupados.find((c) => c.id === credorPagamentoId)?.nome || ""}</p>
+                  <p className="text-xs text-neutral-400">
+                    {comprasSelecionadasBaixaIds.length} {comprasSelecionadasBaixaIds.length === 1 ? "compra selecionada" : "compras selecionadas"} • {paymentLabelOf(metodoPagamento)} • {new Date(dataPagamento + "T12:00:00").toLocaleDateString("pt-BR")}
+                  </p>
+                  <p className="text-lg font-bold text-emerald-400">
+                    R$ {(parseFloat(valorPagamento.replace(",", ".")) || 0).toFixed(2).replace(".", ",")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => executarBaixaPagamento(true)}
+                  className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                >
+                  🟢 Dar Baixa e Enviar Recibo no WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executarBaixaPagamento(false)}
+                  className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+                >
+                  Apenas Dar Baixa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEtapaPagamento("form")}
+                  className="w-full rounded-xl px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-white"
+                >
+                  Voltar
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1784,71 +1856,48 @@ export default function CredoresPage() {
       {modalPagarOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 shadow-2xl">
-            {pagarEtapa === "confirmar" ? (
-              <>
-                <h3 className="text-lg font-bold text-white">Marcar como Pago</h3>
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 space-y-1.5">
-                  <p className="text-sm font-bold text-white">{pagarNome}</p>
-                  <p className="text-xs text-neutral-400">{pagarDescricao}</p>
-                  <p className="text-lg font-bold text-emerald-400">R$ {pagarValor.toFixed(2).replace(".", ",")}</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1">Forma de Recebimento *</label>
-                  <select
-                    value={pagarMetodo}
-                    onChange={(e) => setPagarMetodo(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
-                  >
-                    <option value="PIX">PIX</option>
-                    <option value="Dinheiro">Dinheiro</option>
-                    <option value="Cartão Débito">Cartão Débito</option>
-                    <option value="Cartão Crédito">Cartão Crédito</option>
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalPagarOpen(false)}
-                    className="rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={confirmarMarcarPago}
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
-                  >
-                    Confirmar Pagamento
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-2 text-center">
-                  <p className="text-3xl">✅</p>
-                  <h3 className="text-lg font-bold text-white">Pagamento registrado!</h3>
-                  <p className="text-sm text-neutral-400">
-                    R$ {pagarValor.toFixed(2).replace(".", ",")} quitado com sucesso. Deseja enviar uma mensagem de agradecimento no WhatsApp?
-                  </p>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalPagarOpen(false)}
-                    className="rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
-                  >
-                    Agora não
-                  </button>
-                  <button
-                    type="button"
-                    onClick={enviarAgradecimento}
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
-                  >
-                    🟢 Enviar agradecimento
-                  </button>
-                </div>
-              </>
-            )}
+            <h3 className="text-lg font-bold text-white">Marcar como Pago</h3>
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 space-y-1.5">
+              <p className="text-sm font-bold text-white">{pagarNome}</p>
+              <p className="text-xs text-neutral-400">{pagarDescricao}</p>
+              <p className="text-lg font-bold text-emerald-400">R$ {pagarValor.toFixed(2).replace(".", ",")}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-400 mb-1">Forma de Recebimento *</label>
+              <select
+                value={pagarMetodo}
+                onChange={(e) => setPagarMetodo(e.target.value)}
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
+              >
+                <option value="PIX">PIX</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Cartão Débito">Cartão Débito</option>
+                <option value="Cartão Crédito">Cartão Crédito</option>
+              </select>
+            </div>
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => finalizarBaixaPagar(true)}
+                className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+              >
+                🟢 Dar Baixa e Enviar Recibo no WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => finalizarBaixaPagar(false)}
+                className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+              >
+                Apenas Dar Baixa
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalPagarOpen(false)}
+                className="w-full rounded-xl px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

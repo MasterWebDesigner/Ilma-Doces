@@ -52,6 +52,7 @@ describe("montarCobrancaVencimento", () => {
     valor: 45.5,
     itens,
     chavePix: "chave@ilmadoces.com.br",
+    whatsappLoja: "11930657871",
   });
 
   it("monta a mensagem no dia do vencimento", () => {
@@ -61,6 +62,13 @@ describe("montarCobrancaVencimento", () => {
     expect(msg).toContain("Hoje é a data combinada para o pagamento!");
     expect(msg).toContain("Segue a nossa chave PIX: chave@ilmadoces.com.br.");
     expect(msg).toContain("Qualquer dúvida estou por aqui, muito obrigada!");
+  });
+
+  it("finaliza com o rodape automatico de cobranca", () => {
+    expect(msg).toContain(
+      "---\n🤖 Esta é uma mensagem automática de cobrança, favor não responder a este envio.\n📞 Em caso de dúvidas, entre em contato diretamente com a Ilma Doces pelo telefone: 11930657871."
+    );
+    expect(msg.endsWith("telefone: 11930657871.")).toBe(true);
   });
 
   it("formata o valor com virgula e dois decimais", () => {
@@ -83,6 +91,7 @@ describe("montarCobrancaAtraso", () => {
     valor: 90,
     itens,
     chavePix: "pix-da-loja",
+    whatsappLoja: "11930657871",
   };
 
   it("informa os dias em atraso (plural)", () => {
@@ -92,7 +101,15 @@ describe("montarCobrancaAtraso", () => {
     expect(msg).toContain("🛒 Itens: 1x Bolo de festa, 3x Gelinho");
     expect(msg).toContain("💰 Valor: R$ 90,00");
     expect(msg).toContain("Segue a chave PIX para quitação: pix-da-loja.");
-    expect(msg).toContain("Se precisar renegociar a data, é só me avisar!");
+    expect(msg).not.toContain("renegociar");
+  });
+
+  it("finaliza com o rodape automatico de cobranca", () => {
+    const msg = montarCobrancaAtraso({ ...base, diasAtraso: 2 });
+    expect(msg).toContain(
+      "---\n🤖 Esta é uma mensagem automática de cobrança, favor não responder a este envio.\n📞 Em caso de dúvidas, entre em contato diretamente com a Ilma Doces pelo telefone: 11930657871."
+    );
+    expect(msg.endsWith("telefone: 11930657871.")).toBe(true);
   });
 
   it("usa o singular quando ha apenas 1 dia", () => {
@@ -119,6 +136,12 @@ describe("montarAgradecimentoPagamento", () => {
       descricaoFallback: "2x Suco",
     });
     expect(msg).toContain("pedido (2x Suco)");
+  });
+
+  it("nao recebe o rodape automatico de cobranca", () => {
+    const msg = montarAgradecimentoPagamento({ nome: "Ana", valor: 10, itens });
+    expect(msg).not.toContain("mensagem automática de cobrança");
+    expect(msg).not.toContain("---");
   });
 });
 

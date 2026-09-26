@@ -179,6 +179,15 @@ interface CobrancaDados {
   itens?: CompraItem[];
   descricaoFallback?: string;
   chavePix?: string;
+  whatsappLoja?: string;
+}
+
+function rodapeCobranca(whatsappLoja?: string): string[] {
+  return [
+    "---",
+    "🤖 Esta é uma mensagem automática de cobrança, favor não responder a este envio.",
+    `📞 Em caso de dúvidas, entre em contato diretamente com a Ilma Doces pelo telefone: ${whatsappLoja || ""}.`,
+  ];
 }
 
 export function montarCobrancaVencimento(d: CobrancaDados): string {
@@ -187,6 +196,7 @@ export function montarCobrancaVencimento(d: CobrancaDados): string {
     `🛒 Itens: ${listaItensCobranca(d.itens, d.descricaoFallback)}`,
     `💰 Valor: ${formatarValorBR(d.valor)}`,
     `Hoje é a data combinada para o pagamento! Segue a nossa chave PIX: ${d.chavePix || ""}. Qualquer dúvida estou por aqui, muito obrigada!`,
+    ...rodapeCobranca(d.whatsappLoja),
   ].join("\n");
 }
 
@@ -197,7 +207,8 @@ export function montarCobrancaAtraso(d: CobrancaDados & { diasAtraso: number }):
     `🛒 Itens: ${listaItensCobranca(d.itens, d.descricaoFallback)}`,
     `💰 Valor: ${formatarValorBR(d.valor)}`,
     `📅 Data combinada: ${formatDateBR(d.dataPrometida || d.dataCompra)} (${d.diasAtraso} ${rotulo} em atraso)`,
-    `Consegue dar uma olhadinha para a gente? Segue a chave PIX para quitação: ${d.chavePix || ""}. Se precisar renegociar a data, é só me avisar!`,
+    `Consegue dar uma olhadinha para a gente? Segue a chave PIX para quitação: ${d.chavePix || ""}.`,
+    ...rodapeCobranca(d.whatsappLoja),
   ].join("\n");
 }
 
