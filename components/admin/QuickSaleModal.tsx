@@ -256,7 +256,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
         }));
         const descricaoItens = itensCompra.map((i) => `${i.quantidade}x ${i.descricao}`).join(", ");
 
-        converterPedidoParaFiado({
+        await converterPedidoParaFiado({
           clienteId: cust.id,
           nomeCliente: cust.name,
           whatsappCliente: cust.phone,

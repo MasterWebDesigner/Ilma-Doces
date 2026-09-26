@@ -688,40 +688,48 @@ export default function AdminPedidos() {
 }
 
 function RegistrarSinalModal({ order, onClose }: { order: Order; onClose: () => void }) {
-  const { updateOrder } = useOrderStore();
-  const { addTransaction } = useFinanceiroStore();
+  const { updateOrderComTransacao } = useOrderStore();
   const [valorSinal, setValorSinal] = useState(Math.round((order.total / 2) * 100) / 100);
   const [formaPagamentoSinal, setFormaPagamentoSinal] = useState<PaymentMethod>("pix");
+  const [salvando, setSalvando] = useState(false);
 
-  function handleSalvarSinal() {
-    updateOrder(order.id, {
-      status: "em_producao",
-      valorPagoSinal: valorSinal,
-      formaPagamentoSinal,
-    });
+  async function handleSalvarSinal() {
+    setSalvando(true);
+    try {
+      const ok = await updateOrderComTransacao(
+        order.id,
+        {
+          status: "em_producao",
+          valorPagoSinal: valorSinal,
+          formaPagamentoSinal,
+        },
+        valorSinal > 0
+          ? {
+              tipo: 'RECEITA',
+              categoria: 'Sinal de Encomenda',
+              valor: valorSinal,
+              formaPagamento: paymentLabelOf(formaPagamentoSinal),
+              descricao: `Sinal de Produção (Pedido #${order.orderNumber || order.id.slice(-6)}) — ${order.customerName}`,
+              data: getLocalDateStr(),
+            }
+          : null
+      );
+      if (!ok) return;
 
-    if (valorSinal > 0) {
-      addTransaction({
-        tipo: 'RECEITA',
-        categoria: 'Sinal de Encomenda',
-        valor: valorSinal,
-        formaPagamento: paymentLabelOf(formaPagamentoSinal),
-        descricao: `Sinal de Produção (Pedido #${order.orderNumber || order.id.slice(-6)}) — ${order.customerName}`,
-        data: getLocalDateStr(),
+      confirmOrderWhatsApp({
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        deliveryType: order.deliveryType,
+        scheduledDate: order.scheduledDate,
+        scheduledTime: order.scheduledTime,
+        items: order.items,
+        total: order.total,
       });
+
+      onClose();
+    } finally {
+      setSalvando(false);
     }
-
-    confirmOrderWhatsApp({
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      deliveryType: order.deliveryType,
-      scheduledDate: order.scheduledDate,
-      scheduledTime: order.scheduledTime,
-      items: order.items,
-      total: order.total,
-    });
-
-    onClose();
   }
 
   return (
@@ -774,8 +782,8 @@ function RegistrarSinalModal({ order, onClose }: { order: Order; onClose: () => 
           <button onClick={onClose} className="rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800">
             Cancelar
           </button>
-          <button onClick={handleSalvarSinal} className="rounded-xl bg-wine-500 px-4 py-2 text-xs font-bold text-white hover:bg-wine-600">
-            Confirmar e Iniciar Produção
+          <button onClick={handleSalvarSinal} disabled={salvando} className="rounded-xl bg-wine-500 px-4 py-2 text-xs font-bold text-white hover:bg-wine-600 disabled:opacity-60 disabled:cursor-not-allowed">
+            {salvando ? "Processando..." : "Confirmar e Iniciar Produção"}
           </button>
         </div>
       </div>
@@ -1044,10 +1052,10 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
 }
 
 function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: () => void }) {
-  const { updateOrder } = useOrderStore();
+  const { updateOrder, updateOrderComTransacao } = useOrderStore();
   const { converterPedidoParaFiado } = useCredoresStore();
-  const { addTransaction } = useFinanceiroStore();
   const customerStore = useCustomerStore();
+  const [finalizando, setFinalizando] = useState(false);
 
   const [items, setItems] = useState(order.items.map(i => ({ ...i })));
   const [total, setTotal] = useState(order.total);
@@ -1089,80 +1097,100 @@ function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: () => v
     setTotal(newTotal);
   }
 
-  function handleFinalizar() {
+  async function handleFinalizar() {
     const isFiado = destino === "fiado";
     const fullyPaidBySinal = isFiado && saldoRestante <= 0;
 
-    if (fullyPaidBySinal) {
-      updateOrder(order.id, {
-        items,
-        total,
-        paymentMethod: (formaPagamento as any),
-        status: "concluido",
-        isFiado: false,
-        dataPagamento: dataEntrada,
-      });
-      onClose();
-      return;
-    }
-
-    updateOrder(order.id, {
-      items,
-      total,
-      paymentMethod: (formaPagamento as any),
-      status: isFiado ? "confirmado" : "concluido",
-      isFiado: isFiado || undefined,
-      ...(isFiado ? {} : { dataPagamento: dataEntrada }),
-    });
-
-    if (destino === "fiado") {
-      const cleanPhone = order.customerPhone.replace(/\D/g, "");
-      let existingCustomer = customerStore.getCustomerByPhone(cleanPhone) || customerStore.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
-
-      if (!existingCustomer) {
-        customerStore.upsertCustomer(order.customerName, order.customerPhone, undefined);
-        existingCustomer = customerStore.getCustomerByPhone(cleanPhone) || customerStore.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
-      }
-
-      if (!existingCustomer) {
-        alert("Não foi possível vincular o cliente. Verifique o cadastro.");
+    setFinalizando(true);
+    try {
+      if (fullyPaidBySinal) {
+        const ok = await updateOrder(order.id, {
+          items,
+          total,
+          paymentMethod: (formaPagamento as any),
+          status: "concluido",
+          isFiado: false,
+          dataPagamento: dataEntrada,
+        });
+        if (!ok) return;
+        onClose();
         return;
       }
 
-      const itensCompra: CompraItem[] = items.map(i => ({
-        descricao: i.product.name,
-        quantidade: i.quantity,
-        valorUnitario: i.product.price,
-      }));
-      const descricaoItens = itensCompra.map(i => `${i.quantidade}x ${i.descricao}`).join(", ");
-
-      converterPedidoParaFiado({
-        clienteId: existingCustomer.id,
-        nomeCliente: order.customerName,
-        whatsappCliente: order.customerPhone,
-        pedidoId: order.id,
-        origem: "pedido",
-        descricaoItens,
-        valorTotal: total,
-        dataPedido: dataEntrada,
-        dataPrometida: dataVencimento,
-        itens: itensCompra,
-        sinal: sinalJaPago > 0 ? { valor: sinalJaPago, formaPagamento: order.formaPagamentoSinal || "pix" } : undefined,
-      });
-    } else {
-      if (saldoRestante > 0) {
-        addTransaction({
-          tipo: 'RECEITA',
-          categoria: 'Vendas / Pedidos',
-          valor: saldoRestante,
-          formaPagamento: paymentLabelOf(formaPagamento),
-          descricao: sinalJaPago > 0 ? `Saldo Pedido #${order.orderNumber || order.id.slice(-6)} — ${order.customerName}` : `Pedido #${order.orderNumber || order.id.slice(-6)} — ${order.customerName}`,
-          data: dataEntrada,
+      if (destino === "fiado") {
+        const ok = await updateOrder(order.id, {
+          items,
+          total,
+          paymentMethod: (formaPagamento as any),
+          status: "confirmado",
+          isFiado: true,
         });
-      }
-    }
+        if (!ok) return;
 
-    onClose();
+        const cleanPhone = order.customerPhone.replace(/\D/g, "");
+        let existingCustomer = customerStore.getCustomerByPhone(cleanPhone) || customerStore.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
+
+        if (!existingCustomer) {
+          customerStore.upsertCustomer(order.customerName, order.customerPhone, undefined);
+          existingCustomer = customerStore.getCustomerByPhone(cleanPhone) || customerStore.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
+        }
+
+        if (!existingCustomer) {
+          alert("Não foi possível vincular o cliente. Verifique o cadastro.");
+          return;
+        }
+
+        const itensCompra: CompraItem[] = items.map(i => ({
+          descricao: i.product.name,
+          quantidade: i.quantity,
+          valorUnitario: i.product.price,
+        }));
+        const descricaoItens = itensCompra.map(i => `${i.quantidade}x ${i.descricao}`).join(", ");
+
+        await converterPedidoParaFiado({
+          clienteId: existingCustomer.id,
+          nomeCliente: order.customerName,
+          whatsappCliente: order.customerPhone,
+          pedidoId: order.id,
+          origem: "pedido",
+          descricaoItens,
+          valorTotal: total,
+          dataPedido: dataEntrada,
+          dataPrometida: dataVencimento,
+          itens: itensCompra,
+          sinal: sinalJaPago > 0 ? { valor: sinalJaPago, formaPagamento: order.formaPagamentoSinal || "pix" } : undefined,
+        });
+      } else {
+        const transacao = saldoRestante > 0
+          ? {
+              tipo: 'RECEITA' as const,
+              categoria: 'Vendas / Pedidos',
+              valor: saldoRestante,
+              formaPagamento: paymentLabelOf(formaPagamento),
+              descricao: sinalJaPago > 0 ? `Saldo Pedido #${order.orderNumber || order.id.slice(-6)} — ${order.customerName}` : `Pedido #${order.orderNumber || order.id.slice(-6)} — ${order.customerName}`,
+              data: dataEntrada,
+            }
+          : null;
+        const ok = await updateOrderComTransacao(
+          order.id,
+          {
+            items,
+            total,
+            paymentMethod: (formaPagamento as any),
+            status: "concluido",
+            dataPagamento: dataEntrada,
+          },
+          transacao
+        );
+        if (!ok) return;
+      }
+
+      onClose();
+    } catch (err: any) {
+      alert(err.message || "Erro ao finalizar o pedido.");
+    } finally {
+      setFinalizando(false);
+    }
   }
 
   return (
@@ -1342,8 +1370,8 @@ function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: () => v
           <button onClick={onClose} className="rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800">
             Cancelar
           </button>
-          <button onClick={handleFinalizar} className="rounded-xl bg-wine-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-wine-600">
-            Confirmar e Finalizar
+          <button onClick={handleFinalizar} disabled={finalizando} className="rounded-xl bg-wine-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-wine-600 disabled:opacity-60 disabled:cursor-not-allowed">
+            {finalizando ? "Processando..." : "Confirmar e Finalizar"}
           </button>
         </div>
       </div>

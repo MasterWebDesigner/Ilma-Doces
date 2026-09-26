@@ -1,22 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useFinanceiroStore } from './financeiroStore';
+import { useFinanceiroStore, montarTransacao } from './financeiroStore';
 import { getLocalDateStr, paymentLabelOf } from './utils';
 import { db } from './firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import type { Credor, CompraCredor, CompraItem, BaixaCompra, PagamentoCredor } from '@/types/database';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { notifyError } from './notifications';
+import { divergenciaDeReversaoCredor, type OpcoesReversao } from './antiRollback';
+import type { Credor, CompraCredor, CompraItem, BaixaCompra, PagamentoCredor, FinancialTransaction } from '@/types/database';
+
+type CredorRemoto = Omit<Credor, "id">;
 
 if (typeof window !== "undefined") {
   onSnapshot(collection(db, "credores"), (snapshot) => {
     const credores = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Credor));
     useCredoresStore.setState({ credores });
   });
-}
-
-function syncCredor(credor: Credor) {
-  if (credor && credor.id) {
-    setDoc(doc(db, "credores", credor.id), credor);
-  }
 }
 
 function agoraLocalISO(): string {
@@ -41,309 +39,394 @@ function recalcularCompra(compra: CompraCredor): CompraCredor {
   };
 }
 
+function erroAmigavel(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
+
+function encontrarCredor(credores: Credor[], credorId: string, compraId?: string): Credor | undefined {
+  return credores.find(
+    (c) =>
+      c.id === credorId ||
+      (!!compraId && (c.compras || []).some((comp) => comp.id === compraId)) ||
+      (c.compras || []).some((comp) => comp.id === credorId)
+  );
+}
+
+function numeroPedidoPorId(pedidoId: string): string {
+  if (pedidoId) {
+    try {
+      const cached = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("ilma-orders") || "{}")?.state?.orders : [];
+      const ord = (cached || []).find((o: any) => o.id === pedidoId);
+      if (ord && ord.orderNumber) {
+        return `#${ord.orderNumber}`;
+      }
+    } catch (e) {}
+  }
+  return pedidoId ? `#${pedidoId.slice(-6)}` : "";
+}
+
+function observacaoDaBaixa(compra: CompraCredor): string {
+  const refOrderNum = compra.referenciaId ? numeroPedidoPorId(compra.referenciaId) : "";
+  return refOrderNum ? `Baixa na compra ${refOrderNum}` : `Baixa na compra #${compra.id.slice(0, 6)}`;
+}
+
+async function aplicarEdicaoCredor(
+  alvo: Credor,
+  transformar: (base: Credor) => Credor,
+  opcoes?: OpcoesReversao
+): Promise<Credor> {
+  const ref = doc(db, "credores", alvo.id);
+  const snap = await getDoc(ref);
+  const remoto = snap.exists() ? ({ id: snap.id, ...(snap.data() as CredorRemoto) } as Credor) : null;
+  const base = remoto ?? alvo;
+  const atualizado = transformar(base);
+  if (remoto && !opcoes?.permitirReverter && divergenciaDeReversaoCredor(remoto, atualizado)) {
+    throw new Error("Este registro já está liquidado e não pode ser revertido por esta ação. Use a opção de reabrir/estornar.");
+  }
+  await setDoc(ref, atualizado);
+  return atualizado;
+}
+
 interface CredoresState {
   credores: Credor[];
-  adicionarCredor: (credor: Omit<Credor, 'id' | 'compras' | 'pagamentos'>) => string;
-  editarCredor: (id: string, dados: Partial<Omit<Credor, 'id' | 'compras' | 'pagamentos'>>) => void;
-  removerCredor: (id: string) => void;
-  adicionarCompra: (credorId: string, compra: Omit<CompraCredor, 'id' | 'pago'>) => void;
-  editarCompra: (credorId: string, compraId: string, dados: Partial<CompraCredor>) => void;
-  removerCompra: (credorId: string, compraId: string) => void;
-  registrarLembrete: (credorId: string, compraId: string) => void;
-  registrarBaixaCompra: (credorId: string, compraId: string, valorPago: number, formaPagamento: string, dataBaixa: string) => void;
-  removerPagamento: (credorId: string, pagamentoId: string) => void;
-    converterPedidoParaFiado: (dados: {
-      clienteId: string;
-      nomeCliente: string;
-      whatsappCliente: string;
-      pedidoId: string;
-      origem: 'pedido' | 'agendamento' | 'manual';
-      descricaoItens: string;
-      valorTotal: number;
-      dataPedido?: string;
-      dataPrometida?: string;
-      frequenciaLembrete?: CompraCredor["frequenciaLembrete"];
-      itens?: CompraItem[];
-      sinal?: {
-        valor: number;
-        formaPagamento: string;
-      };
-    }) => void;
-  alternarStatusPagamento: (credorId: string, compraId: string) => void;
+  adicionarCredor: (credor: Omit<Credor, 'id' | 'compras' | 'pagamentos'>) => Promise<string>;
+  editarCredor: (id: string, dados: Partial<Omit<Credor, 'id' | 'compras' | 'pagamentos'>>) => Promise<void>;
+  removerCredor: (id: string) => Promise<void>;
+  adicionarCompra: (credorId: string, compra: Omit<CompraCredor, 'id' | 'pago'>) => Promise<void>;
+  editarCompra: (credorId: string, compraId: string, dados: Partial<CompraCredor>, opcoes?: OpcoesReversao) => Promise<void>;
+  removerCompra: (credorId: string, compraId: string, opcoes?: OpcoesReversao) => Promise<void>;
+  registrarLembrete: (credorId: string, compraId: string) => Promise<void>;
+  registrarBaixaCompra: (credorId: string, compraId: string, valorPago: number, formaPagamento: string, dataBaixa: string) => Promise<void>;
+  registrarBaixaMultipla: (credorId: string, itens: { compraId: string; valorPago: number }[], formaPagamento: string, dataBaixa: string) => Promise<void>;
+  removerPagamento: (credorId: string, pagamentoId: string) => Promise<void>;
+  converterPedidoParaFiado: (dados: {
+    clienteId: string;
+    nomeCliente: string;
+    whatsappCliente: string;
+    pedidoId: string;
+    origem: 'pedido' | 'agendamento' | 'manual';
+    descricaoItens: string;
+    valorTotal: number;
+    dataPedido?: string;
+    dataPrometida?: string;
+    frequenciaLembrete?: CompraCredor["frequenciaLembrete"];
+    itens?: CompraItem[];
+    sinal?: {
+      valor: number;
+      formaPagamento: string;
+    };
+  }) => Promise<void>;
+  alternarStatusPagamento: (credorId: string, compraId: string, acaoReabrir?: boolean) => Promise<void>;
 }
 
 export const useCredoresStore = create<CredoresState>()(
   persist(
-    (set, get) => ({
-      credores: [],
-
-      adicionarCredor: (dados) => {
-        const state = get();
-        const foneNovo = dados.whatsapp ? dados.whatsapp.replace(/\D/g, '') : '';
-        const existente = state.credores.find((c) => {
-          const foneExistente = c.whatsapp ? c.whatsapp.replace(/\D/g, '') : '';
-          return (foneNovo && foneExistente && foneNovo === foneExistente) || (c.clienteId && dados.clienteId && c.clienteId === dados.clienteId);
-        });
-        if (existente) {
-          if (dados.nome && dados.nome.trim()) {
-            existente.nome = dados.nome.trim();
-          }
-          if (dados.whatsapp && dados.whatsapp.trim()) {
-            existente.whatsapp = dados.whatsapp.trim();
-          }
-          syncCredor(existente);
-          return existente.id;
-        }
-
-        const id = crypto.randomUUID();
-        const novoCredor: Credor = { ...dados, nome: dados.nome.trim(), whatsapp: foneNovo, id, compras: [], pagamentos: [] };
-        syncCredor(novoCredor);
+    (set, get) => {
+      const aplicarLocal = (credor: Credor) =>
         set((state) => ({
-          credores: [...state.credores, novoCredor],
+          credores: state.credores.some((c) => c.id === credor.id)
+            ? state.credores.map((c) => (c.id === credor.id ? credor : c))
+            : [...state.credores, credor],
         }));
-        return id;
-      },
 
-      editarCredor: (id, dados) =>
-        set((state) => {
-          const credores = state.credores.map((c) => {
-            if (c.id === id) {
-              const updated = { ...c, ...dados };
-              syncCredor(updated);
-              return updated;
-            }
-            return c;
+      return {
+        credores: [],
+
+        adicionarCredor: async (dados) => {
+          const state = get();
+          const foneNovo = dados.whatsapp ? dados.whatsapp.replace(/\D/g, '') : '';
+          const existente = state.credores.find((c) => {
+            const foneExistente = c.whatsapp ? c.whatsapp.replace(/\D/g, '') : '';
+            return (foneNovo && foneExistente && foneNovo === foneExistente) || (c.clienteId && dados.clienteId && c.clienteId === dados.clienteId);
           });
-          return { credores };
-        }),
+          if (existente) {
+            try {
+              const atualizado = await aplicarEdicaoCredor(existente, (base) => ({
+                ...base,
+                nome: dados.nome && dados.nome.trim() ? dados.nome.trim() : base.nome,
+                whatsapp: dados.whatsapp && dados.whatsapp.trim() ? dados.whatsapp.trim() : base.whatsapp,
+              }));
+              aplicarLocal(atualizado);
+              return atualizado.id;
+            } catch (err) {
+              notifyError("Erro", erroAmigavel(err, "Não foi possível salvar o credor."));
+              throw err;
+            }
+          }
 
-      removerCredor: (id) => {
-        if (id) {
-          deleteDoc(doc(db, "credores", id));
-        }
-        set((state) => ({
-          credores: state.credores.filter((c) => c.id !== id),
-        }));
-      },
+          const id = crypto.randomUUID();
+          const novoCredor: Credor = { ...dados, nome: dados.nome.trim(), whatsapp: foneNovo, id, compras: [], pagamentos: [] };
+          try {
+            await aplicarEdicaoCredor(novoCredor, () => novoCredor);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível salvar o credor."));
+            throw err;
+          }
+          aplicarLocal(novoCredor);
+          return id;
+        },
 
-      adicionarCompra: (credorId, compra) =>
-        set((state) => ({
-          credores: state.credores.map((c) => {
-            const match = c.id === credorId || (c.compras || []).some(comp => comp.id === credorId);
-            if (!match) return c;
-            const novaCompra: CompraCredor = {
-              ...compra,
-              id: crypto.randomUUID(),
-              valorPendente: compra.valor,
-              status: 'PENDENTE',
-              pago: false,
-              baixas: [],
-              frequenciaLembrete: compra.frequenciaLembrete || 'vencimento',
-              ultimoLembreteEm: compra.ultimoLembreteEm ?? null,
-              dataPrometida: compra.dataPrometida || (() => {
-                const d = new Date();
-                d.setDate(d.getDate() + 7);
-                return getLocalDateStr(d);
-              })(),
-            };
-            const atualizada = recalcularCompra(novaCompra);
-            const updated = {
-              ...c,
-              compras: [...(c.compras || []), atualizada],
-            };
-            syncCredor(updated);
-            return updated;
-          }),
-        })),
+        editarCredor: async (id, dados) => {
+          try {
+            const alvo = encontrarCredor(get().credores, id);
+            if (!alvo) return;
+            const atualizado = await aplicarEdicaoCredor(alvo, (base) => ({ ...base, ...dados }));
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível salvar as alterações."));
+          }
+        },
 
-      editarCompra: (credorId, compraId, dados) =>
-        set((state) => ({
-          credores: state.credores.map((c) => {
-            const hasCompra = c.id === credorId || (c.compras || []).some((comp) => comp.id === compraId);
-            if (!hasCompra) return c;
-            const novasCompras = (c.compras || []).map((compra) =>
-              compra.id === compraId ? recalcularCompra({ ...compra, ...dados }) : compra
+        removerCredor: async (id) => {
+          if (!id) return;
+          try {
+            await deleteDoc(doc(db, "credores", id));
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível remover o credor."));
+            return;
+          }
+          set((state) => ({ credores: state.credores.filter((c) => c.id !== id) }));
+        },
+
+        adicionarCompra: async (credorId, compra) => {
+          const alvo = encontrarCredor(get().credores, credorId);
+          if (!alvo) {
+            throw new Error("Credor não encontrado.");
+          }
+          try {
+            const atualizado = await aplicarEdicaoCredor(alvo, (base) => {
+              const novaCompra: CompraCredor = {
+                ...compra,
+                id: crypto.randomUUID(),
+                valorPendente: compra.valor,
+                status: 'PENDENTE',
+                pago: false,
+                baixas: [],
+                frequenciaLembrete: compra.frequenciaLembrete || 'vencimento',
+                ultimoLembreteEm: compra.ultimoLembreteEm ?? null,
+                dataPrometida: compra.dataPrometida || (() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 7);
+                  return getLocalDateStr(d);
+                })(),
+              };
+              return {
+                ...base,
+                compras: [...(base.compras || []), recalcularCompra(novaCompra)],
+              };
+            });
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível adicionar a compra."));
+            throw err;
+          }
+        },
+
+        editarCompra: async (credorId, compraId, dados, opcoes) => {
+          try {
+            const alvo = encontrarCredor(get().credores, credorId, compraId);
+            if (!alvo) return;
+            const atualizado = await aplicarEdicaoCredor(
+              alvo,
+              (base) => ({
+                ...base,
+                compras: (base.compras || []).map((compra) =>
+                  compra.id === compraId ? recalcularCompra({ ...compra, ...dados }) : compra
+                ),
+              }),
+              opcoes
             );
-            const updated = {
-              ...c,
-              compras: novasCompras,
-            };
-            syncCredor(updated);
-            return updated;
-          }),
-        })),
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível salvar a compra."));
+          }
+        },
 
-      removerCompra: (credorId, compraId) =>
-        set((state) => ({
-          credores: state.credores.map((c) => {
-            const hasCompra = c.id === credorId || (c.compras || []).some((comp) => comp.id === compraId);
-            if (!hasCompra) return c;
-            const novasCompras = (c.compras || []).filter((compra) => compra.id !== compraId);
-            const updated = {
-              ...c,
-              compras: novasCompras,
-            };
-            syncCredor(updated);
-            return updated;
-          }),
-        })),
+        removerCompra: async (credorId, compraId, opcoes) => {
+          try {
+            const alvo = encontrarCredor(get().credores, credorId, compraId);
+            if (!alvo) return;
+            const atualizado = await aplicarEdicaoCredor(
+              alvo,
+              (base) => ({
+                ...base,
+                compras: (base.compras || []).filter((compra) => compra.id !== compraId),
+              }),
+              opcoes
+            );
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível remover a compra."));
+          }
+        },
 
-      registrarLembrete: (credorId, compraId) =>
-        set((state) => ({
-          credores: state.credores.map((c) => {
-            const hasCompra = c.id === credorId || (c.compras || []).some((comp) => comp.id === compraId);
-            if (!hasCompra) return c;
-            const updated = {
-              ...c,
-              compras: (c.compras || []).map((compra) =>
+        registrarLembrete: async (credorId, compraId) => {
+          try {
+            const alvo = encontrarCredor(get().credores, credorId, compraId);
+            if (!alvo) return;
+            const atualizado = await aplicarEdicaoCredor(alvo, (base) => ({
+              ...base,
+              compras: (base.compras || []).map((compra) =>
                 compra.id === compraId ? { ...compra, ultimoLembreteEm: agoraLocalISO() } : compra
               ),
-            };
-            syncCredor(updated);
-            return updated;
-          }),
-        })),
-
-      registrarBaixaCompra: (credorId, compraId, valorPago, formaPagamento, dataBaixa) => {
-        const dataBaixaStr = dataBaixa ? dataBaixa.slice(0, 10) : getLocalDateStr();
-        const state = get();
-        let targetCredor: Credor | undefined;
-        let targetCompra: CompraCredor | undefined;
-
-        for (const c of state.credores) {
-          if (c.id === credorId || (c.compras || []).some(comp => comp.id === compraId)) {
-            targetCredor = c;
-            targetCompra = (c.compras || []).find(comp => comp.id === compraId);
-            break;
+            }));
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível registrar o lembrete."));
           }
-        }
+        },
 
-        if (!targetCredor || !targetCompra) return;
+        registrarBaixaMultipla: async (credorId, itens, formaPagamento, dataBaixa) => {
+          if (!itens.length) {
+            throw new Error("Nenhuma compra selecionada para baixa.");
+          }
+          const dataBaixaStr = dataBaixa ? dataBaixa.slice(0, 10) : getLocalDateStr();
+          const alvo = encontrarCredor(get().credores, credorId, itens[0]?.compraId);
+          if (!alvo) {
+            throw new Error("Credor não encontrado.");
+          }
 
-        const valorPendenteAtual = targetCompra.valorPendente !== undefined ? targetCompra.valorPendente : targetCompra.valor;
-        if (valorPago > valorPendenteAtual + 0.01) {
-          throw new Error(`O valor pago (R$ ${valorPago.toFixed(2)}) não pode ser maior que o saldo pendente (R$ ${valorPendenteAtual.toFixed(2)})!`);
-        }
+          const resultado = await runTransaction(db, async (t) => {
+            const ref = doc(db, "credores", alvo.id);
+            const snap = await t.get(ref);
+            const remoto = snap.exists() ? ({ id: alvo.id, ...(snap.data() as CredorRemoto) } as Credor) : alvo;
+            const nomeCredor = remoto.nome;
+            const categoria = paymentLabelOf(formaPagamento);
 
-        const nomeCredor = targetCredor.nome;
-        const pagamentoCategoria = paymentLabelOf(formaPagamento);
+            const comprasBase = new Map((remoto.compras || []).map((compra) => [compra.id, compra]));
+            const comprasAtualizadas = new Map<string, CompraCredor>();
+            const novosPagamentos: PagamentoCredor[] = [];
+            const novasTransacoes: FinancialTransaction[] = [];
+            const pedidoUpdates = new Map<string, Record<string, unknown>>();
 
-        let refOrderNum = "";
-        if (targetCompra.referenciaId) {
-          try {
-            const cached = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("ilma-orders") || "{}")?.state?.orders : [];
-            const ord = (cached || []).find((o: any) => o.id === targetCompra.referenciaId);
-            if (ord && ord.orderNumber) {
-              refOrderNum = `#${ord.orderNumber}`;
-            }
-          } catch (e) {}
-        }
-        if (!refOrderNum && targetCompra.referenciaId) {
-          refOrderNum = `#${targetCompra.referenciaId.slice(-6)}`;
-        }
-        const obsBaixa = refOrderNum ? `Baixa na compra ${refOrderNum}` : `Baixa na compra #${compraId.slice(0, 6)}`;
-
-        const finId = useFinanceiroStore.getState().addTransaction({
-          tipo: 'RECEITA',
-          categoria: pagamentoCategoria,
-          valor: valorPago,
-          formaPagamento: paymentLabelOf(formaPagamento),
-          descricao: `Baixa Credor (${paymentLabelOf(formaPagamento)}) — ${nomeCredor}`,
-          data: dataBaixaStr,
-        });
-
-        const baixaId = crypto.randomUUID();
-        const pagamentoId = crypto.randomUUID();
-
-        const novaBaixa: BaixaCompra = {
-          id: baixaId,
-          valorPago,
-          dataBaixa: dataBaixaStr,
-          formaPagamento,
-          observacao: obsBaixa,
-          transacaoFinanceiraId: finId,
-          pagamentoCredorId: pagamentoId,
-        };
-
-        const novoPagamento: PagamentoCredor = {
-          id: pagamentoId,
-          valor: valorPago,
-          data: dataBaixaStr,
-          metodo: formaPagamento,
-          observacao: obsBaixa,
-          transacaoFinanceiraId: finId,
-          baixaId,
-        };
-
-        set((state) => {
-          const novosCredores = state.credores.map((credor) => {
-            const hasThisCompra = credor.id === credorId || (credor.compras || []).some(comp => comp.id === compraId);
-            if (!hasThisCompra) return credor;
-
-            const comprasAtualizadas = (credor.compras || []).map((compra) => {
-              if (compra.id === compraId) {
-                const compraComNovaBaixa = {
-                  ...compra,
-                  baixas: [...(compra.baixas || []), novaBaixa],
-                };
-                const recalculada = recalcularCompra(compraComNovaBaixa);
-
-                if (compra.referenciaId) {
-                  try {
-                    const pedidoUpdate: Record<string, unknown> = { status: "concluido" };
-                    if (recalculada.pago) {
-                      pedidoUpdate.dataPagamento = dataBaixaStr;
-                    }
-                    updateDoc(doc(db, "pedidos", compra.referenciaId), pedidoUpdate);
-                  } catch (e) {}
-                }
-
-                return recalculada;
+            for (const item of itens) {
+              const compra = comprasAtualizadas.get(item.compraId) ?? comprasBase.get(item.compraId);
+              if (!compra) throw new Error("Compra não encontrada no credor.");
+              if (compra.status === "CANCELADO") throw new Error(`A compra "${compra.descricao}" está cancelada.`);
+              if (compra.pago || compra.status === "QUITADO") throw new Error(`A compra "${compra.descricao}" já está quitada.`);
+              const pendente = compra.valorPendente !== undefined ? compra.valorPendente : compra.valor;
+              if (item.valorPago > pendente + 0.01) {
+                throw new Error(`O valor pago (R$ ${item.valorPago.toFixed(2)}) não pode ser maior que o saldo pendente (R$ ${pendente.toFixed(2)})!`);
               }
-              return compra;
-            });
 
-            const updatedCredor = {
-              ...credor,
-              compras: comprasAtualizadas,
-              pagamentos: [novoPagamento, ...(credor.pagamentos || [])],
-            };
-            syncCredor(updatedCredor);
-            return updatedCredor;
-          });
-          return { credores: novosCredores };
-        });
-      },
+              const pagamentoId = crypto.randomUUID();
+              const baixaId = crypto.randomUUID();
+              const finTx = montarTransacao({
+                tipo: 'RECEITA',
+                categoria,
+                valor: item.valorPago,
+                formaPagamento: categoria,
+                descricao: `Baixa Credor (${categoria}) — ${nomeCredor}`,
+                data: dataBaixaStr,
+              });
+              const obsBaixa = observacaoDaBaixa(compra);
 
-      removerPagamento: (credorId, pagamentoId) => {
-        set((state) => {
-          const novosCredores = state.credores.map((credor) => {
-            const hasPagamento = credor.id === credorId || (credor.pagamentos || []).some((p) => p.id === pagamentoId);
-            if (!hasPagamento) return credor;
+              const novaBaixa: BaixaCompra = {
+                id: baixaId,
+                valorPago: item.valorPago,
+                dataBaixa: dataBaixaStr,
+                formaPagamento,
+                observacao: obsBaixa,
+                transacaoFinanceiraId: finTx.id,
+                pagamentoCredorId: pagamentoId,
+              };
+              const novoPagamento: PagamentoCredor = {
+                id: pagamentoId,
+                valor: item.valorPago,
+                data: dataBaixaStr,
+                metodo: formaPagamento,
+                observacao: obsBaixa,
+                transacaoFinanceiraId: finTx.id,
+                baixaId,
+              };
 
-            const pagamentoAlvo = (credor.pagamentos || []).find((p) => p.id === pagamentoId);
-            const novosPagamentos = (credor.pagamentos || []).filter((p) => p.id !== pagamentoId);
+              const recalculada = recalcularCompra({
+                ...compra,
+                baixas: [...(compra.baixas || []), novaBaixa],
+              });
+              comprasAtualizadas.set(item.compraId, recalculada);
+              novosPagamentos.push(novoPagamento);
+              novasTransacoes.push(finTx);
 
-            if (pagamentoAlvo?.transacaoFinanceiraId) {
-              try {
-                useFinanceiroStore.getState().deleteTransaction(pagamentoAlvo.transacaoFinanceiraId);
-              } catch (e) {}
+              if (recalculada.referenciaId) {
+                const pedidoUpdate: Record<string, unknown> = { status: "concluido" };
+                if (recalculada.pago) pedidoUpdate.dataPagamento = dataBaixaStr;
+                pedidoUpdates.set(recalculada.referenciaId, {
+                  ...(pedidoUpdates.get(recalculada.referenciaId) || {}),
+                  ...pedidoUpdate,
+                });
+              }
             }
 
-            const comprasAtualizadas = (credor.compras || []).map((compra) => {
+            const pedidosExistentes = new Map<string, boolean>();
+            for (const pedidoId of pedidoUpdates.keys()) {
+              const ps = await t.get(doc(db, "pedidos", pedidoId));
+              pedidosExistentes.set(pedidoId, ps.exists());
+            }
+
+            const credorAtualizado: Credor = {
+              ...remoto,
+              compras: (remoto.compras || []).map((compra) => comprasAtualizadas.get(compra.id) ?? compra),
+              pagamentos: [...novosPagamentos, ...(remoto.pagamentos || [])],
+            };
+
+            t.set(ref, credorAtualizado);
+            for (const finTx of novasTransacoes) {
+              t.set(doc(db, "financeiro", finTx.id), finTx);
+            }
+            for (const [pedidoId, pedidoUpdate] of pedidoUpdates) {
+              if (pedidosExistentes.get(pedidoId)) {
+                t.set(doc(db, "pedidos", pedidoId), pedidoUpdate, { merge: true });
+              }
+            }
+
+            return { credorAtualizado, novasTransacoes };
+          });
+
+          aplicarLocal(resultado.credorAtualizado);
+          resultado.novasTransacoes.forEach((finTx) => useFinanceiroStore.getState().incluirTransacaoLocal(finTx));
+        },
+
+        registrarBaixaCompra: async (credorId, compraId, valorPago, formaPagamento, dataBaixa) => {
+          await get().registrarBaixaMultipla(credorId, [{ compraId, valorPago }], formaPagamento, dataBaixa);
+        },
+
+        removerPagamento: async (credorId, pagamentoId) => {
+          const state = get();
+          const alvo = state.credores.find(
+            (c) => c.id === credorId || (c.pagamentos || []).some((p) => p.id === pagamentoId)
+          );
+          if (!alvo) {
+            throw new Error("Pagamento não encontrado.");
+          }
+
+          const resultado = await runTransaction(db, async (t) => {
+            const ref = doc(db, "credores", alvo.id);
+            const snap = await t.get(ref);
+            const remoto = snap.exists() ? ({ id: alvo.id, ...(snap.data() as CredorRemoto) } as Credor) : alvo;
+
+            const pagamentoAlvo = (remoto.pagamentos || []).find((p) => p.id === pagamentoId);
+            if (!pagamentoAlvo) {
+              throw new Error("Pagamento não encontrado no servidor.");
+            }
+
+            const novosPagamentos = (remoto.pagamentos || []).filter((p) => p.id !== pagamentoId);
+
+            const comprasAtualizadas = (remoto.compras || []).map((compra) => {
               const temBaixaCorrespondente = (compra.baixas || []).some((b) => {
-                if (pagamentoAlvo?.baixaId && b.id === pagamentoAlvo.baixaId) return true;
-                if (pagamentoAlvo?.pagamentoCredorId && b.pagamentoCredorId === pagamentoAlvo.pagamentoCredorId) return true;
-                if (pagamentoAlvo && b.valorPago === pagamentoAlvo.valor) return true;
+                if (pagamentoAlvo.baixaId && b.id === pagamentoAlvo.baixaId) return true;
+                if (pagamentoAlvo.pagamentoCredorId && b.pagamentoCredorId === pagamentoAlvo.pagamentoCredorId) return true;
+                if (b.valorPago === pagamentoAlvo.valor) return true;
                 return false;
               });
 
               if (!temBaixaCorrespondente) return compra;
 
               const novasBaixas = (compra.baixas || []).filter((b) => {
-                if (pagamentoAlvo?.baixaId && b.id === pagamentoAlvo.baixaId) return false;
-                if (pagamentoAlvo?.pagamentoCredorId && b.pagamentoCredorId === pagamentoAlvo.pagamentoCredorId) return false;
-                if (pagamentoAlvo && b.valorPago === pagamentoAlvo.valor) return false;
+                if (pagamentoAlvo.baixaId && b.id === pagamentoAlvo.baixaId) return false;
+                if (pagamentoAlvo.pagamentoCredorId && b.pagamentoCredorId === pagamentoAlvo.pagamentoCredorId) return false;
+                if (b.valorPago === pagamentoAlvo.valor) return false;
                 return true;
               });
 
@@ -353,132 +436,137 @@ export const useCredoresStore = create<CredoresState>()(
               });
             });
 
-            const updated = {
-              ...credor,
+            const credorAtualizado: Credor = {
+              ...remoto,
               compras: comprasAtualizadas,
               pagamentos: novosPagamentos,
             };
-            syncCredor(updated);
-            return updated;
-          });
-          return { credores: novosCredores };
-        });
-      },
 
-      converterPedidoParaFiado: ({
-        clienteId,
-        nomeCliente,
-        whatsappCliente,
-        pedidoId,
-        origem,
-        descricaoItens,
-        valorTotal,
-        dataPedido,
-        dataPrometida,
-        frequenciaLembrete,
-        itens,
-        sinal,
-      }) => {
-        const state = get();
-        const foneNovo = whatsappCliente ? whatsappCliente.replace(/\D/g, '') : '';
-        const credor = state.credores.find((c) => {
-          const foneExist = c.whatsapp ? c.whatsapp.replace(/\D/g, '') : '';
-          return (foneNovo && foneExist && foneNovo === foneExist) || (c.clienteId && clienteId && c.clienteId === clienteId);
-        });
-        let credorId = credor?.id;
-
-        let orderNumStr = "";
-        if (pedidoId) {
-          try {
-            const cached = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("ilma-orders") || "{}")?.state?.orders : [];
-            const ord = (cached || []).find((o: any) => o.id === pedidoId);
-            if (ord && ord.orderNumber) {
-              orderNumStr = `#${ord.orderNumber}`;
+            t.set(ref, credorAtualizado);
+            if (pagamentoAlvo.transacaoFinanceiraId) {
+              t.delete(doc(db, "financeiro", pagamentoAlvo.transacaoFinanceiraId));
             }
-          } catch (e) {}
-        }
-        if (!orderNumStr && pedidoId) {
-          orderNumStr = `#${pedidoId.slice(-6)}`;
-        }
 
-        if (!credorId) {
-          credorId = state.adicionarCredor({
-            clienteId,
-            nome: nomeCliente,
-            whatsapp: whatsappCliente,
-            observacoes: `Criado automaticamente via ${origem} ${orderNumStr}`,
+            return { credorAtualizado, financeiroId: pagamentoAlvo.transacaoFinanceiraId };
           });
-        }
 
-        const dataBase = dataPedido ? dataPedido.slice(0, 10) : getLocalDateStr();
-        const dataPrometidaDefault = dataPrometida || (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + 7);
-          return getLocalDateStr(d);
-        })();
+          aplicarLocal(resultado.credorAtualizado);
+          if (resultado.financeiroId) {
+            useFinanceiroStore.getState().removerTransacaoLocal(resultado.financeiroId);
+          }
+        },
 
-        const valorSinal = sinal && sinal.valor > 0 ? sinal.valor : 0;
-
-        const baixas = valorSinal > 0 ? [{
-          id: crypto.randomUUID(),
-          valorPago: valorSinal,
-          dataBaixa: dataBase,
-          formaPagamento: sinal!.formaPagamento,
-          observacao: `Sinal / Pagamento Parcial: R$ ${valorSinal.toFixed(2).replace(".", ",")} (${sinal!.formaPagamento.toUpperCase()})`,
-        }] : [];
-
-        const novaCompraBruta: CompraCredor = {
-          id: crypto.randomUUID(),
+        converterPedidoParaFiado: async ({
+          clienteId,
+          nomeCliente,
+          whatsappCliente,
+          pedidoId,
           origem,
-          referenciaId: pedidoId,
-          descricao: orderNumStr ? `${descricaoItens} (${orderNumStr})` : descricaoItens,
-          itens: itens || [],
-          valor: valorTotal,
-          valorPendente: valorTotal,
-          status: 'PENDENTE',
-          pago: false,
-          baixas,
-          data: dataBase,
-          dataPrometida: dataPrometidaDefault,
-          frequenciaLembrete: frequenciaLembrete || 'vencimento',
-          ultimoLembreteEm: null,
-        };
-
-        const novaCompra = recalcularCompra(novaCompraBruta);
-
-        if (pedidoId) {
-          try {
-            const pedidoFiado: Record<string, unknown> = { status: "concluido", isFiado: true };
-            if (novaCompra.pago) {
-              pedidoFiado.dataPagamento = dataBase;
-            }
-            updateDoc(doc(db, "pedidos", pedidoId), pedidoFiado);
-          } catch (e) {}
-        }
-
-        set((state) => {
-          const credores = state.credores.map((c) => {
-            if (c.id !== credorId) return c;
-            const updated = {
-              ...c,
-              compras: [...(c.compras || []), novaCompra],
-            };
-            syncCredor(updated);
-            return updated;
+          descricaoItens,
+          valorTotal,
+          dataPedido,
+          dataPrometida,
+          frequenciaLembrete,
+          itens,
+          sinal,
+        }) => {
+          const state = get();
+          const foneNovo = whatsappCliente ? whatsappCliente.replace(/\D/g, '') : '';
+          const existente = state.credores.find((c) => {
+            const foneExist = c.whatsapp ? c.whatsapp.replace(/\D/g, '') : '';
+            return (foneNovo && foneExist && foneNovo === foneExist) || (c.clienteId && clienteId && c.clienteId === clienteId);
           });
-          return { credores };
-        });
-      },
 
-      alternarStatusPagamento: (credorId, compraId) =>
-        set((state) => ({
-          credores: state.credores.map((c) => {
-            const hasCompra = c.id === credorId || (c.compras || []).some((comp) => comp.id === compraId);
-            if (!hasCompra) return c;
-            const updated = {
-              ...c,
-              compras: (c.compras || []).map((compra) => {
-                if (compra.id === compraId) {
+          const orderNumStr = numeroPedidoPorId(pedidoId);
+          const dataBase = dataPedido ? dataPedido.slice(0, 10) : getLocalDateStr();
+          const dataPrometidaDefault = dataPrometida || (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 7);
+            return getLocalDateStr(d);
+          })();
+
+          const valorSinal = sinal && sinal.valor > 0 ? sinal.valor : 0;
+          const baixas = valorSinal > 0 ? [{
+            id: crypto.randomUUID(),
+            valorPago: valorSinal,
+            dataBaixa: dataBase,
+            formaPagamento: sinal!.formaPagamento,
+            observacao: `Sinal / Pagamento Parcial: R$ ${valorSinal.toFixed(2).replace(".", ",")} (${sinal!.formaPagamento.toUpperCase()})`,
+          }] : [];
+
+          const novaCompraBruta: CompraCredor = {
+            id: crypto.randomUUID(),
+            origem,
+            referenciaId: pedidoId,
+            descricao: orderNumStr ? `${descricaoItens} (${orderNumStr})` : descricaoItens,
+            itens: itens || [],
+            valor: valorTotal,
+            valorPendente: valorTotal,
+            status: 'PENDENTE',
+            pago: false,
+            baixas,
+            data: dataBase,
+            dataPrometida: dataPrometidaDefault,
+            frequenciaLembrete: frequenciaLembrete || 'vencimento',
+            ultimoLembreteEm: null,
+          };
+          const novaCompra = recalcularCompra(novaCompraBruta);
+
+          const credorId = existente?.id ?? crypto.randomUUID();
+
+          const credorAtualizado = await runTransaction(db, async (t) => {
+            const ref = doc(db, "credores", credorId);
+            const snap = await t.get(ref);
+            const remoto = snap.exists() ? ({ id: credorId, ...(snap.data() as CredorRemoto) } as Credor) : null;
+
+            let pedidoExiste = false;
+            if (pedidoId) {
+              const ps = await t.get(doc(db, "pedidos", pedidoId));
+              pedidoExiste = ps.exists();
+            }
+
+            const base: Credor = remoto ?? existente ?? {
+              id: credorId,
+              clienteId,
+              nome: nomeCliente,
+              whatsapp: foneNovo,
+              observacoes: `Criado automaticamente via ${origem} ${orderNumStr}`,
+              compras: [],
+              pagamentos: [],
+            };
+
+            const atualizado: Credor = {
+              ...base,
+              compras: [...(base.compras || []).filter((c) => c.id !== novaCompra.id), novaCompra],
+            };
+            t.set(ref, atualizado);
+
+            if (pedidoId && pedidoExiste) {
+              const pedidoFiado: Record<string, unknown> = { status: "concluido", isFiado: true };
+              if (novaCompra.pago) {
+                pedidoFiado.dataPagamento = dataBase;
+              }
+              t.set(doc(db, "pedidos", pedidoId), pedidoFiado, { merge: true });
+            }
+
+            return atualizado;
+          });
+
+          aplicarLocal(credorAtualizado);
+        },
+
+        alternarStatusPagamento: async (credorId, compraId, acaoReabrir) => {
+          const alvo = encontrarCredor(get().credores, credorId, compraId);
+          if (!alvo) {
+            throw new Error("Compra não encontrada.");
+          }
+          try {
+            const atualizado = await aplicarEdicaoCredor(
+              alvo,
+              (base) => ({
+                ...base,
+                compras: (base.compras || []).map((compra) => {
+                  if (compra.id !== compraId) return compra;
                   const novoPago = !compra.pago;
                   return recalcularCompra({
                     ...compra,
@@ -494,15 +582,18 @@ export const useCredoresStore = create<CredoresState>()(
                       }
                     ] : compra.baixas,
                   });
-                }
-                return compra;
+                }),
               }),
-            };
-            syncCredor(updated);
-            return updated;
-          }),
-        })),
-    }),
+              { permitirReverter: acaoReabrir }
+            );
+            aplicarLocal(atualizado);
+          } catch (err) {
+            notifyError("Erro", erroAmigavel(err, "Não foi possível alterar o status da compra."));
+            throw err;
+          }
+        },
+      };
+    },
     {
       name: 'ilma-doces-credores',
       migrate: (persistedState: any, version: number) => {

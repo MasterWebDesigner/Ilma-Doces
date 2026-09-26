@@ -4,10 +4,20 @@ import { db } from './firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import type { FinancialTransaction } from '@/types/database';
 
+export function montarTransacao(data: Omit<FinancialTransaction, 'id' | 'createdAt'>): FinancialTransaction {
+  return {
+    ...data,
+    id: 'fin-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    createdAt: new Date().toISOString(),
+  };
+}
+
 interface FinanceiroState {
   transactions: FinancialTransaction[];
   addTransaction: (tx: Omit<FinancialTransaction, 'id' | 'createdAt'>) => string;
   deleteTransaction: (id: string) => void;
+  incluirTransacaoLocal: (tx: FinancialTransaction) => void;
+  removerTransacaoLocal: (id: string) => void;
 }
 
 if (typeof window !== "undefined") {
@@ -22,18 +32,17 @@ export const useFinanceiroStore = create<FinanceiroState>()(
     (set) => ({
       transactions: [],
       addTransaction: (data) => {
-        const id = 'fin-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5);
-        const tx: FinancialTransaction = {
-          ...data,
-          id,
-          createdAt: new Date().toISOString(),
-        };
-        setDoc(doc(db, "financeiro", id), tx);
-        return id;
+        const tx = montarTransacao(data);
+        setDoc(doc(db, "financeiro", tx.id), tx);
+        return tx.id;
       },
       deleteTransaction: (id) => {
         deleteDoc(doc(db, "financeiro", id));
       },
+      incluirTransacaoLocal: (tx) =>
+        set((s) => ({ transactions: s.transactions.some((t) => t.id === tx.id) ? s.transactions : [tx, ...s.transactions] })),
+      removerTransacaoLocal: (id) =>
+        set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
     }),
     { name: 'ilma-financeiro-store' }
   )

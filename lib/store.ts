@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category } from "@/types/database";
+import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category, FinancialTransaction } from "@/types/database";
 import { PRODUCTS as INITIAL_PRODUCTS, CATEGORIES } from "@/lib/mockData";
 import { useCredoresStore } from "./credoresStore";
+import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
 import { getLocalDateStr } from "./utils";
 import { db } from "./firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from "firebase/firestore";
 import { notifyError, notifyInfo } from "./notifications";
+import { deveBloquearReversaoPedido, type OpcoesReversao } from "./antiRollback";
 import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
 import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./brindeCusto";
@@ -516,11 +518,45 @@ export const useCartStore = create<CartState>((set) => ({
 }));
 
 // ──────────────── ORDER STORE ────────────────
+async function gravarAtualizacaoPedido(
+  orderId: string,
+  updates: Partial<Order>,
+  transacao: Omit<FinancialTransaction, "id" | "createdAt"> | null,
+  permitirReverter?: boolean
+): Promise<boolean> {
+  if (updates.status !== undefined && !permitirReverter) {
+    const snap = await getDoc(doc(db, "pedidos", orderId));
+    const statusRemoto = snap.exists() ? (snap.data() as Partial<Order>).status : undefined;
+    if (deveBloquearReversaoPedido(statusRemoto, updates.status)) {
+      notifyError("Pedido concluído", "Este pedido já está liquidado e não pode voltar para o estado aberto.");
+      return false;
+    }
+  }
+  const dados = sanitizeForFirestore(updates);
+  const txFinal = transacao ? montarTransacao(transacao) : null;
+  if (txFinal) {
+    const batch = writeBatch(db);
+    batch.update(doc(db, "pedidos", orderId), dados);
+    batch.set(doc(db, "financeiro", txFinal.id), txFinal);
+    await batch.commit();
+    useFinanceiroStore.getState().incluirTransacaoLocal(txFinal);
+  } else {
+    await updateDoc(doc(db, "pedidos", orderId), dados);
+  }
+  return true;
+}
+
 interface OrderState {
   orders: Order[];
   addOrder: (order: Omit<Order, "id" | "createdAt" | "status"> & { status?: OrderStatus }) => Order;
-  updateStatus: (orderId: string, status: OrderStatus) => void;
-  updateOrder: (orderId: string, updates: Partial<Order>) => void;
+  updateStatus: (orderId: string, status: OrderStatus) => Promise<boolean>;
+  updateOrder: (orderId: string, updates: Partial<Order>, opcoes?: OpcoesReversao) => Promise<boolean>;
+  updateOrderComTransacao: (
+    orderId: string,
+    updates: Partial<Order>,
+    transacao: Omit<FinancialTransaction, "id" | "createdAt"> | null,
+    opcoes?: OpcoesReversao
+  ) => Promise<boolean>;
   getTodayOrders: () => Order[];
 }
 
@@ -580,35 +616,24 @@ export const useOrderStore = create<OrderState>()(
         return order;
       },
 
-      updateStatus: (orderId, status) => {
-        try {
-          updateDoc(doc(db, "pedidos", orderId), { status });
-        } catch (err) {
-          notifyError("Erro", "Não foi possível atualizar o status do pedido.");
-        }
+      updateStatus: (orderId, status) => get().updateOrderComTransacao(orderId, { status }, null),
+
+      updateOrder: (orderId, updates, opcoes) => get().updateOrderComTransacao(orderId, updates, null, opcoes),
+
+      updateOrderComTransacao: async (orderId, updates, transacao, opcoes) => {
         const prevOrder = get().orders.find((o) => o.id === orderId);
         const prevStatus = prevOrder?.status ?? "pendente";
         const wasFinal = prevStatus === "confirmado" || prevStatus === "concluido";
-        const isFinal = status === "confirmado" || status === "concluido";
-        if (isFinal && !wasFinal && prevOrder) {
-          prevOrder.items.forEach((item) => {
-            useProductStore.getState().deductStock(item.product.id, item.quantity);
-          });
-        }
-        set((s) => ({
-          orders: s.orders.map((o) => (o.id === orderId ? { ...o, status } : o)),
-        }));
-      },
 
-      updateOrder: (orderId, updates) => {
+        let ok = false;
         try {
-          updateDoc(doc(db, "pedidos", orderId), sanitizeForFirestore(updates));
+          ok = await gravarAtualizacaoPedido(orderId, updates, transacao, opcoes?.permitirReverter);
         } catch (err) {
           notifyError("Erro", "Não foi possível atualizar o pedido.");
+          return false;
         }
-        const prevOrder = get().orders.find((o) => o.id === orderId);
-        const prevStatus = prevOrder?.status ?? "pendente";
-        const wasFinal = prevStatus === "confirmado" || prevStatus === "concluido";
+        if (!ok) return false;
+
         if (updates.status) {
           const isFinal = updates.status === "confirmado" || updates.status === "concluido";
           if (isFinal && !wasFinal && prevOrder) {
@@ -621,6 +646,7 @@ export const useOrderStore = create<OrderState>()(
         set((s) => ({
           orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...updates } : o)),
         }));
+        return true;
       },
 
       getTodayOrders: () => {

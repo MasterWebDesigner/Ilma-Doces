@@ -33,6 +33,7 @@ export default function CredoresPage() {
     editarCompra,
     removerCompra,
     registrarBaixaCompra,
+    registrarBaixaMultipla,
     removerPagamento,
     registrarLembrete,
   } = useCredoresStore();
@@ -59,6 +60,7 @@ export default function CredoresPage() {
 
   const [modalCredorOpen, setModalCredorOpen] = useState(false);
   const [credorEditando, setCredorEditando] = useState<Credor | null>(null);
+  const [baixando, setBaixando] = useState(false);
 
   // Form credor
   const [clienteId, setClienteId] = useState("");
@@ -245,25 +247,27 @@ export default function CredoresPage() {
     setModalPagarOpen(true);
   }
 
-  function finalizarBaixaPagar(comComprovante: boolean) {
-    if (!pagarCredorId || !pagarCompraId || pagarValor <= 0) return;
+  async function finalizarBaixaPagar(comComprovante: boolean) {
+    if (!pagarCredorId || !pagarCompraId || pagarValor <= 0 || baixando) return;
+    setBaixando(true);
     try {
-      registrarBaixaCompra(pagarCredorId, pagarCompraId, pagarValor, pagarMetodo, getLocalDateStr());
+      await registrarBaixaCompra(pagarCredorId, pagarCompraId, pagarValor, pagarMetodo, getLocalDateStr());
+      if (comComprovante) {
+        const credor = credoresAgrupados.find((c) => c.id === pagarCredorId);
+        const texto = montarAgradecimentoPagamento({
+          nome: pagarNome,
+          valor: pagarValor,
+          itens: pagarItens,
+          descricaoFallback: pagarDescricao,
+        });
+        window.open(urlWaMe(alvoWhatsApp(credor || { whatsapp: "" }), texto), "_blank");
+      }
+      setModalPagarOpen(false);
     } catch (err: any) {
       alert(err.message || "Erro ao registrar pagamento.");
-      return;
+    } finally {
+      setBaixando(false);
     }
-    if (comComprovante) {
-      const credor = credoresAgrupados.find((c) => c.id === pagarCredorId);
-      const texto = montarAgradecimentoPagamento({
-        nome: pagarNome,
-        valor: pagarValor,
-        itens: pagarItens,
-        descricaoFallback: pagarDescricao,
-      });
-      window.open(urlWaMe(alvoWhatsApp(credor || { whatsapp: "" }), texto), "_blank");
-    }
-    setModalPagarOpen(false);
   }
 
   function abrirNovoCredor() {
@@ -358,21 +362,24 @@ export default function CredoresPage() {
     return acc + unit * item.quantidade;
   }, 0);
 
-  function salvarCredor(e: React.FormEvent) {
+  async function salvarCredor(e: React.FormEvent) {
     e.preventDefault();
     if (!nome.trim() || !whatsapp.trim()) return;
     const finalClienteId = clienteId || whatsapp.replace(/\D/g, "") || ("cli-" + Date.now());
 
     if (credorEditando) {
-      editarCredor(credorEditando.id, { clienteId: finalClienteId, nome, whatsapp, observacoes });
+      await editarCredor(credorEditando.id, { clienteId: finalClienteId, nome, whatsapp, observacoes });
       setModalCredorOpen(false);
-    } else {
-      if (itensCarrinho.length === 0) {
-        alert("Adicione pelo menos um item à dívida.");
-        return;
-      }
+      return;
+    }
 
-      const novoCredorId = adicionarCredor({ clienteId: finalClienteId, nome, whatsapp, observacoes });
+    if (itensCarrinho.length === 0) {
+      alert("Adicione pelo menos um item à dívida.");
+      return;
+    }
+
+    try {
+      const novoCredorId = await adicionarCredor({ clienteId: finalClienteId, nome, whatsapp, observacoes });
 
       const itensFormatados: CompraItem[] = itensCarrinho.map((i) => ({
         descricao: i.descricao,
@@ -382,7 +389,7 @@ export default function CredoresPage() {
 
       const descricaoResumo = itensCarrinho.map((i) => `${i.quantidade}x ${i.descricao}`).join(", ");
 
-      adicionarCompra(novoCredorId, {
+      await adicionarCompra(novoCredorId, {
         origem: "manual",
         descricao: descricaoResumo,
         itens: itensFormatados,
@@ -399,6 +406,8 @@ export default function CredoresPage() {
 
       setModalCredorOpen(false);
       setAbaAtiva("em_aberto");
+    } catch (err: any) {
+      alert(err.message || "Erro ao salvar o credor.");
     }
   }
 
@@ -416,7 +425,7 @@ export default function CredoresPage() {
     setModalCompraOpen(true);
   }
 
-  function salvarCompra(e: React.FormEvent) {
+  async function salvarCompra(e: React.FormEvent) {
     e.preventDefault();
     if (!credorSelecionadoId) return;
 
@@ -439,14 +448,19 @@ export default function CredoresPage() {
       descricao = descCompra.trim();
     }
 
-    adicionarCompra(credorSelecionadoId, {
-      origem: "manual",
-      descricao,
-      itens: [{ descricao, quantidade, valorUnitario: compraTipo === "catalogo" ? (products.find((p) => p.id === compraProdutoId)?.price ?? 0) : valorNum }],
-      valor: valorNum,
-      data: compraData,
-      dataPrometida: compraDataPrometida,
-    });
+    try {
+      await adicionarCompra(credorSelecionadoId, {
+        origem: "manual",
+        descricao,
+        itens: [{ descricao, quantidade, valorUnitario: compraTipo === "catalogo" ? (products.find((p) => p.id === compraProdutoId)?.price ?? 0) : valorNum }],
+        valor: valorNum,
+        data: compraData,
+        dataPrometida: compraDataPrometida,
+      });
+    } catch (err: any) {
+      alert(err.message || "Erro ao adicionar a compra.");
+      return;
+    }
 
     if (produtoIdParaBaixa) {
       useProductStore.getState().deductStock(produtoIdParaBaixa, quantidade);
@@ -552,31 +566,41 @@ export default function CredoresPage() {
     setEtapaPagamento("confirmar");
   }
 
-  function executarBaixaPagamento(comComprovante: boolean) {
-    if (!credorPagamentoId || comprasSelecionadasBaixaIds.length === 0 || !valorPagamento) return;
+  async function executarBaixaPagamento(comComprovante: boolean) {
+    if (!credorPagamentoId || comprasSelecionadasBaixaIds.length === 0 || !valorPagamento || baixando) return;
 
     const valorNum = parseFloat(valorPagamento.replace(",", "."));
     if (isNaN(valorNum) || valorNum <= 0) return;
 
     const credor = credoresAgrupados.find((c) => c.id === credorPagamentoId);
 
+    setBaixando(true);
     try {
-      if (comprasSelecionadasBaixaIds.length === 1) {
-        registrarBaixaCompra(credorPagamentoId, comprasSelecionadasBaixaIds[0], valorNum, metodoPagamento, dataPagamento);
-      } else {
-        let restante = valorNum;
-        const comprasOrdenadas = comprasSelecionadasBaixaIds.map((id) => {
-          const compra = (credor?.compras || []).find((c) => c.id === id);
-          const pendente = compra ? (compra.valorPendente !== undefined ? compra.valorPendente : compra.valor) : 0;
-          return { id, pendente };
-        }).sort((a, b) => a.pendente - b.pendente);
+      let restante = valorNum;
+      const comprasOrdenadas = comprasSelecionadasBaixaIds.map((id) => {
+        const compra = (credor?.compras || []).find((c) => c.id === id);
+        const pendente = compra ? (compra.valorPendente !== undefined ? compra.valorPendente : compra.valor) : 0;
+        return { id, pendente };
+      }).sort((a, b) => a.pendente - b.pendente);
 
-        for (const { id, pendente } of comprasOrdenadas) {
-          if (restante <= 0) break;
-          const valorAplicar = Math.min(restante, pendente);
-          registrarBaixaCompra(credorPagamentoId, id, valorAplicar, metodoPagamento, dataPagamento);
-          restante -= valorAplicar;
-        }
+      const itensBaixa: { compraId: string; valorPago: number }[] = [];
+      for (const { id, pendente } of comprasOrdenadas) {
+        if (restante <= 0) break;
+        const valorAplicar = Math.min(restante, pendente);
+        if (valorAplicar <= 0) continue;
+        itensBaixa.push({ compraId: id, valorPago: valorAplicar });
+        restante -= valorAplicar;
+      }
+
+      if (itensBaixa.length === 0) {
+        alert("Nenhum valor pendente para dar baixa.");
+        return;
+      }
+
+      if (comprasSelecionadasBaixaIds.length === 1) {
+        await registrarBaixaCompra(credorPagamentoId, itensBaixa[0].compraId, itensBaixa[0].valorPago, metodoPagamento, dataPagamento);
+      } else {
+        await registrarBaixaMultipla(credorPagamentoId, itensBaixa, metodoPagamento, dataPagamento);
       }
 
       if (comComprovante && credor) {
@@ -591,6 +615,8 @@ export default function CredoresPage() {
       setModalPagamentoOpen(false);
     } catch (err: any) {
       alert(err.message || "Erro ao registrar pagamento.");
+    } finally {
+      setBaixando(false);
     }
   }
 
@@ -1129,11 +1155,15 @@ export default function CredoresPage() {
                                         >
                                          ✏️
                                        </button>
-                                       <button
-                                         onClick={() => removerCompra(credor.id, compra.id)}
-                                         className="text-neutral-600 hover:text-red-400 text-xs p-1"
-                                         title="Remover compra"
-                                       >
+                                        <button
+                                          onClick={() => {
+                                            if (confirm("Deseja remover esta compra do histórico?")) {
+                                              removerCompra(credor.id, compra.id, { permitirReverter: true });
+                                            }
+                                          }}
+                                          className="text-neutral-600 hover:text-red-400 text-xs p-1"
+                                          title="Remover compra"
+                                        >
                                          🗑️
                                        </button>
                                       </div>
@@ -1154,7 +1184,9 @@ export default function CredoresPage() {
                                               <button
                                                 onClick={() => {
                                                   if (confirm("Deseja estornar esta baixa e reabrir o valor correspondente?")) {
-                                                    removerPagamento(credor.id, b.pagamentoCredorId || b.id);
+                                                    removerPagamento(credor.id, b.pagamentoCredorId || b.id).catch((err: any) =>
+                                                      alert(err.message || "Erro ao estornar a baixa.")
+                                                    );
                                                   }
                                                 }}
                                                 className="text-red-400/60 hover:text-red-400 text-[10px] transition-colors"
@@ -1672,7 +1704,7 @@ export default function CredoresPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    editarCompra(editCredorId!, editCompraId!, { status: cancelada ? "PENDENTE" : "CANCELADO" });
+                    editarCompra(editCredorId!, editCompraId!, { status: cancelada ? "PENDENTE" : "CANCELADO" }, { permitirReverter: true });
                     setModalEditarCompraOpen(false);
                   }}
                   className={`w-full rounded-xl border px-4 py-2.5 text-xs font-semibold transition-colors ${
@@ -1828,16 +1860,18 @@ export default function CredoresPage() {
                 <button
                   type="button"
                   onClick={() => executarBaixaPagamento(true)}
-                  className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                  disabled={baixando}
+                  className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  🟢 Dar Baixa e Enviar Recibo no WhatsApp
+                  {baixando ? "Processando..." : "🟢 Dar Baixa e Enviar Recibo no WhatsApp"}
                 </button>
                 <button
                   type="button"
                   onClick={() => executarBaixaPagamento(false)}
-                  className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+                  disabled={baixando}
+                  className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Apenas Dar Baixa
+                  {baixando ? "Processando..." : "Apenas Dar Baixa"}
                 </button>
                 <button
                   type="button"
@@ -1879,16 +1913,18 @@ export default function CredoresPage() {
               <button
                 type="button"
                 onClick={() => finalizarBaixaPagar(true)}
-                className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                disabled={baixando}
+                className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                🟢 Dar Baixa e Enviar Recibo no WhatsApp
+                {baixando ? "Processando..." : "🟢 Dar Baixa e Enviar Recibo no WhatsApp"}
               </button>
               <button
                 type="button"
                 onClick={() => finalizarBaixaPagar(false)}
-                className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+                disabled={baixando}
+                className="w-full rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Apenas Dar Baixa
+                {baixando ? "Processando..." : "Apenas Dar Baixa"}
               </button>
               <button
                 type="button"
@@ -1982,7 +2018,7 @@ export default function CredoresPage() {
                             removerPagamento(
                               credoresAgrupados.find((c) => c.nome === entrada.credorNome)?.id || "",
                               entrada.id
-                            );
+                            ).catch((err: any) => alert(err.message || "Erro ao estornar a baixa."));
                           }
                         }}
                         className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition-colors"
