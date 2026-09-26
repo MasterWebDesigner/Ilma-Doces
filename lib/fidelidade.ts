@@ -1,6 +1,6 @@
 import type { Order, Customer, Credor } from "@/types/database";
 import { formatCurrency } from "./utils";
-import { isBrindeAtivo, getValorMinimoBrinde } from "./brinde";
+import { isBrindeAtivo, getValorMinimoBrinde, getBrindeRegras, subtotalParaBrinde } from "./brinde";
 
 export interface LoyaltyProgress {
   eligible: boolean;
@@ -68,7 +68,11 @@ export function computeLoyaltyAutoTotal(
   const completed = orders.filter(
     (o) => o.status === "concluido" && matchesIdentity(phoneClean, name, o)
   );
-  const orderTotal = completed.reduce((sum, o) => sum + (o.total || 0), 0);
+  const regras = getBrindeRegras();
+  const orderTotal = completed.reduce(
+    (sum, o) => sum + subtotalParaBrinde(o.items || [], regras),
+    0
+  );
 
   const manualCredorTotal = credores
     .filter((cr) => matchesCredor(phoneClean, name, cr))

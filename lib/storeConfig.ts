@@ -29,6 +29,8 @@ export interface StoreSettings {
   brindeAtivo: boolean;
   valorMinimoBrinde: number;
   brindeCategoriaId: string;
+  brindeTodasCategorias: boolean;
+  brindeCategoriasPromo: string[];
   instagramPosts: InstagramPost[];
 }
 
@@ -60,6 +62,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   brindeAtivo: true,
   valorMinimoBrinde: 80,
   brindeCategoriaId: "",
+  brindeTodasCategorias: true,
+  brindeCategoriasPromo: [],
   instagramPosts: [
     makeInstagramPost({ title: "Bolo de chocolate da casa", imageUrl: "/imagens/BoloChocolate.webp", active: true }),
     makeInstagramPost({ title: "Bolo de cenoura com cobertura", imageUrl: "/imagens/BoloChocolateCenoura.webp", active: true }),
@@ -102,6 +106,10 @@ export function saveStoreConfig(settings: StoreSettings): void {
   if (typeof window === "undefined") return;
   const normalized: StoreSettings = {
     ...settings,
+    brindeTodasCategorias: settings.brindeTodasCategorias !== false,
+    brindeCategoriasPromo: Array.isArray(settings.brindeCategoriasPromo)
+      ? settings.brindeCategoriasPromo
+      : [],
     instagramPosts: Array.isArray(settings.instagramPosts)
       ? settings.instagramPosts
       : DEFAULT_SETTINGS.instagramPosts,

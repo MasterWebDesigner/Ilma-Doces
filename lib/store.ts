@@ -9,6 +9,7 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch }
 import { notifyError, notifyInfo } from "./notifications";
 import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
+import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./brindeCusto";
 
 if (typeof window !== "undefined") {
   onSnapshot(collection(db, "pedidos"), (snapshot) => {
@@ -27,39 +28,56 @@ if (typeof window !== "undefined") {
     useCustomerStore.setState({ customers });
   });
 
-  onSnapshot(collection(db, "despesas"), (snapshot) => {
-    const expenses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
+  const preencherCustosBrindeZero = () => {
+    const lista = useExpenseStore.getState().expenses;
     const products = useProductStore.getState().products;
-    const costByName = new Map<string, number>();
-    const addCost = (name: string, custo: number | undefined, price: number | undefined) => {
+    const fichas = useFichaTecnicaStore.getState().fichas;
+    const custoPorNome = new Map<string, number>();
+    const addCustoPorNome = (name: string | undefined, custo: number | undefined) => {
       const n = (name || "").toLowerCase().trim();
-      if (!n) return;
       const c = Number(custo) || 0;
-      const p = Number(price) || 0;
-      if (c > 0) costByName.set(n, c);
-      else if (p > 0 && !costByName.has(n)) costByName.set(n, p);
+      if (n && c > 0 && !custoPorNome.has(n)) custoPorNome.set(n, c);
     };
-    INITIAL_PRODUCTS.forEach((p) => addCost(p.name, p.precoCustoInicial, p.price));
-    products.forEach((p) => addCost(p.name, p.precoCustoInicial, p.price));
-    expenses.forEach((e) => {
-      if (e.categoria !== "Custos de Brindes / Fidelidade" || (Number(e.valor) || 0) > 0) return;
-      const parts = (e.descricao || "").split("—").map((s) => s.trim());
-      const saborName = (parts[1] || "").toLowerCase();
-      let custo = costByName.get(saborName);
-      if (custo == null) {
-        for (const [name, val] of costByName) {
-          if (name.includes(saborName) || saborName.includes(name)) {
-            custo = val;
-            break;
+    INITIAL_PRODUCTS.forEach((p) => addCustoPorNome(p.name, p.precoCustoInicial));
+    products.forEach((p) => addCustoPorNome(p.name, p.precoCustoInicial));
+    let alterou = false;
+    lista.forEach((e) => {
+      if (e.categoria !== CATEGORIA_DESPESA_BRINDE || (Number(e.valor) || 0) > 0) return;
+      const saborName = ((e.descricao || "").split("—")[1] || "").trim().toLowerCase();
+      if (!saborName) return;
+      const prod =
+        products.find((p) => (p.name || "").toLowerCase() === saborName) ||
+        products.find((p) => {
+          const n = (p.name || "").toLowerCase();
+          return n.includes(saborName) || saborName.includes(n);
+        });
+      let custo = prod
+        ? custoDoBrinde(prod, fichas.find((f) => f.productId === prod.id))
+        : 0;
+      if (!(custo > 0)) {
+        custo = custoPorNome.get(saborName) || 0;
+        if (!(custo > 0)) {
+          for (const [nome, valor] of custoPorNome) {
+            if (nome.includes(saborName) || saborName.includes(nome)) {
+              custo = valor;
+              break;
+            }
           }
         }
       }
-      if (custo != null && custo > 0) {
+      if (custo > 0) {
         e.valor = custo;
+        alterou = true;
         try { updateDoc(doc(db, "despesas", e.id), { valor: custo }); } catch {}
       }
     });
+    if (alterou) useExpenseStore.setState({ expenses: [...lista] });
+  };
+
+  onSnapshot(collection(db, "despesas"), (snapshot) => {
+    const expenses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
     useExpenseStore.setState({ expenses });
+    preencherCustosBrindeZero();
   });
 
   onSnapshot(collection(db, "produtos"), (snapshot) => {
@@ -73,6 +91,7 @@ if (typeof window !== "undefined") {
         try { updateDoc(doc(db, "produtos", p.id), { precoCustoInicial: custo }); } catch {}
       });
       useProductStore.setState({ products });
+      preencherCustosBrindeZero();
     }
   });
 
@@ -87,6 +106,7 @@ if (typeof window !== "undefined") {
     const fichas = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FichaTecnica));
     if (fichas.length > 0) {
       useFichaTecnicaStore.setState({ fichas });
+      preencherCustosBrindeZero();
     }
   });
 
@@ -542,6 +562,16 @@ export const useOrderStore = create<OrderState>()(
         }
 
         set((s) => ({ orders: [order, ...s.orders] }));
+
+        const fichasBrinde = useFichaTecnicaStore.getState().fichas;
+        (order.items || []).forEach((item) => {
+          if (!item.is_brinde) return;
+          const ficha = fichasBrinde.find((f) => f.productId === item.product.id);
+          useExpenseStore.getState().addExpense(
+            montarDespesaBrinde(item.product, order.customerName || "Cliente", ficha, getLocalDateStr())
+          );
+        });
+
         if (order.status === "confirmado" || order.status === "concluido") {
           order.items.forEach((item) => {
             useProductStore.getState().deductStock(item.product.id, item.quantity);

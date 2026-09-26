@@ -1,16 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Order, Customer, Credor } from "@/types/database";
+import type { Order, Customer, Credor, CartItem, Product } from "@/types/database";
 
-vi.mock("@/lib/storeConfig", () => ({
-  getStoreConfig: () => ({
+const estado = vi.hoisted(() => ({
+  config: {
     brindeAtivo: true,
     valorMinimoBrinde: 80,
     brindeCategoriaId: "",
-  }),
+    brindeTodasCategorias: true,
+    brindeCategoriasPromo: [] as string[],
+  },
+}));
+
+vi.mock("@/lib/storeConfig", () => ({
+  getStoreConfig: () => estado.config,
   DEFAULT_SETTINGS: {
     valorMinimoBrinde: 80,
     brindeAtivo: true,
     brindeCategoriaId: "",
+    brindeTodasCategorias: true,
+    brindeCategoriasPromo: [],
   },
 }));
 
@@ -22,8 +30,20 @@ import {
   getCustomerOffset,
 } from "@/lib/fidelidade";
 
-function makeOrder(overrides: Partial<Order> = {}): Order {
+function makeItem(price: number, categoryId = "cat-promo"): CartItem {
   return {
+    product: {
+      id: `p-${price}-${categoryId}`,
+      name: "Item",
+      price,
+      category_id: categoryId,
+    } as unknown as Product,
+    quantity: 1,
+  };
+}
+
+function makeOrder(overrides: Partial<Order> = {}): Order {
+  const base: Order = {
     id: "o1",
     customerName: "Maria",
     customerPhone: "11999998888",
@@ -35,6 +55,10 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
+  if (!overrides.items) {
+    base.items = [makeItem(base.total)];
+  }
+  return base;
 }
 
 function makeCustomer(overrides: Partial<Customer> = {}): Customer {
@@ -89,6 +113,13 @@ describe("loyaltyProgressLabel", () => {
 describe("computeLoyaltyAutoTotal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    estado.config = {
+      brindeAtivo: true,
+      valorMinimoBrinde: 80,
+      brindeCategoriaId: "",
+      brindeTodasCategorias: true,
+      brindeCategoriasPromo: [],
+    };
   });
 
   it("sums only completed orders", () => {
@@ -122,6 +153,43 @@ describe("computeLoyaltyAutoTotal", () => {
       },
     ];
     expect(computeLoyaltyAutoTotal("11999998888", undefined, [], credores)).toBe(40);
+  });
+
+  it("ignora categorias fora da promo quando categorias especificas estao ativas", () => {
+    estado.config = {
+      ...estado.config,
+      brindeTodasCategorias: false,
+      brindeCategoriasPromo: ["cat-gelados"],
+    };
+    const orders = [
+      makeOrder({
+        total: 120,
+        items: [makeItem(70, "cat-bolo"), makeItem(50, "cat-gelados")],
+      }),
+    ];
+    expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(50);
+  });
+
+  it("pedido so de bolo nao da brinde quando categorias especificas estao ativas", () => {
+    estado.config = {
+      ...estado.config,
+      brindeTodasCategorias: false,
+      brindeCategoriasPromo: ["cat-gelados"],
+    };
+    const orders = [
+      makeOrder({ total: 200, items: [makeItem(200, "cat-bolo")] }),
+    ];
+    expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(0);
+  });
+
+  it("itens de brinde nao contam no acumulado", () => {
+    const orders = [
+      makeOrder({
+        total: 50,
+        items: [makeItem(50, "cat-gelados"), { ...makeItem(80, "cat-gelados"), is_brinde: true, preco_unitario: 0 }],
+      }),
+    ];
+    expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(50);
   });
 });
 

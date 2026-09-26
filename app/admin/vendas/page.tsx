@@ -5,6 +5,7 @@ import { useOrderStore, useProductStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { classNames, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid } from "@/lib/faturamento";
+import { formatarTelefone } from "@/lib/phone";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const MONTH_SHORT = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
@@ -802,7 +803,7 @@ export default function AdminVendasPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <p className="text-xs font-semibold text-white">{sale.customerName}</p>
-                        <p className="text-[10px] text-neutral-500">{sale.customerPhone}</p>
+                        <p className="text-[10px] text-neutral-500">{formatarTelefone(sale.customerPhone)}</p>
                       </td>
                       <td className="max-w-[240px] px-5 py-3.5 text-xs text-neutral-300">
                         <div className="space-y-0.5">

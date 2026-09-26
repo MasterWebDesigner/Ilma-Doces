@@ -45,6 +45,18 @@ export default function AdminLoginPage() {
           </p>
         </div>
 
+        {process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1" && (
+          <div className="mb-5 rounded-xl border border-[#8B1D22]/40 bg-[#8B1D22]/5 px-3 py-2.5 text-center dark:border-[#8B1D22]/60 dark:bg-[#8B1D22]/15">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#8B1D22] dark:text-red-300">
+              Ambiente local — testes não afetam a produção
+            </p>
+            <p className="mt-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
+              Usuário: <strong>ilma</strong> ou <strong>navarro</strong> · Senha:{" "}
+              <strong>{process.env.NEXT_PUBLIC_LOCAL_SENHA}</strong>
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">

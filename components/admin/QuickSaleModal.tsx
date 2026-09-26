@@ -8,6 +8,8 @@ import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { notifyInfo } from "@/lib/notifications";
 import { formatCurrency, getLocalDateStr, paymentLabelOf, formatItemQty } from "@/lib/utils";
 import { PaymentMethod, CartItem, CompraItem } from "@/types/database";
+import { formatarTelefone } from "@/lib/phone";
+import { isBrindeProduct } from "@/lib/brinde";
 
 interface QuickSaleModalProps {
   isOpen: boolean;
@@ -16,6 +18,7 @@ interface QuickSaleModalProps {
 
 export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps) {
   const allProducts = useProductStore((s) => s.products);
+  const categories = useProductStore((s) => s.categories);
   const products = allProducts.filter((p) => p.cardapioRapido);
   const customers = useCustomerStore((s) => s.customers);
   const addOrder = useOrderStore((s) => s.addOrder);
@@ -40,6 +43,8 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
   if (!isOpen) return null;
 
   const total = cart.reduce((sum, item) => sum + (item.is_brinde ? 0 : item.product.price * item.quantity), 0);
+  const itensBrinde = cart.filter((i) => i.is_brinde);
+  const valorBrinde = itensBrinde.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cashNum = parseFloat(cashGiven.replace(",", ".")) || 0;
   const change = paymentMethod === "dinheiro" && cashNum > total ? cashNum - total : 0;
 
@@ -75,6 +80,18 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     return Math.max(0, p.estoque ?? 0);
   }
 
+  function qtyNoCarrinho(productId: string, exceto?: CartItem): number {
+    return cart
+      .filter((i) => i.product.id === productId && i !== exceto)
+      .reduce((s, i) => s + i.quantity, 0);
+  }
+
+  function itensAgrupados(): { productId: string; quantity: number }[] {
+    const map = new Map<string, number>();
+    cart.forEach((i) => map.set(i.product.id, (map.get(i.product.id) ?? 0) + i.quantity));
+    return Array.from(map, ([productId, quantity]) => ({ productId, quantity }));
+  }
+
   function handleAddProduct(product: typeof products[0]) {
     const disponivel = estoqueDisponivel(product);
     if (disponivel !== null) {
@@ -82,31 +99,59 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
         notifyInfo("Sem estoque", `${product.name} está esgotado. Repor via entrada de estoque.`);
         return;
       }
-      const existing = cart.find((i) => i.product.id === product.id);
-      const currentQty = existing ? existing.quantity : 0;
-      if (currentQty + 1 > disponivel) {
+      const totalNoCarrinho = qtyNoCarrinho(product.id);
+      if (totalNoCarrinho + 1 > disponivel) {
         notifyInfo(
           "Estoque insuficiente",
           product.isCustomWeight
-            ? `Apenas ${formatItemQty(disponivel, true)} disponíveis em estoque.`
-            : `Apenas ${disponivel} unidades disponíveis em estoque.`
+            ? `Apenas ${formatItemQty(disponivel - totalNoCarrinho, true)} disponíveis em estoque.`
+            : `Apenas ${disponivel - totalNoCarrinho} unidades disponíveis em estoque.`
         );
         return;
       }
     }
     setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
+      const existing = prev.find((i) => i.product.id === product.id && !i.is_brinde);
       if (existing) {
-        return prev.map((i) => (i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i));
+        return prev.map((i) => (i === existing ? { ...i, quantity: i.quantity + 1 } : i));
       }
       return [...prev, { product, quantity: 1 }];
     });
   }
 
-  function handleUpdateQuantity(productId: string, delta: number) {
-    const target = cart.find((i) => i.product.id === productId);
+  function handleToggleBrinde(productId: string) {
+    const jaMarcado = cart.some((i) => i.product.id === productId && i.is_brinde);
+    if (!jaMarcado) {
+      const linha = cart.find((i) => i.product.id === productId && !i.is_brinde);
+      if (linha && !isBrindeProduct(linha.product, categories)) {
+        notifyInfo(
+          "Brinde inválido",
+          `Só produtos da categoria de brinde (Gelinhos) podem ser marcados como brinde. ${linha.product.name} não se qualifica.`
+        );
+        return;
+      }
+    }
+    setCart((prev) => {
+      const linhaBrinde = prev.find((i) => i.product.id === productId && i.is_brinde);
+      if (linhaBrinde) {
+        const normal = prev.find((i) => i.product.id === productId && !i.is_brinde);
+        if (normal) {
+          return prev
+            .filter((i) => i !== linhaBrinde)
+            .map((i) => (i === normal ? { ...i, quantity: i.quantity + linhaBrinde.quantity } : i));
+        }
+        return prev.map((i) => (i === linhaBrinde ? { ...i, is_brinde: false, preco_unitario: i.product.price } : i));
+      }
+      const normal = prev.find((i) => i.product.id === productId && !i.is_brinde);
+      if (!normal) return prev;
+      return prev.map((i) => (i === normal ? { ...i, is_brinde: true, preco_unitario: 0 } : i));
+    });
+  }
+
+  function handleUpdateQuantity(productId: string, delta: number, linhaBrinde?: boolean) {
+    const target = cart.find((i) => i.product.id === productId && !!i.is_brinde === !!linhaBrinde);
     if (target && target.product.controlarEstoque) {
-      const maxQty = Math.max(0, target.product.estoque ?? 0);
+      const maxQty = Math.max(0, (target.product.estoque ?? 0) - qtyNoCarrinho(productId, target));
       const newQty = target.quantity + delta;
       const rounded = target.product.isCustomWeight ? Math.round(newQty * 10) / 10 : newQty;
       if (rounded > maxQty) {
@@ -124,7 +169,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     setCart((prev) =>
       prev
         .map((i) => {
-          if (i.product.id === productId) {
+          if (i.product.id === productId && !!i.is_brinde === !!linhaBrinde) {
             const newQty = i.quantity + delta;
             const rounded = i.product.isCustomWeight ? Math.round(newQty * 10) / 10 : newQty;
             return (i.product.isCustomWeight ? rounded >= 0.1 : rounded > 0) ? { ...i, quantity: rounded } : null;
@@ -136,11 +181,12 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
   }
 
   function validarEstoqueLocal(): string | null {
-    for (const item of cart) {
-      if (!item.product.controlarEstoque) continue;
-      const disponivel = Math.max(0, item.product.estoque ?? 0);
-      if (item.quantity > disponivel) {
-        return `${item.product.name} (disponível: ${disponivel}, na venda: ${item.quantity})`;
+    for (const { productId, quantity } of itensAgrupados()) {
+      const produto = cart.find((i) => i.product.id === productId)?.product;
+      if (!produto?.controlarEstoque) continue;
+      const disponivel = Math.max(0, produto.estoque ?? 0);
+      if (quantity > disponivel) {
+        return `${produto.name} (disponível: ${disponivel}, na venda: ${quantity})`;
       }
     }
     return null;
@@ -170,9 +216,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     setLoading(true);
 
     try {
-      const check = await validarEstoqueServidor(
-        cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))
-      );
+      const check = await validarEstoqueServidor(itensAgrupados());
       if (!check.ok) {
         setLoading(false);
         notifyInfo("Estoque insuficiente", `${listarSemEstoque(check.insufficient)}. Ajuste a quantidade para finalizar.`);
@@ -206,9 +250,9 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
 
       if (isFiado && cust) {
         const itensCompra: CompraItem[] = cart.map((i) => ({
-          descricao: i.product.name,
+          descricao: i.is_brinde ? `${i.product.name} (BRINDE)` : i.product.name,
           quantidade: i.quantity,
-          valorUnitario: i.product.price,
+          valorUnitario: i.is_brinde ? 0 : i.product.price,
         }));
         const descricaoItens = itensCompra.map((i) => `${i.quantidade}x ${i.descricao}`).join(", ");
 
@@ -227,7 +271,9 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
 
         const vencimentoFmt = dueDate.split("-").reverse().join("/");
         setSuccessMsg(
-          `Venda #${newOrder.orderNumber || "Balcão"} lançada a prazo no crediário de ${cust.name} — vencimento ${vencimentoFmt}.`
+          `Venda #${newOrder.orderNumber || "Balcão"} lançada a prazo no crediário de ${cust.name} — vencimento ${vencimentoFmt}.${
+            itensBrinde.length > 0 ? ` ${itensBrinde.length} item(ns) como BRINDE (R$ 0,00).` : ""
+          }`
         );
       } else {
         addTransaction({
@@ -235,11 +281,15 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
           categoria: "Vendas / Balcão",
           valor: total,
           formaPagamento: paymentLabelOf(paymentMethod),
-          descricao: `Venda Rápida #${newOrder.orderNumber || newOrder.id.slice(-6)} — ${customerName}`,
+          descricao: `Venda Rápida #${newOrder.orderNumber || newOrder.id.slice(-6)} — ${customerName}${itensBrinde.length > 0 ? ` (${itensBrinde.length} brinde(s) R$ 0,00)` : ""}`,
           data: getLocalDateStr(),
         });
 
-        setSuccessMsg(`Venda #${newOrder.orderNumber || "Balcão"} realizada com sucesso para ${customerName}!`);
+        setSuccessMsg(
+          `Venda #${newOrder.orderNumber || "Balcão"} realizada com sucesso para ${customerName}!${
+            itensBrinde.length > 0 ? ` ${itensBrinde.length} item(ns) registrado(s) como BRINDE (R$ 0,00).` : ""
+          }`
+        );
       }
 
       setTimeout(() => {
@@ -362,7 +412,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                       {isFiado ? "— Selecione o cliente —" : "Consumidor Final (Balcão / Anônimo)"}
                     </option>
                     {clientesFiltrados.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                      <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
                     ))}
                   </select>
 
@@ -407,7 +457,10 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                   )}
                 </div>
 
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Itens no Carrinho ({cart.reduce((s, i) => s + (i.product.isCustomWeight ? 1 : i.quantity), 0)})</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Itens no Carrinho ({cart.reduce((s, i) => s + (i.product.isCustomWeight ? 1 : i.quantity), 0)})</h3>
+                  <p className="text-[10px] text-neutral-500">🎁 Marque um item como brinde para zerar o valor</p>
+                </div>
                 {cart.length === 0 ? (
                   <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-6 text-center">
                     <p className="text-xs text-neutral-500">Nenhum item selecionado.</p>
@@ -415,19 +468,47 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                 ) : (
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {cart.map((item) => (
-                      <div key={item.product.id} className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+                      <div
+                        key={`${item.product.id}${item.is_brinde ? "-b" : ""}`}
+                        className={`flex items-center justify-between rounded-xl border p-3 ${
+                          item.is_brinde
+                            ? "border-emerald-600/50 bg-emerald-950/40"
+                            : "border-neutral-800 bg-neutral-900"
+                        }`}
+                      >
                         <div className="min-w-0 flex-1 pr-2">
-                          <p className="text-xs font-semibold text-white truncate">{item.product.name}</p>
-                          <p className="text-[10px] text-emerald-400">
-                            {item.product.isCustomWeight
-                              ? `${item.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg • ${formatCurrency(item.product.price * item.quantity)}`
-                              : `${item.quantity}x • ${formatCurrency(item.product.price * item.quantity)}`}
+                          <p className="text-xs font-semibold text-white truncate">
+                            {item.is_brinde && "🎁 "}
+                            {item.product.name}
+                          </p>
+                          <p className={`text-[10px] ${item.is_brinde ? "font-bold text-emerald-400" : "text-emerald-400"}`}>
+                            {item.is_brinde ? (
+                              item.product.isCustomWeight
+                                ? `${item.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg • BRINDE — R$ 0,00`
+                                : `${item.quantity}x • BRINDE — R$ 0,00`
+                            ) : item.product.isCustomWeight ? (
+                              `${item.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg • ${formatCurrency(item.product.price * item.quantity)}`
+                            ) : (
+                              `${item.quantity}x • ${formatCurrency(item.product.price * item.quantity)}`
+                            )}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleUpdateQuantity(item.product.id, item.product.isCustomWeight ? -0.1 : -1)}
+                            onClick={() => handleToggleBrinde(item.product.id)}
+                            title={item.is_brinde ? "Remover brinde manual (item volta a ser cobrado)" : "Adicionar Brinde Manual (item zerado no total)"}
+                            className={`h-7 w-7 rounded-lg border text-xs transition-all ${
+                              item.is_brinde
+                                ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                                : "border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-emerald-500 hover:text-emerald-300"
+                            }`}
+                          >
+                            🎁
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateQuantity(item.product.id, item.product.isCustomWeight ? -0.1 : -1, item.is_brinde)}
                             className="h-7 w-7 rounded-lg border border-neutral-700 bg-neutral-800 text-xs font-bold text-white hover:bg-neutral-700"
                           >
                             -
@@ -437,7 +518,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                           </span>
                           <button
                             type="button"
-                            onClick={() => handleUpdateQuantity(item.product.id, item.product.isCustomWeight ? 0.1 : 1)}
+                            onClick={() => handleUpdateQuantity(item.product.id, item.product.isCustomWeight ? 0.1 : 1, item.is_brinde)}
                             className="h-7 w-7 rounded-lg border border-neutral-700 bg-neutral-800 text-xs font-bold text-white hover:bg-neutral-700"
                           >
                             +
@@ -501,6 +582,18 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                   <span className="text-sm font-semibold text-white">Total a Pagar</span>
                   <span className="text-xl font-bold text-emerald-400">{formatCurrency(total)}</span>
                 </div>
+
+                {itensBrinde.length > 0 && (
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-600/40 bg-emerald-950/40 px-4 py-2">
+                    <span className="text-xs font-bold text-emerald-400">
+                      🎁 Brinde ({itensBrinde.length} item{itensBrinde.length === 1 ? "" : "s"})
+                    </span>
+                    <span className="text-xs font-bold">
+                      <span className="text-neutral-500 line-through">{formatCurrency(valorBrinde)}</span>
+                      <span className="text-emerald-400"> → R$ 0,00</span>
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button

@@ -13,9 +13,12 @@ import {
   brindeProgress,
   itemLineTotal,
   availableBrindeFlavors,
+  subtotalParaBrinde,
+  getBrindeRegras,
 } from "@/lib/brinde";
 import { computeLoyaltyBalance, loyaltyProgress } from "@/lib/fidelidade";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
+import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 
 const WINE = "#8B1D22";
 
@@ -56,7 +59,12 @@ export default function CartDrawer() {
 
   const subtotal = paidSubtotal(items);
   const brindeAtivo = config.brindeAtivo;
-  const progress = brindeProgress(subtotal);
+  const regrasBrinde = getBrindeRegras();
+  const brindeSubtotal = subtotalParaBrinde(items, regrasBrinde);
+  const progress = brindeProgress(brindeSubtotal);
+  const categoriasPromoNomes = regrasBrinde.todasCategorias
+    ? []
+    : categories.filter((c) => regrasBrinde.categoriasPromo.includes(c.id)).map((c) => c.name);
   const brindeItem = items.find((i) => i.is_brinde);
   const brindeDiscount = items
     .filter((i) => i.is_brinde)
@@ -67,7 +75,6 @@ export default function CartDrawer() {
     () => availableBrindeFlavors(products, categories),
     [products, categories, config.brindeCategoriaId, brindeAtivo]
   );
-
   const phoneClean = phoneValue.replace(/\D/g, "");
   const loyalty = useMemo(() => {
     if (phoneClean.length < 10) return null;
@@ -109,10 +116,10 @@ export default function CartDrawer() {
     setValidationError("");
 
     const name = nameValue.trim();
-    const phone = phoneValue.trim();
+    const phone = higienizarTelefone(phoneValue);
 
     if (!name) { setValidationError("Informe seu nome completo"); return; }
-    if (phone.replace(/\D/g, "").length < 10) { setValidationError("Informe um telefone válido"); return; }
+    if (!phone) { setValidationError(MENSAGEM_WHATSAPP_INVALIDO); return; }
 
     let address: string | undefined;
     if (deliveryType === "entrega") {
@@ -149,9 +156,11 @@ export default function CartDrawer() {
       return;
     }
 
+    upsertCustomer(name, phone);
+
     const order = addOrder({
       customerName: name,
-      customerPhone: phone.replace(/\D/g, ""),
+      customerPhone: phone,
       items: [...items],
       total: totalGeral,
       deliveryType,
@@ -171,7 +180,7 @@ export default function CartDrawer() {
 
     openWhatsApp(order.items, {
       customerName: order.customerName,
-      customerPhone: phone,
+      customerPhone: formatarTelefone(phone),
       deliveryType,
       address,
       paymentMethod,
@@ -193,11 +202,12 @@ export default function CartDrawer() {
   }
 
   function handlePhoneChange(raw: string) {
-    setPhoneValue(raw);
+    const masked = mascaraTelefone(raw);
+    setPhoneValue(masked);
     setValidationError("");
     if (phoneDebounce.current) clearTimeout(phoneDebounce.current);
     phoneDebounce.current = setTimeout(() => {
-      const digits = raw.replace(/\D/g, "");
+      const digits = masked.replace(/\D/g, "");
       if (digits.length >= 10) {
         const match = customers.find((c) => (c.phone || "").replace(/\D/g, "") === digits);
         if (match && !nameValue) setNameValue(match.name);
@@ -284,7 +294,8 @@ export default function CartDrawer() {
                   !progress.eligible ? (
                     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 space-y-2 dark:border-neutral-800 dark:bg-neutral-900">
                       <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                        Adicione mais {formatCurrency(progress.remaining)} em doces e ganhe 1 brinde de fidelidade!
+                        Adicione mais {formatCurrency(progress.remaining)} em{" "}
+                        {categoriasPromoNomes.length > 0 ? categoriasPromoNomes.join(", ") : "doces"} e ganhe 1 brinde de fidelidade!
                       </p>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
                         <div
@@ -293,9 +304,14 @@ export default function CartDrawer() {
                         />
                       </div>
                       <div className="flex justify-between text-[10px] font-medium text-neutral-500">
-                        <span>{formatCurrency(subtotal)}</span>
+                        <span>{formatCurrency(brindeSubtotal)}</span>
                         <span>{formatCurrency(config.valorMinimoBrinde)}</span>
                       </div>
+                      {!regrasBrinde.todasCategorias && brindeSubtotal < subtotal && (
+                        <p className="text-[10px] font-medium text-neutral-500">
+                          Itens fora de {categoriasPromoNomes.join(" / ")} não contam para a meta do brinde.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2 dark:border-emerald-900 dark:bg-emerald-950">
@@ -524,6 +540,11 @@ export default function CartDrawer() {
                     placeholder="(11) 99999-9999"
                     value={phoneValue}
                     onChange={(e) => handlePhoneChange(e.target.value)}
+                    onBlur={() => {
+                      const e = estadoTelefone(phoneValue);
+                      setPhoneValue(e.valor);
+                      setValidationError((prev) => (e.erro ? e.erro : prev === MENSAGEM_WHATSAPP_INVALIDO ? "" : prev));
+                    }}
                   />
                 </div>
                 <div>

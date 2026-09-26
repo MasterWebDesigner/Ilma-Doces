@@ -1,8 +1,30 @@
 import type { CartItem, Product, Category } from "@/types/database";
 import { getStoreConfig, DEFAULT_SETTINGS } from "./storeConfig";
+import {
+  itemContaParaBrinde as contaParaBrinde,
+  subtotalParaBrindeComRegras,
+  type RegrasCategoriasBrinde,
+} from "./brindeCategorias";
+
+export { itemLineTotal, paidSubtotal } from "./brindeCategorias";
 
 export const CATEGORIA_BRINDE_NAME = "Gelinhos";
 export const VALOR_MINIMO_BRINDE = DEFAULT_SETTINGS.valorMinimoBrinde;
+
+export interface BrindeRegras extends RegrasCategoriasBrinde {
+  ativo: boolean;
+  valorMinimo: number;
+}
+
+export function getBrindeRegras(): BrindeRegras {
+  const s = getStoreConfig();
+  return {
+    ativo: s.brindeAtivo,
+    valorMinimo: s.valorMinimoBrinde,
+    todasCategorias: s.brindeTodasCategorias !== false,
+    categoriasPromo: Array.isArray(s.brindeCategoriasPromo) ? s.brindeCategoriasPromo : [],
+  };
+}
 
 export function getBrindeConfig(): { ativo: boolean; valorMinimo: number; categoriaId: string } {
   const s = getStoreConfig();
@@ -21,14 +43,12 @@ export function getValorMinimoBrinde(): number {
   return getBrindeConfig().valorMinimo;
 }
 
-export function itemLineTotal(item: Pick<CartItem, "product" | "quantity" | "is_brinde" | "preco_unitario">): number {
-  if (item.is_brinde) return 0;
-  const unit = item.preco_unitario ?? item.product.price;
-  return unit * item.quantity;
+export function itemContaParaBrinde(item: CartItem, regras?: BrindeRegras): boolean {
+  return contaParaBrinde(item, regras ?? getBrindeRegras());
 }
 
-export function paidSubtotal(items: CartItem[]): number {
-  return items.reduce((s, i) => s + itemLineTotal(i), 0);
+export function subtotalParaBrinde(items: CartItem[], regras?: BrindeRegras): number {
+  return subtotalParaBrindeComRegras(items, regras ?? getBrindeRegras());
 }
 
 export function brindeProgress(subtotal: number): {
@@ -88,7 +108,7 @@ export function makeBrindeItem(product: Product): CartItem {
 export function enforceBrindeRule(items: CartItem[], opts?: { allowLoyalty?: boolean }): CartItem[] {
   if (!isBrindeAtivo()) return items.filter((i) => !i.is_brinde);
   if (opts?.allowLoyalty) return items;
-  const sub = paidSubtotal(items);
+  const sub = subtotalParaBrinde(items);
   if (sub < getValorMinimoBrinde()) {
     return items.filter((i) => !i.is_brinde);
   }

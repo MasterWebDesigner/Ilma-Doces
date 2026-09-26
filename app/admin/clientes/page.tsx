@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useCustomerStore, useOrderStore, useProductStore, useExpenseStore } from "@/lib/store";
+import { useCustomerStore, useOrderStore, useProductStore, useExpenseStore, useFichaTecnicaStore } from "@/lib/store";
+import { montarDespesaBrinde } from "@/lib/brindeCusto";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { formatCurrency, getLocalDateStr } from "@/lib/utils";
 import { useStoreConfig, saveStoreConfig } from "@/lib/storeConfig";
 import { computeLoyaltyBalance, loyaltyProgress, loyaltyProgressLabel } from "@/lib/fidelidade";
 import { availableBrindeFlavors } from "@/lib/brinde";
-
-function formatPhone(raw: string): string {
-  const d = raw.replace(/\D/g, "");
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return raw;
-}
+import { formatarTelefone, mascaraTelefone, higienizarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 
 const STATUS_LABEL: Record<string, string> = {
   pendente: "Pendente",
@@ -37,11 +32,13 @@ export default function AdminClientes() {
   const deductStock = useProductStore((s) => s.deductStock);
   const adjustStock = useProductStore((s) => s.adjustStock);
   const addExpense = useExpenseStore((s) => s.addExpense);
+  const fichas = useFichaTecnicaStore((s) => s.fichas);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", referencia: "" });
+  const [phoneError, setPhoneError] = useState("");
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
   const [fidelidadeEdit, setFidelidadeEdit] = useState<{ phone: string; phoneClean: string; name: string; balance: number; autoTotal: number } | null>(null);
   const [fidelidadeForm, setFidelidadeForm] = useState("");
@@ -262,18 +259,26 @@ export default function AdminClientes() {
   function openNew() {
     setEditId(null);
     setForm({ name: "", phone: "", referencia: "" });
+    setPhoneError("");
     setShowModal(true);
   }
 
   function openEdit(c: { id: string; name: string; phone: string; referencia?: string }) {
     setEditId(c.id);
-    setForm({ name: c.name, phone: c.phone, referencia: c.referencia || "" });
+    setForm({ name: c.name, phone: mascaraTelefone(c.phone), referencia: c.referencia || "" });
+    setPhoneError("");
     setShowModal(true);
   }
 
   function handleSave() {
-    if (!form.name.trim() || !form.phone.trim()) return;
-    upsertCustomer(form.name.trim(), form.phone.trim(), form.referencia);
+    if (!form.name.trim()) return;
+    const phone = higienizarTelefone(form.phone);
+    if (!phone) {
+      setPhoneError(MENSAGEM_WHATSAPP_INVALIDO);
+      return;
+    }
+    setPhoneError("");
+    upsertCustomer(form.name.trim(), phone, form.referencia);
     setShowModal(false);
     setForm({ name: "", phone: "", referencia: "" });
     setEditId(null);
@@ -302,6 +307,18 @@ export default function AdminClientes() {
     saveStoreConfig({ ...storeConfig, valorMinimoBrinde: val });
   }
 
+  function handleSalvarModoCategorias(todas: boolean) {
+    if (!brindeAtivo) return;
+    saveStoreConfig({ ...storeConfig, brindeTodasCategorias: todas });
+  }
+
+  function handleToggleCategoriaPromo(catId: string) {
+    if (!brindeAtivo) return;
+    const atual = Array.isArray(storeConfig.brindeCategoriasPromo) ? storeConfig.brindeCategoriasPromo : [];
+    const next = atual.includes(catId) ? atual.filter((id) => id !== catId) : [...atual, catId];
+    saveStoreConfig({ ...storeConfig, brindeTodasCategorias: false, brindeCategoriasPromo: next });
+  }
+
   function handleResgatarGelinho(c: { phone: string; phoneClean: string; name: string; balance: number; autoTotal: number; eligible: boolean }) {
     if (!brindeAtivo || !c.eligible) return;
     setResgateTarget(c);
@@ -321,15 +338,14 @@ export default function AdminClientes() {
 
     resgatarBrinde(resgateTarget.phone, resgateTarget.autoTotal, resgateTarget.name);
 
-    const custoCusto = Number(sabor.precoCustoInicial) || 0;
-    const custo = custoCusto > 0 ? custoCusto : Number(sabor.price) || 0;
-    addExpense({
-      descricao: `Resgate Fidelidade — ${sabor.name} — ${resgateTarget.name}`,
-      categoria: "Custos de Brindes / Fidelidade",
-      valor: custo,
-      data: getLocalDateStr(),
-      status: "Pago",
-    });
+    addExpense(
+      montarDespesaBrinde(
+        sabor,
+        resgateTarget.name,
+        fichas.find((f) => f.productId === sabor.id),
+        getLocalDateStr()
+      )
+    );
 
     setResgateTarget(null);
     setResgateSabor("");
@@ -419,6 +435,76 @@ export default function AdminClientes() {
             </div>
           </div>
 
+          <div className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Categorias que contam para a meta:
+              </span>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-300">
+                <input
+                  type="radio"
+                  name="promoCategorias"
+                  checked={storeConfig.brindeTodasCategorias !== false}
+                  onChange={() => handleSalvarModoCategorias(true)}
+                  disabled={!brindeAtivo}
+                  className="accent-[#8B1D22] dark:accent-red-600"
+                />
+                Todas as Categorias
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-300">
+                <input
+                  type="radio"
+                  name="promoCategorias"
+                  checked={storeConfig.brindeTodasCategorias === false}
+                  onChange={() => handleSalvarModoCategorias(false)}
+                  disabled={!brindeAtivo}
+                  className="accent-[#8B1D22] dark:accent-red-600"
+                />
+                Categorias Específicas
+              </label>
+              {!brindeAtivo && (
+                <span className="text-[10px] font-semibold text-amber-400">Ative a chave Brinde para editar</span>
+              )}
+            </div>
+            {storeConfig.brindeTodasCategorias === false && (
+              <div className="flex flex-wrap items-center gap-2">
+                {categories.length === 0 && (
+                  <p className="text-xs text-neutral-500">Nenhuma categoria cadastrada.</p>
+                )}
+                {categories.map((c) => {
+                  const marcada = (Array.isArray(storeConfig.brindeCategoriasPromo) ? storeConfig.brindeCategoriasPromo : []).includes(c.id);
+                  return (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        marcada
+                          ? "border-[#8B1D22]/50 bg-[#8B1D22]/15 text-[#8B1D22] dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                          : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:border-neutral-600"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={marcada}
+                        onChange={() => handleToggleCategoriaPromo(c.id)}
+                        disabled={!brindeAtivo}
+                        className="accent-[#8B1D22] dark:accent-red-600"
+                      />
+                      {c.name}
+                    </label>
+                  );
+                })}
+                {(Array.isArray(storeConfig.brindeCategoriasPromo) ? storeConfig.brindeCategoriasPromo : []).length === 0 && (
+                  <p className="text-xs font-semibold text-amber-400">
+                    ⚠ Nenhuma categoria selecionada — nenhum item contará para a meta.
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-[10px] text-neutral-500">
+              Ao escolher categorias específicas, apenas os itens dessas categorias somam para atingir a meta de {formatCurrency(valorMinimoBrinde)}.
+            </p>
+          </div>
+
           {fidelidadeRows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-neutral-700 py-8 text-center text-sm text-neutral-500">
               Nenhum cliente com saldo de fidelidade ainda.
@@ -446,7 +532,7 @@ export default function AdminClientes() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-neutral-400">{formatPhone(row.phone || row.phoneClean)}</td>
+                        <td className="px-4 py-3 text-xs text-neutral-400">{formatarTelefone(row.phone || row.phoneClean)}</td>
                         <td className="px-4 py-3 text-right text-sm font-bold text-[#8B1D22] dark:text-red-500">
                           {row.label}
                         </td>
@@ -527,7 +613,7 @@ export default function AdminClientes() {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-xs text-neutral-400">{formatPhone(c.phone)}</td>
+                  <td className="px-6 py-4 text-xs text-neutral-400">{formatarTelefone(c.phone)}</td>
                   <td className="px-6 py-4 text-center">
                     <span
                       className={`text-sm font-bold ${
@@ -698,11 +784,24 @@ export default function AdminClientes() {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">WhatsApp</label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   placeholder="(00) 00000-0000"
                   value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  onChange={(e) => {
+                    setPhoneError("");
+                    setForm((f) => ({ ...f, phone: mascaraTelefone(e.target.value) }));
+                  }}
+                  onBlur={() => {
+                    const e = estadoTelefone(form.phone);
+                    setForm((f) => ({ ...f, phone: e.valor }));
+                    setPhoneError(e.erro);
+                  }}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-wine-500 focus:ring-1 focus:ring-wine-500/30"
                 />
+                {phoneError && (
+                  <p className="mt-1.5 text-xs font-medium text-red-400">{phoneError}</p>
+                )}
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Referência</label>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useCartStore, useOrderStore } from "@/lib/store";
 import { formatCurrency, classNames } from "@/lib/utils";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
 import { useStoreConfig } from "@/lib/storeConfig";
 
@@ -98,7 +99,7 @@ export default function OrderWizardModal() {
     if (step === 1) return items.length > 0;
     if (step === 2) return !!form.date;
     if (step === 3) return form.time.length > 0;
-    if (step === 4) return form.customerName.trim().length > 0 && form.customerPhone.trim().length >= 10;
+    if (step === 4) return form.customerName.trim().length > 0 && higienizarTelefone(form.customerPhone) !== null;
     if (step === 5) return form.paymentMethod.length > 0 && form.finalTotal > 0;
     return true;
   };
@@ -108,7 +109,7 @@ export default function OrderWizardModal() {
     if (step === 3) return "Selecione um horario";
     if (step === 4) {
       if (!form.customerName.trim()) return "Informe seu nome";
-      if (form.customerPhone.trim().length < 10) return "Informe um telefone valido";
+      if (higienizarTelefone(form.customerPhone) === null) return MENSAGEM_WHATSAPP_INVALIDO;
     }
     if (step === 5) {
       if (form.finalTotal <= 0) return "Informe o valor total";
@@ -149,9 +150,11 @@ export default function OrderWizardModal() {
       product: cartItem.product,
       quantity: cartItem.quantity,
       notes: cartItem.notes || "",
+      is_brinde: cartItem.is_brinde || undefined,
+      preco_unitario: cartItem.preco_unitario,
     }));
 
-    const normalizedPhone = form.customerPhone.replace(/\D/g, "");
+    const normalizedPhone = higienizarTelefone(form.customerPhone) || "";
 
     useOrderStore.getState().addOrder({
       customerName: form.customerName,
@@ -175,7 +178,7 @@ export default function OrderWizardModal() {
 
     openWhatsApp(items as any, {
       customerName: form.customerName,
-      customerPhone: form.customerPhone,
+      customerPhone: formatarTelefone(normalizedPhone),
       deliveryType: "retirada",
       scheduledDate: form.date,
       scheduledTime: form.time,
@@ -331,7 +334,7 @@ export default function OrderWizardModal() {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Telefone / WhatsApp <span className="text-red-500">*</span></label>
-              <input type="tel" required value={form.customerPhone} onChange={(e) => setForm((f) => ({ ...f, customerPhone: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-wine-500" placeholder="(11) 99999-9999" />
+              <input type="tel" inputMode="numeric" required value={form.customerPhone} onChange={(e) => setForm((f) => ({ ...f, customerPhone: mascaraTelefone(e.target.value) }))} onBlur={(e) => setForm((f) => ({ ...f, customerPhone: estadoTelefone(f.customerPhone || e.target.value).valor }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-wine-500" placeholder="(11) 99999-9999" />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Observacoes Gerais do Pedido</label>

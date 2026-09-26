@@ -12,6 +12,7 @@ import { formatCurrency, getLocalDateStr, formatItemQty, paymentLabelOf } from "
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import type { Order, OrderStatus, PaymentMethod, CartItem, Product } from "@/types/database";
+import { formatarTelefone } from "@/lib/phone";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
   pendente: { label: "Pendente", color: "bg-amber-500/15 text-amber-400" },
@@ -356,7 +357,7 @@ export default function AdminPedidos() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Telefone</p>
-                        <p className="mt-1 text-white">{order.customerPhone}</p>
+                        <p className="mt-1 text-white">{formatarTelefone(order.customerPhone)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pagamento</p>
@@ -545,7 +546,7 @@ export default function AdminPedidos() {
                   >
                     <option value="">Selecione um cliente...</option>
                     {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                      <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
                     ))}
                   </select>
                 </div>

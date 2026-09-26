@@ -5,6 +5,7 @@ import { useOrderStore } from "@/lib/store";
 import { confirmOrderWhatsApp } from "@/lib/whatsapp";
 import { formatCurrency, paymentLabelOf } from "@/lib/utils";
 import type { Order, OrderStatus, PaymentMethod } from "@/types/database";
+import { formatarTelefone, mascaraTelefone, higienizarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 
 type ViewMode = "dia" | "grade" | "lista";
 
@@ -530,7 +531,7 @@ export default function AdminAgendamentos() {
                     <td className="px-6 py-4 text-sm font-bold text-amber-400">{order.scheduledTime ?? "—"}</td>
                     <td className="px-6 py-4">
                       <p className="font-semibold text-white">{order.customerName}</p>
-                      <p className="text-xs text-neutral-500">{order.customerPhone}</p>
+                      <p className="text-xs text-neutral-500">{formatarTelefone(order.customerPhone)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="max-w-xs text-xs text-neutral-400 line-clamp-1">
@@ -578,7 +579,7 @@ export default function AdminAgendamentos() {
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-bold text-white">{detailOrder.customerName}</h2>
-                <p className="text-sm text-neutral-500">{detailOrder.customerPhone}</p>
+                <p className="text-sm text-neutral-500">{formatarTelefone(detailOrder.customerPhone)}</p>
               </div>
               <button onClick={() => setDetailOrder(null)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -725,7 +726,7 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
   const { updateOrder } = useOrderStore();
   const [form, setForm] = useState({
     customerName: order.customerName,
-    customerPhone: order.customerPhone,
+    customerPhone: mascaraTelefone(order.customerPhone),
     total: order.total,
     paymentMethod: order.paymentMethod,
     status: order.status,
@@ -733,11 +734,18 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
     scheduledTime: order.scheduledTime || "",
     generalNotes: order.generalNotes || "",
   });
+  const [phoneError, setPhoneError] = useState("");
 
   function handleSave() {
+    const phone = higienizarTelefone(form.customerPhone);
+    if (!phone) {
+      setPhoneError(MENSAGEM_WHATSAPP_INVALIDO);
+      return;
+    }
+    setPhoneError("");
     updateOrder(order.id, {
       customerName: form.customerName,
-      customerPhone: form.customerPhone,
+      customerPhone: phone,
       total: form.total,
       paymentMethod: form.paymentMethod,
       status: form.status,
@@ -767,8 +775,10 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Telefone</label>
-              <input type="tel" value={form.customerPhone} onChange={(e) => setForm((f) => ({ ...f, customerPhone: e.target.value }))}
+              <input type="tel" inputMode="numeric" value={form.customerPhone} onChange={(e) => { setPhoneError(""); setForm((f) => ({ ...f, customerPhone: mascaraTelefone(e.target.value) })); }}
+                onBlur={() => { const e = estadoTelefone(form.customerPhone); setForm((f) => ({ ...f, customerPhone: e.valor })); setPhoneError(e.erro); }}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500" />
+              {phoneError && <p className="mt-1.5 text-xs font-medium text-red-400">{phoneError}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

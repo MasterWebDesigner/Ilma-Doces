@@ -6,6 +6,7 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import type { Credor, CompraCredor, CompraItem, PagamentoCredor } from "@/types/database";
 import { useCustomerStore, useProductStore, useOrderStore } from "@/lib/store";
 import { getLocalDateStr, paymentLabelOf } from "@/lib/utils";
+import { formatarTelefone } from "@/lib/phone";
 
 interface ItemCarrinho {
   id: string;
@@ -775,7 +776,7 @@ export default function CredoresPage() {
                         )}
                       </div>
                       <p className="text-xs text-neutral-400 mt-0.5">
-                        📱 {credor.whatsapp} {credor.observacoes ? `• 📝 ${credor.observacoes}` : ""}
+                        📱 {formatarTelefone(credor.whatsapp)} {credor.observacoes ? `• 📝 ${credor.observacoes}` : ""}
                       </p>
                     </div>
                   </div>
@@ -1029,7 +1030,7 @@ export default function CredoresPage() {
                     >
                       <option value="">Selecione um cliente...</option>
                       {customers.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
                       ))}
                     </select>
                   </div>
