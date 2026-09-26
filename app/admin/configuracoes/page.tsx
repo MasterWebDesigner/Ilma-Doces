@@ -174,6 +174,10 @@ export default function AdminConfiguracoes() {
             <input type="text" value={settings.storePhone} onChange={(e) => setSettings((s) => ({ ...s, storePhone: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="11930657871" />
           </div>
           <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">WhatsApp para Cobranças (opcional)</label>
+            <input type="text" value={settings.whatsappLoja} onChange={(e) => setSettings((s) => ({ ...s, whatsappLoja: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Usa o WhatsApp da Loja quando vazio" />
+          </div>
+          <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Endereco</label>
             <input type="text" value={settings.storeAddress} onChange={(e) => setSettings((s) => ({ ...s, storeAddress: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Rua, numero, bairro" />
           </div>
@@ -247,6 +251,10 @@ export default function AdminConfiguracoes() {
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Chave PIX</label>
             <input type="text" value={settings.pixKey} onChange={(e) => setSettings((s) => ({ ...s, pixKey: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="CPF, e-mail, celular ou chave aleatoria" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Chave PIX para Cobranças (opcional)</label>
+            <input type="text" value={settings.chavePix} onChange={(e) => setSettings((s) => ({ ...s, chavePix: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Usa a Chave PIX quando vazio" />
           </div>
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Descricao PIX</label>

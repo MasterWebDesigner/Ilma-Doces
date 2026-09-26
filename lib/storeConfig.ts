@@ -24,6 +24,8 @@ export interface StoreSettings {
   closingHour: string;
   pixKey: string;
   pixDescription: string;
+  whatsappLoja: string;
+  chavePix: string;
   welcomeMessage: string;
   googleMapsLink: string;
   brindeAtivo: boolean;
@@ -57,6 +59,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   closingHour: "18:00",
   pixKey: "",
   pixDescription: "Chave PIX da loja",
+  whatsappLoja: "",
+  chavePix: "",
   welcomeMessage: "Ola! Bem-vindo(a) a Ilma Doces!",
   googleMapsLink: "",
   brindeAtivo: true,

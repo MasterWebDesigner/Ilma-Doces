@@ -141,10 +141,12 @@ export interface CompraCredor {
   itens?: CompraItem[];
   valor: number;
   valorPendente?: number;
-  status?: "PENDENTE" | "QUITADO";
+  status?: "PENDENTE" | "QUITADO" | "CANCELADO";
   baixas?: BaixaCompra[];
   data: string;
   dataPrometida?: string;
+  frequenciaLembrete?: "diario" | "2_dias" | "3_dias" | "semanal" | "vencimento";
+  ultimoLembreteEm?: string | null;
   pago: boolean;
 }
 

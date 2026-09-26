@@ -19,8 +19,17 @@ function syncCredor(credor: Credor) {
   }
 }
 
+function agoraLocalISO(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function recalcularCompra(compra: CompraCredor): CompraCredor {
-  const totalBaixas = (compra.baixas || []).reduce((acc, b) => acc + (Number(b.valorPago) || 0), 0);
+  if (compra.status === 'CANCELADO') {
+    return { ...compra, valorPendente: 0, pago: false, status: 'CANCELADO' };
+  }
+  const totalBaixas = (compra.baixas || []).reduce((acc, b) => (Number(b.valorPago) || 0) + acc, 0);
   const valorPendenteCalc = Math.max(0, Number((compra.valor - totalBaixas).toFixed(2)));
   const pago = compra.pago || valorPendenteCalc <= 0.01;
   const valorPendente = pago ? 0 : valorPendenteCalc;
@@ -40,6 +49,7 @@ interface CredoresState {
   adicionarCompra: (credorId: string, compra: Omit<CompraCredor, 'id' | 'pago'>) => void;
   editarCompra: (credorId: string, compraId: string, dados: Partial<CompraCredor>) => void;
   removerCompra: (credorId: string, compraId: string) => void;
+  registrarLembrete: (credorId: string, compraId: string) => void;
   registrarBaixaCompra: (credorId: string, compraId: string, valorPago: number, formaPagamento: string, dataBaixa: string) => void;
   removerPagamento: (credorId: string, pagamentoId: string) => void;
     converterPedidoParaFiado: (dados: {
@@ -52,6 +62,7 @@ interface CredoresState {
       valorTotal: number;
       dataPedido?: string;
       dataPrometida?: string;
+      frequenciaLembrete?: CompraCredor["frequenciaLembrete"];
       itens?: CompraItem[];
       sinal?: {
         valor: number;
@@ -127,6 +138,8 @@ export const useCredoresStore = create<CredoresState>()(
               status: 'PENDENTE',
               pago: false,
               baixas: [],
+              frequenciaLembrete: compra.frequenciaLembrete || 'vencimento',
+              ultimoLembreteEm: compra.ultimoLembreteEm ?? null,
               dataPrometida: compra.dataPrometida || (() => {
                 const d = new Date();
                 d.setDate(d.getDate() + 7);
@@ -169,6 +182,22 @@ export const useCredoresStore = create<CredoresState>()(
             const updated = {
               ...c,
               compras: novasCompras,
+            };
+            syncCredor(updated);
+            return updated;
+          }),
+        })),
+
+      registrarLembrete: (credorId, compraId) =>
+        set((state) => ({
+          credores: state.credores.map((c) => {
+            const hasCompra = c.id === credorId || (c.compras || []).some((comp) => comp.id === compraId);
+            if (!hasCompra) return c;
+            const updated = {
+              ...c,
+              compras: (c.compras || []).map((compra) =>
+                compra.id === compraId ? { ...compra, ultimoLembreteEm: agoraLocalISO() } : compra
+              ),
             };
             syncCredor(updated);
             return updated;
@@ -346,6 +375,7 @@ export const useCredoresStore = create<CredoresState>()(
         valorTotal,
         dataPedido,
         dataPrometida,
+        frequenciaLembrete,
         itens,
         sinal,
       }) => {
@@ -410,6 +440,8 @@ export const useCredoresStore = create<CredoresState>()(
           baixas,
           data: dataBase,
           dataPrometida: dataPrometidaDefault,
+          frequenciaLembrete: frequenciaLembrete || 'vencimento',
+          ultimoLembreteEm: null,
         };
 
         const novaCompra = recalcularCompra(novaCompraBruta);
@@ -486,6 +518,8 @@ export const useCredoresStore = create<CredoresState>()(
                   d.setDate(d.getDate() + 7);
                   return getLocalDateStr(d);
                 })(),
+                frequenciaLembrete: compra.frequenciaLembrete || 'vencimento',
+                ultimoLembreteEm: compra.ultimoLembreteEm ?? null,
                 itens: compra.itens || [],
               };
               return recalcularCompra(base);
@@ -495,7 +529,7 @@ export const useCredoresStore = create<CredoresState>()(
         }
         return persistedState;
       },
-      version: 1,
+      version: 2,
     }
   )
 );

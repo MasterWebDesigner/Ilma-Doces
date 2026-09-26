@@ -7,6 +7,9 @@ import type { Credor, CompraCredor, CompraItem, PagamentoCredor } from "@/types/
 import { useCustomerStore, useProductStore, useOrderStore } from "@/lib/store";
 import { getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { formatarTelefone } from "@/lib/phone";
+import { useStoreConfig } from "@/lib/storeConfig";
+import { deveCobrar, compraAberta, diasAtraso, frequenciaDe, FREQUENCIAS_LEMBRETE, type FrequenciaLembrete } from "@/lib/cobranca";
+import { montarCobrancaVencimento, montarCobrancaAtraso, montarAgradecimentoPagamento, urlWaMe } from "@/lib/whatsapp";
 
 interface ItemCarrinho {
   id: string;
@@ -31,10 +34,13 @@ export default function CredoresPage() {
     removerCompra,
     registrarBaixaCompra,
     removerPagamento,
+    registrarLembrete,
   } = useCredoresStore();
   const customers = useCustomerStore((s) => s.customers);
   const products = useProductStore((s) => s.products);
   const orders = useOrderStore((s) => s.orders);
+  const config = useStoreConfig();
+  const hojeStr = getLocalDateStr();
 
   function getOrderBadge(referenciaId?: string) {
     if (!referenciaId) return null;
@@ -94,6 +100,18 @@ export default function CredoresPage() {
   const [editValor, setEditValor] = useState("");
   const [editData, setEditData] = useState("");
   const [editDataPrometida, setEditDataPrometida] = useState("");
+  const [editFrequencia, setEditFrequencia] = useState<FrequenciaLembrete>("vencimento");
+
+  // Modal Marcar como Pago (Cobranças)
+  const [modalPagarOpen, setModalPagarOpen] = useState(false);
+  const [pagarCredorId, setPagarCredorId] = useState<string | null>(null);
+  const [pagarCompraId, setPagarCompraId] = useState<string | null>(null);
+  const [pagarEtapa, setPagarEtapa] = useState<"confirmar" | "agradecer">("confirmar");
+  const [pagarMetodo, setPagarMetodo] = useState("PIX");
+  const [pagarValor, setPagarValor] = useState(0);
+  const [pagarNome, setPagarNome] = useState("");
+  const [pagarDescricao, setPagarDescricao] = useState("");
+  const [pagarItens, setPagarItens] = useState<CompraItem[] | undefined>(undefined);
 
   // Modal Pagamento / Baixa
   const [modalPagamentoOpen, setModalPagamentoOpen] = useState(false);
@@ -170,6 +188,73 @@ export default function CredoresPage() {
 
     return Array.from(map.values());
   }, [credores]);
+
+  const cobrancasHoje = useMemo(() => {
+    const lista: { credor: (typeof credoresAgrupados)[number]; compra: CompraCredor }[] = [];
+    credoresAgrupados.forEach((credor) => {
+      (credor.compras || []).forEach((compra) => {
+        if (deveCobrar(compra, hojeStr)) lista.push({ credor, compra });
+      });
+    });
+    return lista;
+  }, [credoresAgrupados, hojeStr]);
+
+  function alvoWhatsApp(c: { whatsapp: string }): string {
+    return (c.whatsapp || "").trim() || (config.whatsappLoja || "").trim() || (config.storePhone || "").trim();
+  }
+
+  function abrirCobranca(credorId: string, compra: CompraCredor, c: { nome: string; whatsapp: string }) {
+    const atraso = diasAtraso(compra, hojeStr);
+    const dados = {
+      nome: c.nome,
+      dataCompra: compra.data,
+      dataPrometida: compra.dataPrometida || compra.data,
+      valor: compra.valor,
+      itens: compra.itens,
+      descricaoFallback: compra.descricao,
+      chavePix: config.chavePix || config.pixKey,
+    };
+    const texto = atraso > 0
+      ? montarCobrancaAtraso({ ...dados, diasAtraso: atraso })
+      : montarCobrancaVencimento(dados);
+    registrarLembrete(credorId, compra.id);
+    window.open(urlWaMe(alvoWhatsApp(c), texto), "_blank");
+  }
+
+  function abrirMarcarPago(credor: { id: string; nome: string; whatsapp: string }, compra: CompraCredor) {
+    const pendente = compra.valorPendente !== undefined ? compra.valorPendente : compra.valor;
+    setPagarCredorId(credor.id);
+    setPagarCompraId(compra.id);
+    setPagarEtapa("confirmar");
+    setPagarMetodo("PIX");
+    setPagarValor(pendente);
+    setPagarNome(credor.nome);
+    setPagarDescricao(compra.descricao);
+    setPagarItens(compra.itens);
+    setModalPagarOpen(true);
+  }
+
+  function confirmarMarcarPago() {
+    if (!pagarCredorId || !pagarCompraId || pagarValor <= 0) return;
+    try {
+      registrarBaixaCompra(pagarCredorId, pagarCompraId, pagarValor, pagarMetodo, getLocalDateStr());
+      setPagarEtapa("agradecer");
+    } catch (err: any) {
+      alert(err.message || "Erro ao registrar pagamento.");
+    }
+  }
+
+  function enviarAgradecimento() {
+    const credor = credoresAgrupados.find((c) => c.id === pagarCredorId);
+    const texto = montarAgradecimentoPagamento({
+      nome: pagarNome,
+      valor: pagarValor,
+      itens: pagarItens,
+      descricaoFallback: pagarDescricao,
+    });
+    window.open(urlWaMe(alvoWhatsApp(credor || { whatsapp: "" }), texto), "_blank");
+    setModalPagarOpen(false);
+  }
 
   function abrirNovoCredor() {
     setCredorEditando(null);
@@ -368,6 +453,7 @@ export default function CredoresPage() {
     setEditValor(compra.valor.toFixed(2).replace(".", ","));
     setEditData(compra.data || getLocalDateStr());
     setEditDataPrometida(compra.dataPrometida || getLocalDateStr());
+    setEditFrequencia(compra.frequenciaLembrete || "vencimento");
     setModalEditarCompraOpen(true);
   }
 
@@ -383,6 +469,7 @@ export default function CredoresPage() {
       valor: valorNum,
       data: editData,
       dataPrometida: editDataPrometida,
+      frequenciaLembrete: editFrequencia,
       itens: [{ descricao: editDesc, quantidade: 1, valorUnitario: valorNum }],
     });
 
@@ -492,7 +579,7 @@ export default function CredoresPage() {
     const isVencido = hojeStr > dataPrometidaStr;
 
     const foneLimpo = c.whatsapp.replace(/\D/g, "");
-    const chavePix = "sua-chave-pix@ilmadoces.com.br";
+    const chavePix = config.chavePix || config.pixKey;
 
     let mensagem = "";
     if (isVencido) {
@@ -541,6 +628,7 @@ export default function CredoresPage() {
 
   function getStatusCompraIndividual(compra: CompraCredor) {
     if (compra.pago) return { label: "Quitado", cor: "bg-emerald-500/15 text-emerald-400" };
+    if (compra.status === "CANCELADO") return { label: "🚫 Cancelada", cor: "bg-neutral-500/15 text-neutral-400" };
     const pendente = compra.valorPendente !== undefined ? compra.valorPendente : compra.valor;
     if (pendente < compra.valor) {
       return { label: `⏳ Parcial: Restam R$ ${pendente.toFixed(2).replace(".", ",")}`, cor: "bg-amber-500/20 text-amber-400 font-bold" };
@@ -663,6 +751,89 @@ export default function CredoresPage() {
             </svg>
           </div>
         </div>
+      </div>
+
+      {/* Cobranças de Hoje */}
+      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">📞</span>
+            <div>
+              <h3 className="text-sm font-bold text-emerald-300">Cobranças de Hoje</h3>
+              <p className="text-xs text-neutral-400">
+                {cobrancasHoje.length === 0
+                  ? "Nenhuma cobrança programada para hoje."
+                  : `${cobrancasHoje.length} ${cobrancasHoje.length === 1 ? "cliente" : "clientes"} para cobrar hoje (vencidos e vencendo hoje)`}
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
+            {new Date(hojeStr + "T12:00:00").toLocaleDateString("pt-BR")}
+          </span>
+        </div>
+
+        {cobrancasHoje.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-neutral-700 bg-neutral-900/60 p-4 text-center text-xs text-neutral-400">
+            ✅ Tudo em dia — nenhum lembrete de pagamento pendente para hoje.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {cobrancasHoje.map(({ credor, compra }) => {
+              const atraso = diasAtraso(compra, hojeStr);
+              const pendente = compra.valorPendente !== undefined && compra.valorPendente > 0 ? compra.valorPendente : compra.valor;
+              return (
+                <div key={credor.id + compra.id} className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900 p-3.5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-bold text-white">{credor.nome}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${atraso > 0 ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}>
+                        {atraso > 0 ? `⚠️ Vencido há ${atraso} ${atraso === 1 ? "dia" : "dias"}` : "🔔 Vence hoje"}
+                      </span>
+                      <span className="text-[10px] text-neutral-500">Lembrete: {FREQUENCIAS_LEMBRETE.find((f) => f.valor === frequenciaDe(compra))?.rotulo}</span>
+                    </div>
+                    <p className="truncate text-xs text-neutral-400">{compra.descricao}</p>
+                    <p className="text-xs font-bold text-amber-400">Saldo: R$ {pendente.toFixed(2).replace(".", ",")}</p>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-neutral-500">Vencimento</label>
+                      <input
+                        type="date"
+                        value={compra.dataPrometida || compra.data}
+                        onChange={(e) => editarCompra(credor.id, compra.id, { dataPrometida: e.target.value })}
+                        className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] text-neutral-500">Frequência</label>
+                      <select
+                        value={frequenciaDe(compra)}
+                        onChange={(e) => editarCompra(credor.id, compra.id, { frequenciaLembrete: e.target.value as FrequenciaLembrete })}
+                        className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                      >
+                        {FREQUENCIAS_LEMBRETE.map((f) => (
+                          <option key={f.valor} value={f.valor}>{f.rotulo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => abrirCobranca(credor.id, compra, credor)}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-500"
+                    >
+                      🟢 Cobrar via WhatsApp
+                    </button>
+                    <button
+                      onClick={() => abrirMarcarPago(credor, compra)}
+                      className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                    >
+                      ✅ Marcar como Pago
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Tabs & Search & Ordering */}
@@ -896,11 +1067,29 @@ export default function CredoresPage() {
                                            );
                                          })()}
                                        </div>
-                                       <button
-                                         onClick={() => abrirEditarCompra(credor.id, compra)}
-                                         className="text-neutral-400 hover:text-white text-xs p-1"
-                                         title="Editar compra e datas"
-                                       >
+                                        {deveCobrar(compra, hojeStr) && (
+                                          <button
+                                            onClick={() => abrirCobranca(credor.id, compra, credor)}
+                                            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-emerald-500"
+                                            title="Cobrar via WhatsApp"
+                                          >
+                                            🟢 Cobrar
+                                          </button>
+                                        )}
+                                        {compraAberta(compra) && (
+                                          <button
+                                            onClick={() => abrirMarcarPago(credor, compra)}
+                                            className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                                            title="Marcar como pago"
+                                          >
+                                            ✅ Pago
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => abrirEditarCompra(credor.id, compra)}
+                                          className="text-neutral-400 hover:text-white text-xs p-1"
+                                          title="Editar compra e datas"
+                                        >
                                          ✏️
                                        </button>
                                        <button
@@ -1408,6 +1597,18 @@ export default function CredoresPage() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-400 mb-1">Frequência de Lembrete</label>
+                <select
+                  value={editFrequencia}
+                  onChange={(e) => setEditFrequencia(e.target.value as FrequenciaLembrete)}
+                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
+                >
+                  {FREQUENCIAS_LEMBRETE.map((f) => (
+                    <option key={f.valor} value={f.valor}>{f.rotulo}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
@@ -1424,6 +1625,29 @@ export default function CredoresPage() {
                 </button>
               </div>
             </form>
+            {(() => {
+              const compraAlvo = credoresAgrupados
+                .find((c) => c.id === editCredorId)
+                ?.compras.find((comp) => comp.id === editCompraId);
+              if (!compraAlvo || compraAlvo.pago) return null;
+              const cancelada = compraAlvo.status === "CANCELADO";
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    editarCompra(editCredorId!, editCompraId!, { status: cancelada ? "PENDENTE" : "CANCELADO" });
+                    setModalEditarCompraOpen(false);
+                  }}
+                  className={`w-full rounded-xl border px-4 py-2.5 text-xs font-semibold transition-colors ${
+                    cancelada
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      : "border-neutral-700 bg-neutral-950 text-neutral-400 hover:border-red-500/40 hover:text-red-400"
+                  }`}
+                >
+                  {cancelada ? "🔄 Reabrir cobrança" : "🚫 Cancelar cobrança (sai das cobranças e do saldo)"}
+                </button>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1552,6 +1776,79 @@ export default function CredoresPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Marcar como Pago (Cobrança) */}
+      {modalPagarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 shadow-2xl">
+            {pagarEtapa === "confirmar" ? (
+              <>
+                <h3 className="text-lg font-bold text-white">Marcar como Pago</h3>
+                <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 space-y-1.5">
+                  <p className="text-sm font-bold text-white">{pagarNome}</p>
+                  <p className="text-xs text-neutral-400">{pagarDescricao}</p>
+                  <p className="text-lg font-bold text-emerald-400">R$ {pagarValor.toFixed(2).replace(".", ",")}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1">Forma de Recebimento *</label>
+                  <select
+                    value={pagarMetodo}
+                    onChange={(e) => setPagarMetodo(e.target.value)}
+                    className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
+                  >
+                    <option value="PIX">PIX</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão Débito">Cartão Débito</option>
+                    <option value="Cartão Crédito">Cartão Crédito</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalPagarOpen(false)}
+                    className="rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmarMarcarPago}
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                  >
+                    Confirmar Pagamento
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2 text-center">
+                  <p className="text-3xl">✅</p>
+                  <h3 className="text-lg font-bold text-white">Pagamento registrado!</h3>
+                  <p className="text-sm text-neutral-400">
+                    R$ {pagarValor.toFixed(2).replace(".", ",")} quitado com sucesso. Deseja enviar uma mensagem de agradecimento no WhatsApp?
+                  </p>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalPagarOpen(false)}
+                    className="rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+                  >
+                    Agora não
+                  </button>
+                  <button
+                    type="button"
+                    onClick={enviarAgradecimento}
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                  >
+                    🟢 Enviar agradecimento
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
