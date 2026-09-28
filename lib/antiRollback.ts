@@ -8,10 +8,26 @@ export const STATUS_PEDIDO_LIQUIDADO: readonly string[] = [
   "finalizado",
 ];
 
+export const STATUS_PEDIDO_FINAL: readonly string[] = ["concluido", "recusado", "cancelado"];
+
+export const STATUS_PEDIDO_ANTERIOR: readonly string[] = ["pendente", "confirmado", "em_producao"];
+
 export type OpcoesReversao = { permitirReverter?: boolean };
 
 export function ehPedidoLiquidado(status?: string | null): boolean {
   return !!status && STATUS_PEDIDO_LIQUIDADO.includes(status);
+}
+
+export function ehPedidoFinal(status?: string | null): boolean {
+  return !!status && STATUS_PEDIDO_FINAL.includes(status);
+}
+
+export function ehEstadoAnteriorPedido(status?: string | null): boolean {
+  return !!status && STATUS_PEDIDO_ANTERIOR.includes(status);
+}
+
+export function ehPedidoEncerrado(status?: string | null): boolean {
+  return ehPedidoLiquidado(status) || ehPedidoFinal(status);
 }
 
 export function ehCompraLiquidada(compra?: CompraCredor | null): boolean {
@@ -25,7 +41,8 @@ export function deveBloquearReversaoPedido(
   permitirReverter = false
 ): boolean {
   if (permitirReverter || !statusNovo) return false;
-  return ehPedidoLiquidado(statusRemoto) && !ehPedidoLiquidado(statusNovo);
+  if (ehPedidoEncerrado(statusRemoto) && statusNovo !== statusRemoto) return true;
+  return false;
 }
 
 export function divergenciaDeReversaoCredor(remoto: Credor, atualizado: Credor): boolean {

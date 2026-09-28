@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   ehPedidoLiquidado,
+  ehPedidoFinal,
+  ehEstadoAnteriorPedido,
+  ehPedidoEncerrado,
   ehCompraLiquidada,
   deveBloquearReversaoPedido,
   divergenciaDeReversaoCredor,
@@ -85,6 +88,66 @@ describe("antiRollback — status de pedido liquidado", () => {
     expect(deveBloquearReversaoPedido("concluido", "cancelado")).toBe(true);
     expect(ehPedidoLiquidado("recusado")).toBe(false);
     expect(ehPedidoLiquidado("cancelado")).toBe(false);
+  });
+});
+
+describe("antiRollback — estados finais (concluido, recusado, cancelado)", () => {
+  it("reconhece estados finais e estados anteriores", () => {
+    expect(ehPedidoFinal("concluido")).toBe(true);
+    expect(ehPedidoFinal("recusado")).toBe(true);
+    expect(ehPedidoFinal("cancelado")).toBe(true);
+    expect(ehPedidoFinal("pendente")).toBe(false);
+    expect(ehPedidoFinal("em_producao")).toBe(false);
+    expect(ehPedidoFinal(undefined)).toBe(false);
+    expect(ehEstadoAnteriorPedido("pendente")).toBe(true);
+    expect(ehEstadoAnteriorPedido("confirmado")).toBe(true);
+    expect(ehEstadoAnteriorPedido("em_producao")).toBe(true);
+    expect(ehEstadoAnteriorPedido("pronto")).toBe(false);
+    expect(ehEstadoAnteriorPedido("concluido")).toBe(false);
+    expect(ehPedidoEncerrado("recusado")).toBe(true);
+    expect(ehPedidoEncerrado("cancelado")).toBe(true);
+    expect(ehPedidoEncerrado("pendente")).toBe(false);
+  });
+
+  it("nunca deixa pedido final voltar para estados anteriores", () => {
+    for (const final of ["concluido", "recusado", "cancelado"]) {
+      for (const anterior of ["pendente", "confirmado", "em_producao"]) {
+        expect(deveBloquearReversaoPedido(final, anterior)).toBe(true);
+      }
+    }
+  });
+
+  it("não reabre pedido final sem fluxo explícito (permitirReverter)", () => {
+    expect(deveBloquearReversaoPedido("cancelado", "pendente", true)).toBe(false);
+    expect(deveBloquearReversaoPedido("recusado", "confirmado", true)).toBe(false);
+    expect(deveBloquearReversaoPedido("concluido", "em_producao", true)).toBe(false);
+    expect(deveBloquearReversaoPedido("cancelado", "pendente", false)).toBe(true);
+  });
+
+  it("mantém estados finais idempotentes", () => {
+    expect(deveBloquearReversaoPedido("concluido", "concluido")).toBe(false);
+    expect(deveBloquearReversaoPedido("recusado", "recusado")).toBe(false);
+    expect(deveBloquearReversaoPedido("cancelado", "cancelado")).toBe(false);
+  });
+
+  it("bloqueia troca entre estados finais diferentes", () => {
+    expect(deveBloquearReversaoPedido("cancelado", "concluido")).toBe(true);
+    expect(deveBloquearReversaoPedido("recusado", "cancelado")).toBe(true);
+    expect(deveBloquearReversaoPedido("concluido", "recusado")).toBe(true);
+  });
+
+  it("permite transições a partir de estados abertos para estados finais", () => {
+    expect(deveBloquearReversaoPedido("pendente", "recusado")).toBe(false);
+    expect(deveBloquearReversaoPedido("pendente", "cancelado")).toBe(false);
+    expect(deveBloquearReversaoPedido("confirmado", "cancelado")).toBe(false);
+    expect(deveBloquearReversaoPedido("em_producao", "concluido")).toBe(false);
+    expect(deveBloquearReversaoPedido("saiu_entrega", "concluido")).toBe(false);
+  });
+
+  it("ignora atualizações sem mudança de status", () => {
+    expect(deveBloquearReversaoPedido("concluido", undefined)).toBe(false);
+    expect(deveBloquearReversaoPedido("recusado", null)).toBe(false);
+    expect(deveBloquearReversaoPedido("cancelado", "")).toBe(false);
   });
 });
 

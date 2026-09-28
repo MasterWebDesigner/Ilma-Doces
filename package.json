@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "firebase emulators:exec --only firestore,auth --project demo-ilma-doces --import=firebase-emulator-data --export-on-exit=firebase-emulator-data \"next dev\"",
+    "dev": "firebase emulators:exec --only firestore,auth --project demo-ilma-doces --import=./emulator-data --export-on-exit=./emulator-data \"next dev\"",
     "dev:next": "next dev",
     "db:sync": "node scripts/db-sync.mjs",
     "build": "next build",

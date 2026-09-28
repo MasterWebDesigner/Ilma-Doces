@@ -8,6 +8,7 @@ _backups/
 devlog.txt
 tsconfig.tsbuildinfo
 firebase-emulator-data/
+emulator-data/
 .firebase/
 
 .vercel

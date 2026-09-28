@@ -24,7 +24,7 @@
 - `npm run dev:next` roda só o Next (sem emulador — nesse caso o app volta a apontar pra produção; usar só para emergências).
 - `node scripts/verify-login.mjs` confere se o login local está respondendo.
 - `firestore.rules` é allow-all **do emulador** — nunca rodar `firebase deploy` (o CLI nem está logado; manter assim).
-- Dados locais persistem em `firebase-emulator-data/` (gitignored). Requisitos: Java (OpenJDK 21) e `firebase-tools` (devDependency).
+- Dados locais persistem em `emulator-data/` (gitignored; `--import=./emulator-data --export-on-exit` no script `dev`). Requisitos: Java (OpenJDK 21) e `firebase-tools` (devDependency).
 
 ## Convenções
 

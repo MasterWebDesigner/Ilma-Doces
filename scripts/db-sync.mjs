@@ -66,7 +66,39 @@ async function listarLocal(colecao) {
   const r = await fetch(url);
   if (!r.ok) return [];
   const j = await r.json().catch(() => ({}));
-  return (j.documents || []).map((d) => d.name.split("/").pop());
+  return (j.documents || []).map((d) => ({
+    id: d.name.split("/").pop(),
+    updateTime: d.updateTime || d.createTime || "",
+  }));
+}
+
+function diaLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("sv-SE");
+}
+
+async function avisarAlteradosHoje() {
+  const hoje = diaLocal(new Date().toISOString());
+  const alterados = [];
+  for (const col of COLECOES) {
+    for (const registro of await listarLocal(col)) {
+      const dia = diaLocal(registro.updateTime);
+      if (dia && dia === hoje) {
+        alterados.push({ col, id: registro.id, quando: registro.updateTime });
+      }
+    }
+  }
+  if (alterados.length === 0) {
+    console.log("Alteracoes locais de hoje: nenhuma.");
+    return;
+  }
+  console.log(`\n*** AVISO: ${alterados.length} documento(s) alterado(s) LOCALMENTE hoje (${hoje}) serao sobrescritos pela producao:`);
+  for (const a of alterados.slice(0, 15)) {
+    console.log(`    - ${a.col}/${a.id} (ultima alteracao ${a.quando})`);
+  }
+  if (alterados.length > 15) console.log(`    ... e mais ${alterados.length - 15} documento(s)`);
+  console.log("    Sync apenas sob demanda explicita (npm run db:sync), direcao producao -> local.\n");
 }
 
 async function apagarLocal(colecao, ids) {
@@ -121,9 +153,12 @@ async function main() {
   }
 
   console.log(`Sync PRODUCAO (${PROJETO_PROD}) -> EMULADOR LOCAL (${PROJETO_LOCAL})`);
-  console.log("Direcao unica: nunca escreve em producao.\n");
+  console.log("Direcao unica: nunca escreve em producao. Execucao manual: npm run db:sync.\n");
   console.log("Usuarios do login local:");
   await criarUsuarios();
+
+  console.log("\nVerificando alteracoes locais de hoje...");
+  await avisarAlteradosHoje();
 
   let total = 0;
   let puladas = 0;
@@ -136,7 +171,7 @@ async function main() {
       continue;
     }
     const locais = await listarLocal(col);
-    await apagarLocal(col, locais);
+    await apagarLocal(col, locais.map((l) => l.id));
     let ok = 0;
     for (const d of docs) {
       if (await gravarLocal(col, d)) ok += 1;

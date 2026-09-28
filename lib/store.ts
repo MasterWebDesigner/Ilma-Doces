@@ -528,7 +528,10 @@ async function gravarAtualizacaoPedido(
     const snap = await getDoc(doc(db, "pedidos", orderId));
     const statusRemoto = snap.exists() ? (snap.data() as Partial<Order>).status : undefined;
     if (deveBloquearReversaoPedido(statusRemoto, updates.status)) {
-      notifyError("Pedido concluído", "Este pedido já está liquidado e não pode voltar para o estado aberto.");
+      notifyError(
+        "Pedido encerrado",
+        "Pedido concluído, recusado ou cancelado não muda de status sem uma reabertura explícita."
+      );
       return false;
     }
   }
