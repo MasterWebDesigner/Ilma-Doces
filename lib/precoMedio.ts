@@ -21,7 +21,7 @@ export function obterPrecoMedio(
     })
     .slice(0, limite)
     .map(({ e }) => e);
-  if (entradas.length === 0) return precoCustoInicial ?? 0;
+  if (entradas.length === 0) return 0;
   const soma = entradas.reduce((s, e) => s + e.precoUnitario, 0);
   return soma / entradas.length;
 }

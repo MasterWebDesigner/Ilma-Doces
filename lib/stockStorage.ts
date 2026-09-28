@@ -7,6 +7,18 @@ export const STOCK_BRANDS_KEY = "ilma-stock-brands";
 export const BATCH_KEY = "ilma-batches";
 export const SEED_KEY = "ilma-seeded-v3";
 export const STOCK_CHANGED_EVENT = "ilma-stock-changed";
+export const SALDOS_ZERO_KEY = "ilma-saldos-zero-v1";
+export const LOTES_LIMPOS_KEY = "ilma-lotes-limpos-v1";
+
+export function limparLotesUmaVez(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem(LOTES_LIMPOS_KEY)) return;
+    saveBatchesData([]);
+    localStorage.setItem(LOTES_LIMPOS_KEY, "1");
+    localStorage.setItem(SALDOS_ZERO_KEY, "1");
+  } catch {}
+}
 
 export function notifyStockChanged(): void {
   if (typeof window === "undefined") return;
@@ -52,6 +64,7 @@ export function loadBatchesData<T>(): T[] {
 export function seedBatchesIfEmpty(): void {
   if (typeof window === "undefined") return;
   try {
+    if (localStorage.getItem(LOTES_LIMPOS_KEY)) return;
     const existentes = loadBatchesData<{ insumoId?: string }>();
     const comLote = new Set(existentes.map((b) => b.insumoId));
     const faltantes = SEED_BATCHES.filter((b) => !comLote.has(b.insumoId));

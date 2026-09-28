@@ -5,7 +5,7 @@ import { useBrandStore } from "@/lib/store";
 import { classNames, compararTexto } from "@/lib/utils";
 import { getStep, formatQty, ALL_STOCK_UNITS } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
-import { notifyStockChanged, saveStockData, saveBatchesData, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { notifyStockChanged, saveStockData, saveBatchesData, seedBatchesIfEmpty, limparLotesUmaVez } from "@/lib/stockStorage";
 import { SEED_STOCK, SEED_BRANDS, SEED_LINKS } from "@/lib/seedData";
 
 // ═══════════ TYPES ═══════════
@@ -251,6 +251,7 @@ export default function AdminEstoque() {
   const [brandError, setBrandError] = useState("");
 
   useEffect(() => {
+    limparLotesUmaVez();
     seedDataIfEmpty();
 
     // Force Zustand brand store to rehydrate from localStorage

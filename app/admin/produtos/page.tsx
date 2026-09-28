@@ -5,7 +5,7 @@ import { useProductStore, useBrandStore, useFichaTecnicaStore } from "@/lib/stor
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
 import { compararTexto } from "@/lib/utils";
-import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, limparLotesUmaVez, seedBatchesIfEmpty } from "@/lib/stockStorage";
 import GelinhosPanel from "@/components/admin/GelinhosPanel";
 
 interface PreviewLote {
@@ -62,6 +62,7 @@ export default function AdminProdutos() {
   const [previewInsumos, setPreviewInsumos] = useState<Map<string, PreviewInsumo>>(new Map());
 
   useEffect(() => {
+    limparLotesUmaVez();
     seedBatchesIfEmpty();
     const load = () => {
       try {

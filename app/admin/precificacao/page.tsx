@@ -7,7 +7,7 @@ import type { FichaTecnicaIngrediente } from "@/types/database";
 import { getConsumptionUnits, getStep, converterCustoFicha } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { calcularPrecificacao, ehReceitaPorUnidade, normalizarQuantidadeProduzida, somarCustoIngredientes } from "@/lib/precificacao";
-import { BATCH_KEY, SEED_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, loadBatchesData, loadStockData, saveStockData, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { BATCH_KEY, SEED_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, limparLotesUmaVez, loadBatchesData, loadStockData, saveStockData, seedBatchesIfEmpty } from "@/lib/stockStorage";
 import { SEED_STOCK } from "@/lib/seedData";
 
 interface StockItem {
@@ -34,6 +34,7 @@ interface Batch {
 function seedStockIfEmpty() {
   if (typeof window === "undefined") return;
   try {
+    limparLotesUmaVez();
     seedBatchesIfEmpty();
     const alreadySeeded = localStorage.getItem(SEED_KEY);
     if (alreadySeeded) return;

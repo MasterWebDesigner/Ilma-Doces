@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { SEED_STOCK, SEED_BATCHES, SEED_LINKS, SEED_BRANDS } from "@/lib/seedData";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
-import { loadBatchesData, saveBatchesData, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { LOTES_LIMPOS_KEY, SALDOS_ZERO_KEY, limparLotesUmaVez, loadBatchesData, saveBatchesData, seedBatchesIfEmpty } from "@/lib/stockStorage";
 
 describe("SEED_STOCK e SEED_BATCHES", () => {
   it("SEED_STOCK tem exatamente 99 itens únicos", () => {
@@ -106,6 +106,34 @@ describe("seedBatchesIfEmpty", () => {
     seedBatchesIfEmpty();
     seedBatchesIfEmpty();
     expect(loadBatchesData()).toHaveLength(SEED_BATCHES.length);
+  });
+
+  it("não reinsere lotes fictícios depois da limpeza", () => {
+    localStorage.setItem(LOTES_LIMPOS_KEY, "1");
+    seedBatchesIfEmpty();
+    expect(loadBatchesData()).toHaveLength(0);
+  });
+});
+
+describe("limparLotesUmaVez", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("apaga todos os lotes e seta as flags de limpeza", () => {
+    seedBatchesIfEmpty();
+    expect(loadBatchesData().length).toBeGreaterThan(0);
+    limparLotesUmaVez();
+    expect(loadBatchesData()).toHaveLength(0);
+    expect(localStorage.getItem(LOTES_LIMPOS_KEY)).toBe("1");
+    expect(localStorage.getItem(SALDOS_ZERO_KEY)).toBe("1");
+  });
+
+  it("é idempotente e impede novo seed", () => {
+    limparLotesUmaVez();
+    limparLotesUmaVez();
+    seedBatchesIfEmpty();
+    expect(loadBatchesData()).toHaveLength(0);
   });
 });
 
