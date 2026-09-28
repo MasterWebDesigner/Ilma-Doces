@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useProductStore } from "@/lib/store";
 import { useStoreConfig, saveStoreConfig } from "@/lib/storeConfig";
+import { compararTexto } from "@/lib/utils";
 
 type StockLevel = "saudavel" | "atencao" | "critico" | "esgotado";
 
@@ -71,7 +72,12 @@ export default function GelinhosPanel() {
   const [newForm, setNewForm] = useState({ name: "", price: 0, precoCustoInicial: 0, estoque: 10, estoqueMinimo: 5, estoqueCritico: 2 });
   const [editForm, setEditForm] = useState({ name: "", price: 0, precoCustoInicial: 0, estoque: 0, estoqueMinimo: 5, estoqueCritico: 2 });
 
-  const gelinhos = products.filter((p) => p.category_id === "cat-3" || p.controlarEstoque === true || p.name.toLowerCase().includes("gelinho"));
+  const gelinhos = products
+    .filter((p) => p.category_id === "cat-3" || p.controlarEstoque === true || p.name.toLowerCase().includes("gelinho"))
+    .sort((a, b) => {
+      if (a.price !== b.price) return b.price - a.price;
+      return compararTexto(a.name, b.name);
+    });
 
   const counts = {
     saudavel: gelinhos.filter((p) => getStockLevel(p.estoque ?? 0, p.estoqueMinimo ?? 5, p.estoqueCritico ?? 2) === "saudavel").length,
