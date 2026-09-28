@@ -14,6 +14,7 @@ const nav = [
   { href: "/admin/pedidos", label: "Pedidos", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   { href: "/admin/agendamentos", label: "Agendamentos", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { href: "/admin/produtos", label: "Cardápio", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+  { href: "/admin/cardapio-rapido", label: "Cardápio Rápido", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
   { href: "/admin/estoque", label: "Estoque / Insumos", icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
   { href: "/admin/precificacao", label: "Precificacao", icon: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" },
   { href: "/admin/financeiro", label: "Financeiro", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
@@ -27,6 +28,7 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const orders = useOrderStore((s) => s.orders);
   const pendingCount = orders.filter((o) => o.status === "pendente" || o.status === "em_producao").length;
   const { user } = useAuth();
@@ -42,15 +44,38 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
   return (
     <div className="admin-shell flex min-h-screen bg-neutral-950 text-neutral-200 dark:bg-neutral-950 dark:text-neutral-200">
       <NotificationToast />
+      <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b border-white/10 bg-[#8B1D22] px-4 md:hidden dark:border-zinc-800 dark:bg-zinc-950">
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(true)}
+          aria-label="Abrir menu"
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/10"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <img src="/logo/logo1.png" alt="Ilma Doces" className="h-8 w-auto object-contain" />
+        <span className="text-xs font-semibold text-white/90">Painel Administrativo</span>
+      </div>
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-20 bg-black/60 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+      )}
       <aside
         className={classNames(
           "fixed inset-y-0 left-0 z-30 flex flex-col border-r border-transparent bg-[#8B1D22] transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950",
-          collapsed ? "w-[68px]" : "w-64"
+          collapsed ? "w-[68px]" : "w-64",
+          mobileMenuOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
         )}
       >
         <div className="flex h-16 items-center border-b border-white/10 px-4 dark:border-zinc-800">
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => {
+              if (window.innerWidth < 768) setMobileMenuOpen(false);
+              else setCollapsed(!collapsed);
+            }}
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10 hover:text-white dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
             title={collapsed ? "Expandir menu" : "Recolher menu"}
           >
@@ -95,6 +120,7 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
                 key={item.href}
                 href={item.href}
                 title={collapsed ? item.label : undefined}
+                onClick={() => setMobileMenuOpen(false)}
                 className={classNames(
                   "relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-colors",
                   collapsed ? "justify-center px-2" : "px-3",
@@ -178,8 +204,8 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
 
       <main
         className={classNames(
-          "flex-1 p-8 transition-all duration-300",
-          collapsed ? "ml-[68px]" : "ml-64"
+          "flex-1 p-4 transition-all duration-300 md:p-8 max-md:mt-14",
+          collapsed ? "md:ml-[68px]" : "md:ml-64"
         )}
       >
         {children}

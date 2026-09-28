@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, getLocalDateStr, getLocalMonthStr, generateId, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, getLocalMonthStr, generateId, paymentLabelOf } from "@/lib/utils";
 
 describe("formatCurrency", () => {
   it("formats BRL currency correctly", () => {
@@ -76,5 +76,20 @@ describe("paymentLabelOf", () => {
     expect(paymentLabelOf("fiado")).toBe("Fiado");
     expect(paymentLabelOf("A Prazo / Fiado")).toBe("Fiado");
     expect(paymentLabelOf("conta cliente")).toBe("Fiado");
+  });
+});
+
+describe("compararTexto", () => {
+  it("ordena alfabeticamente A-Z ignorando caixa e acentos", () => {
+    const lista = ["São Jorge", "amêndoa", "Bolo de Chocolate", "Abacaxi", "Chocolate"];
+    const ordenada = [...lista].sort(compararTexto);
+    expect(ordenada).toEqual(["Abacaxi", "amêndoa", "Bolo de Chocolate", "Chocolate", "São Jorge"]);
+  });
+
+  it("trata diferencas de caixa como equivalente", () => {
+    expect(compararTexto("bolo", "Bolo")).toBe(0);
+    expect(compararTexto("açúcar", "acucar")).toBe(0);
+    expect(compararTexto("Chocolate", "Amêndoa")).toBeGreaterThan(0);
+    expect(compararTexto("Amêndoa", "Chocolate")).toBeLessThan(0);
   });
 });

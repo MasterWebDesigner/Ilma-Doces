@@ -6,9 +6,9 @@ import { useOrderStore, useCustomerStore, useProductStore } from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
 import type { CompraItem } from "@/types/database";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
-import { confirmOrderWhatsApp } from "@/lib/whatsapp";
+import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
 import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
-import { formatCurrency, getLocalDateStr, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import type { Order, OrderStatus, PaymentMethod, CartItem, Product } from "@/types/database";
@@ -21,6 +21,8 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
   pronto: { label: "Pronto", color: "bg-blue-500/15 text-blue-400" },
   saiu_entrega: { label: "Saiu Entrega", color: "bg-blue-500/15 text-blue-400" },
   concluido: { label: "Concluído", color: "bg-emerald-500/15 text-emerald-400" },
+  recusado: { label: "Recusado", color: "bg-red-500/15 text-red-400" },
+  cancelado: { label: "Cancelado", color: "bg-orange-500/15 text-orange-400" },
 };
 
 const PEDIDOS_PAGE_SIZE = 15;
@@ -35,6 +37,7 @@ export default function AdminPedidos() {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [sinalOrder, setSinalOrder] = useState<Order | null>(null);
+  const [encerrarPedido, setEncerrarPedido] = useState<{ order: Order; tipo: "recusar" | "cancelar" } | null>(null);
   const [pesoRealInputs, setPesoRealInputs] = useState<Record<string, string>>({});
 
   const customers = useCustomerStore((s) => s.customers);
@@ -128,7 +131,7 @@ export default function AdminPedidos() {
   }
 
   const filtered = orders.filter((o) => {
-    const matchStatus = filterStatus === "all" || o.status === filterStatus || (filterStatus === "confirmado" && o.status !== "pendente" && o.status !== "concluido");
+    const matchStatus = filterStatus === "all" || o.status === filterStatus || (filterStatus === "confirmado" && o.status !== "pendente" && o.status !== "concluido" && o.status !== "recusado" && o.status !== "cancelado");
     const matchType = filterType === "all" || o.deliveryType === filterType;
     const q = search.toLowerCase();
     const matchSearch = !q || o.customerName.toLowerCase().includes(q) || o.customerPhone.includes(q);
@@ -238,7 +241,7 @@ export default function AdminPedidos() {
           className="w-full max-w-xs rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
         />
         <div className="flex gap-2 flex-wrap">
-          {["all", "pendente", "confirmado", "concluido"].map((s) => (
+          {["all", "pendente", "confirmado", "concluido", "recusado", "cancelado"].map((s) => (
             <button
               key={s}
               onClick={() => { setFilterStatus(s); setPagePedidos(1); }}
@@ -296,7 +299,7 @@ export default function AdminPedidos() {
                       <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold text-amber-400">
                         Sinal: {formatCurrency(order.valorPagoSinal)} ({order.formaPagamentoSinal?.toUpperCase()})
                       </span>
-                    ) : order.status !== "concluido" ? (
+                    ) : !["concluido", "recusado", "cancelado"].includes(order.status) ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -328,7 +331,29 @@ export default function AdminPedidos() {
                         Confirmar
                       </button>
                     )}
-                    {order.status !== "concluido" && (
+                    {order.status === "pendente" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEncerrarPedido({ order, tipo: "recusar" });
+                        }}
+                        className="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/25"
+                      >
+                        Recusar
+                      </button>
+                    )}
+                    {["confirmado", "em_producao", "pronto", "saiu_entrega"].includes(order.status) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEncerrarPedido({ order, tipo: "cancelar" });
+                        }}
+                        className="rounded-lg bg-orange-500/15 px-3 py-1.5 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/25"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    {!["concluido", "recusado", "cancelado"].includes(order.status) && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -518,6 +543,9 @@ export default function AdminPedidos() {
       {sinalOrder && (
         <RegistrarSinalModal order={sinalOrder} onClose={() => setSinalOrder(null)} />
       )}
+      {encerrarPedido && (
+        <EncerrarPedidoModal order={encerrarPedido.order} tipo={encerrarPedido.tipo} onClose={() => setEncerrarPedido(null)} />
+      )}
 
       {/* Modal Criar Pedido Manual */}
       {manualModalOpen && (
@@ -545,9 +573,9 @@ export default function AdminPedidos() {
                     className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
                   >
                     <option value="">Selecione um cliente...</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
-                    ))}
+                      {[...customers].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
+                      ))}
                   </select>
                 </div>
               )}
@@ -562,9 +590,9 @@ export default function AdminPedidos() {
                       className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white outline-none"
                     >
                       <option value="">Selecione o produto...</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""})</option>
-                      ))}
+                        {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
+                          <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""})</option>
+                        ))}
                     </select>
                   </div>
                   <div className="flex gap-2">
@@ -949,9 +977,9 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
                   className="flex-1 min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-white outline-none focus:border-wine-500"
                 >
                   <option value="">Adicionar produto...</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""})</option>
-                  ))}
+                    {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""})</option>
+                    ))}
                 </select>
                 <input
                   type="number"
@@ -1372,6 +1400,84 @@ function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: () => v
           </button>
           <button onClick={handleFinalizar} disabled={finalizando} className="rounded-xl bg-wine-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-wine-600 disabled:opacity-60 disabled:cursor-not-allowed">
             {finalizando ? "Processando..." : "Confirmar e Finalizar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; tipo: "recusar" | "cancelar"; onClose: () => void }) {
+  const updateStatus = useOrderStore((s) => s.updateStatus);
+  const [motivo, setMotivo] = useState("");
+  const isRecusa = tipo === "recusar";
+  const numeroPedido = order.orderNumber || order.id.slice(-6);
+  const itensLista = order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ");
+  const preview = isRecusa
+    ? montarRecusaPedido({ customerName: order.customerName, numeroPedido, items: order.items, motivo })
+    : montarCancelamentoPedido({ customerName: order.customerName, numeroPedido, items: order.items });
+
+  function handleConfirmar() {
+    const digitos = (order.customerPhone || "").replace(/\D/g, "");
+    const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+    if (numero.length >= 12) {
+      window.open(urlWaMe(order.customerPhone, preview), "_blank");
+    } else {
+      alert("Número de WhatsApp inválido — o pedido foi atualizado sem envio da mensagem.");
+    }
+    updateStatus(order.id, isRecusa ? "recusado" : "cancelado");
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-neutral-900 rounded-2xl border border-neutral-800 shadow-2xl overflow-hidden my-8">
+        <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">{isRecusa ? "Recusar Pedido" : "Cancelar Pedido"}</h2>
+            <p className="text-xs text-neutral-400">#{numeroPedido} • {order.customerName}</p>
+          </div>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white text-xl">✕</button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+            <p className="text-xs text-neutral-400">{itensLista}</p>
+            <p className="mt-1 text-sm font-bold text-emerald-400">{formatCurrency(order.total)}</p>
+          </div>
+
+          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">Mensagem que será enviada</p>
+            <p className="mt-1 text-xs text-neutral-300 whitespace-pre-line">{preview}</p>
+          </div>
+
+          {isRecusa ? (
+            <div>
+              <label className="block text-xs font-semibold text-neutral-400 mb-1">Motivo da recusa (opcional)</label>
+              <textarea
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                rows={2}
+                placeholder="Ex.: data indisponível, volume acima do permitido..."
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white focus:outline-none"
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-orange-400">
+              O cliente será avisado do cancelamento e poderá pedir estorno ou reagendamento por aqui.
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-neutral-800 px-6 py-4 bg-neutral-950">
+          <button onClick={onClose} className="rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-800">
+            Voltar
+          </button>
+          <button
+            onClick={handleConfirmar}
+            className={`rounded-xl px-4 py-2.5 text-xs font-bold text-white ${isRecusa ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700"}`}
+          >
+            {isRecusa ? "Recusar e Enviar WhatsApp" : "Cancelar e Enviar WhatsApp"}
           </button>
         </div>
       </div>

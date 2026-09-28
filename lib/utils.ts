@@ -6,6 +6,10 @@ export function classNames(...classes: (string | false | null | undefined)[]): s
   return classes.filter(Boolean).join(" ");
 }
 
+export function compararTexto(a: string, b: string): number {
+  return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
+}
+
 export type PaymentLabel = "PIX" | "Dinheiro" | "Cartão Débito" | "Cartão Crédito" | "Fiado" | "Outros";
 
 export function paymentLabelOf(raw: string | null | undefined): PaymentLabel {

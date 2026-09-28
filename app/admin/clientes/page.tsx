@@ -16,6 +16,8 @@ const STATUS_LABEL: Record<string, string> = {
   pronto: "Pronto",
   saiu_entrega: "Saiu p/ Entrega",
   concluido: "Concluido",
+  recusado: "Recusado",
+  cancelado: "Cancelado",
 };
 
 export default function AdminClientes() {
@@ -888,6 +890,8 @@ export default function AdminClientes() {
                                 (item.data as any).isFiado ? "text-amber-400" :
                                 item.data.status === "concluido" ? "text-emerald-400" :
                                 item.data.status === "pendente" ? "text-amber-400" :
+                                item.data.status === "recusado" ? "text-red-400" :
+                                item.data.status === "cancelado" ? "text-orange-400" :
                                 "text-neutral-400"
                               }`}>
                                 {(item.data as any).isFiado ? "Fiado / A Pagar" : (STATUS_LABEL[item.data.status] || item.data.status)}

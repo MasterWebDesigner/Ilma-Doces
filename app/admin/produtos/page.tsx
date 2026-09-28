@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useProductStore, useBrandStore, useFichaTecnicaStore } from "@/lib/store";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
-import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY } from "@/lib/stockStorage";
+import { compararTexto } from "@/lib/utils";
+import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, seedBatchesIfEmpty } from "@/lib/stockStorage";
 import GelinhosPanel from "@/components/admin/GelinhosPanel";
 
 interface PreviewLote {
@@ -61,6 +62,7 @@ export default function AdminProdutos() {
   const [previewInsumos, setPreviewInsumos] = useState<Map<string, PreviewInsumo>>(new Map());
 
   useEffect(() => {
+    seedBatchesIfEmpty();
     const load = () => {
       try {
         const rawBatches = localStorage.getItem(BATCH_KEY);
@@ -509,7 +511,7 @@ export default function AdminProdutos() {
                   <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Categoria</label>
                   <div className="flex gap-2">
                     <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500">
-                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {[...categories].sort((a, b) => compararTexto(a.name, b.name)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     <button
                       type="button"

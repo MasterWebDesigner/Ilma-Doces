@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useExpenseStore, EXPENSE_CATEGORIES } from "@/lib/store";
-import { getLocalDateStr } from "@/lib/utils";
+import { compararTexto, getLocalDateStr } from "@/lib/utils";
 
 interface Props {
   onClose: () => void;
@@ -50,9 +50,9 @@ export default function LaunchDespesaModal({ onClose }: Props) {
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Categoria</label>
               <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500">
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
+                  {[...EXPENSE_CATEGORIES].sort(compararTexto).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
               </select>
             </div>
             <div>

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useOrderStore, useProductStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
-import { classNames, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { classNames, compararTexto, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
 
@@ -752,7 +752,7 @@ export default function AdminVendasPage() {
         <div className="flex flex-wrap gap-2">
           <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white outline-none focus:border-wine-500">
             <option value="Todas">Todas as Seções</option>
-            {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {[...categories].sort((a, b) => compararTexto(a.name, b.name)).map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
           <select value={filtroPagamento} onChange={(e) => setFiltroPagamento(e.target.value)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white outline-none focus:border-wine-500">
             <option value="Todas">Todas as Formas</option>

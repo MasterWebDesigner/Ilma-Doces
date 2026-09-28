@@ -32,7 +32,7 @@ export interface CartItem {
   preco_unitario?: number;
 }
 
-export type OrderStatus = "pendente" | "confirmado" | "em_producao" | "pronto" | "saiu_entrega" | "concluido";
+export type OrderStatus = "pendente" | "confirmado" | "em_producao" | "pronto" | "saiu_entrega" | "concluido" | "recusado" | "cancelado";
 export type DeliveryType = "retirada" | "entrega";
 export type PaymentMethod = "pix" | "dinheiro" | "cartao_debito" | "cartao_credito" | "fiado";
 
@@ -57,6 +57,7 @@ export interface Order {
   valorPagoSinal?: number;
   formaPagamentoSinal?: PaymentMethod;
   isFiado?: boolean;
+  estoqueBaixado?: boolean;
   dataPagamento?: string;
 }
 

@@ -22,8 +22,14 @@ import {
   montarAgradecimentoPagamento,
   listaItensCobranca,
   urlWaMe,
+  montarRecusaPedido,
+  montarCancelamentoPedido,
 } from "@/lib/whatsapp";
-import type { CompraItem } from "@/types/database";
+import type { CartItem, CompraItem } from "@/types/database";
+
+function itemPedido(nome: string, qty: number): CartItem {
+  return { product: { name: nome, price: 10, isCustomWeight: false } as any, quantity: qty };
+}
 
 const itens: CompraItem[] = [
   { descricao: "Bolo de festa", quantidade: 1, valorUnitario: 80 },
@@ -157,5 +163,40 @@ describe("urlWaMe", () => {
   it("escapa a mensagem com acentos e emojis", () => {
     const url = urlWaMe("11930657871", "Olá, João! 🧁");
     expect(url).toContain("text=Ol%C3%A1%2C%20Jo%C3%A3o!%20%F0%9F%A7%81");
+  });
+
+  it("remove caracteres especiais do numero mantendo apenas digitos", () => {
+    expect(urlWaMe("(11) 9*9999#8888", "oi")).toBe(`https://wa.me/5511999998888?text=${encodeURIComponent("oi")}`);
+  });
+});
+
+describe("montarRecusaPedido", () => {
+  const items = [itemPedido("Bolo de Chocolate", 2), itemPedido("Brigadeiro", 1)];
+
+  it("monta a mensagem de recusa com nome, numero e itens", () => {
+    expect(montarRecusaPedido({ customerName: "Maria", numeroPedido: "0042", items })).toBe(
+      "Olá, Maria! Infelizmente não conseguiremos atender ao seu pedido nº 0042 referente a: Bolo de Chocolate x2, Brigadeiro x1. Agradecemos a compreensão e ficamos à disposição!"
+    );
+  });
+
+  it("inclui o motivo quando informado", () => {
+    const msg = montarRecusaPedido({ customerName: "Maria", numeroPedido: "0042", items, motivo: "data indisponível" });
+    expect(msg).toContain("referente a: Bolo de Chocolate x2, Brigadeiro x1. Motivo: data indisponível. Agradecemos a compreensão e ficamos à disposição!");
+  });
+
+  it("omite o motivo quando vazio ou so espacos", () => {
+    const msg = montarRecusaPedido({ customerName: "Maria", numeroPedido: "0042", items, motivo: "   " });
+    expect(msg).not.toContain("Motivo:");
+    expect(msg).toContain("Brigadeiro x1. Agradecemos");
+  });
+});
+
+describe("montarCancelamentoPedido", () => {
+  const items = [itemPedido("Bolo de Chocolate", 2), itemPedido("Brigadeiro", 1)];
+
+  it("monta a mensagem de cancelamento com nome, numero e itens", () => {
+    expect(montarCancelamentoPedido({ customerName: "Maria", numeroPedido: "0042", items })).toBe(
+      "Olá, Maria! Seu pedido nº 0042 (Bolo de Chocolate x2, Brigadeiro x1) foi cancelado. Se tiver alguma dúvida ou precisar de ajuda com o estorno/reagendamento, entre em contato conosco por aqui."
+    );
   });
 });

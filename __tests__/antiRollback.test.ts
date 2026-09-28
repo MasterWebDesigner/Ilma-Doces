@@ -77,6 +77,15 @@ describe("antiRollback — status de pedido liquidado", () => {
     expect(deveBloquearReversaoPedido("concluido", "pendente", false)).toBe(true);
     expect(deveBloquearReversaoPedido("concluido", "pendente", undefined)).toBe(true);
   });
+
+  it("permite recusar novo pedido e cancelar aceito, mas não cancelar concluído", () => {
+    expect(deveBloquearReversaoPedido("pendente", "recusado")).toBe(false);
+    expect(deveBloquearReversaoPedido("confirmado", "cancelado")).toBe(false);
+    expect(deveBloquearReversaoPedido("em_producao", "cancelado")).toBe(false);
+    expect(deveBloquearReversaoPedido("concluido", "cancelado")).toBe(true);
+    expect(ehPedidoLiquidado("recusado")).toBe(false);
+    expect(ehPedidoLiquidado("cancelado")).toBe(false);
+  });
 });
 
 describe("antiRollback — compra liquidada", () => {

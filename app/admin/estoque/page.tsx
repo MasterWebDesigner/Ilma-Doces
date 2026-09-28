@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { useBrandStore } from "@/lib/store";
-import { classNames } from "@/lib/utils";
+import { classNames, compararTexto } from "@/lib/utils";
 import { getStep, formatQty, ALL_STOCK_UNITS } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
-import { notifyStockChanged, saveStockData, saveBatchesData } from "@/lib/stockStorage";
-import { SEED_STOCK } from "@/lib/seedData";
+import { notifyStockChanged, saveStockData, saveBatchesData, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { SEED_STOCK, SEED_BRANDS, SEED_LINKS } from "@/lib/seedData";
 
 // ═══════════ TYPES ═══════════
 export interface StockItem {
@@ -42,128 +42,10 @@ const SEED_KEY = "ilma-seeded-v3";
 
 // ═══════════ SEED DATA ═══════════
 
-const SEED_BRANDS: { id: string; nome: string }[] = [
-  { id: "br-01", nome: "União" },
-  { id: "br-02", nome: "Caravela" },
-  { id: "br-03", nome: "Barra" },
-  { id: "br-04", nome: "Anaconda" },
-  { id: "br-05", nome: "Renata" },
-  { id: "br-06", nome: "Maizena" },
-  { id: "br-07", nome: "Royal" },
-  { id: "br-08", nome: "Liza" },
-  { id: "br-09", nome: "Du Porto" },
-  { id: "br-10", nome: "SoCoco" },
-  { id: "br-11", nome: "DuCoco" },
-  { id: "br-12", nome: "Nestlé" },
-  { id: "br-13", nome: "Piracanjuba" },
-  { id: "br-14", nome: "Italac" },
-  { id: "br-15", nome: "Líder" },
-  { id: "br-16", nome: "Parmalat" },
-  { id: "br-17", nome: "Mix" },
-  { id: "br-18", nome: "Arcolor" },
-  { id: "br-19", nome: "Danone" },
-  { id: "br-20", nome: "Qualy" },
-  { id: "br-21", nome: "Garoto" },
-  { id: "br-22", nome: "Melken" },
-  { id: "br-23", nome: "Harald" },
-  { id: "br-24", nome: "Terrinha" },
-  { id: "br-25", nome: "Cisne" },
-  { id: "br-26", nome: "Ferrero" },
-  { id: "br-27", nome: "Tang" },
-  { id: "br-28", nome: "Mago" },
-  { id: "br-29", nome: "Iceberg" },
-  { id: "br-30", nome: "Mavalerio" },
-  { id: "br-31", nome: "Prafesta" },
-  { id: "br-32", nome: "Lacta" },
-  { id: "br-33", nome: "Vitarela" },
-  { id: "br-34", nome: "Norcal" },
-  { id: "br-35", nome: "Santa Clara" },
-  { id: "br-36", nome: "Lopes" },
-  { id: "br-37", nome: "Fazenda" },
-];
-
-
-// (stockItemId → brandIds[])
-const SEED_LINKS: Record<string, string[]> = {
-  "si-01": ["br-01", "br-02", "br-03"],
-  "si-02": ["br-04", "br-05"],
-  "si-03": ["br-06"],
-  "si-04": ["br-07"],
-  "si-05": ["br-21", "br-23"],
-  "si-06": ["br-08"],
-  "si-08": ["br-09"],
-  "si-09": ["br-10"],
-  "si-10": ["br-11"],
-  "si-11": ["br-12", "br-13", "br-14"],
-  "si-12": ["br-12"],
-  "si-13": ["br-15", "br-13", "br-14", "br-16"],
-  "si-14": ["br-13", "br-16"],
-  "si-15": ["br-17", "br-18"],
-  "si-16": ["br-19"],
-  "si-17": ["br-20"],
-  "si-18": ["br-21", "br-22"],
-  "si-19": ["br-21", "br-22"],
-  "si-20": ["br-12", "br-22"],
-  "si-21": ["br-21", "br-22"],
-  "si-22": ["br-23"],
-  "si-23": ["br-23"],
-  "si-25": ["br-24"],
-  "si-26": ["br-35"],
-  "si-28": ["br-25"],
-  "si-29": ["br-26"],
-  "si-30": ["br-27"],
-  "si-31": ["br-27"],
-  "si-32": ["br-27"],
-  "si-33": ["br-27"],
-  "si-34": ["br-12"],
-  "si-35": ["br-17", "br-28", "br-29"],
-  "si-36": ["br-28"],
-  "si-37": ["br-09"],
-  "si-38": ["br-36"],
-  "si-39": ["br-34"],
-  "si-40": ["br-37"],
-  "si-41": ["br-37"],
-  "si-42": ["br-37"],
-  "si-43": ["br-37"],
-  "si-44": ["br-37"],
-  "si-45": ["br-37"],
-  "si-46": ["br-37"],
-  "si-47": ["br-37"],
-  "si-48": ["br-37"],
-  "si-49": ["br-37"],
-  "si-50": ["br-37"],
-  "si-51": ["br-37"],
-  "si-52": ["br-37"],
-  "si-53": ["br-28"],
-  "si-54": ["br-30"],
-  "si-55": ["br-30"],
-  "si-56": ["br-30"],
-  "si-57": ["br-22"],
-  "si-58": ["br-30"],
-  "si-59": ["br-12"],
-  "si-60": ["br-26"],
-  "si-61": ["br-32"],
-  "si-62": ["br-32"],
-  "si-63": ["br-33"],
-  "si-66": ["br-31"],
-  "si-68": ["br-31"],
-  "si-69": ["br-31"],
-  "si-70": ["br-31"],
-  "si-71": ["br-31"],
-  "si-72": ["br-31"],
-  "si-73": ["br-31"],
-  "si-74": ["br-31"],
-  "si-75": ["br-31"],
-  "si-76": ["br-31"],
-  "si-77": ["br-31"],
-  "si-78": ["br-31"],
-  "si-79": ["br-31"],
-  "si-80": ["br-31"],
-};
-
 function seedDataIfEmpty() {
   if (typeof window === "undefined") return;
   try {
+    seedBatchesIfEmpty();
     const alreadySeeded = localStorage.getItem(SEED_KEY);
     if (alreadySeeded) return;
 
@@ -893,8 +775,9 @@ export default function AdminEstoque() {
                 <div>
                   <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Categoria</label>
                   <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500">
-                    <option>Uso Interno</option>
-                    <option>Embalagens</option>
+                    {["Uso Interno", "Embalagens"].sort(compararTexto).map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -958,7 +841,7 @@ export default function AdminEstoque() {
                 <select required value={batchInsumoId} onChange={(e) => { setBatchInsumoId(e.target.value); setBatchBrandId(""); }}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
                   <option value="">Selecione o insumo...</option>
-                  {items.map((s) => (
+                  {[...items].sort((a, b) => compararTexto(a.name, b.name)).map((s) => (
                     <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>
                   ))}
                 </select>
@@ -969,10 +852,12 @@ export default function AdminEstoque() {
                   <select value={batchBrandId} onChange={(e) => setBatchBrandId(e.target.value)}
                     className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
                     <option value="">Sem Marca</option>
-                    {batchInsumoBrands.map((sb) => {
-                      const bName = getBrandNameById(sb.brandId);
-                      return <option key={sb.id} value={sb.brandId}>{bName}</option>;
-                    })}
+                    {[...batchInsumoBrands]
+                      .sort((a, b) => compararTexto(getBrandNameById(a.brandId), getBrandNameById(b.brandId)))
+                      .map((sb) => {
+                        const bName = getBrandNameById(sb.brandId);
+                        return <option key={sb.id} value={sb.brandId}>{bName}</option>;
+                      })}
                   </select>
                 </div>
               )}
@@ -1205,7 +1090,10 @@ export default function AdminEstoque() {
                 <select value={newInsumoBrandId} onChange={(e) => { setNewInsumoBrandId(e.target.value); setInlineBrandName(""); }}
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500">
                   <option value="">Selecione...</option>
-                  {activeBrands.filter((b) => !stockBrands.some((sb) => sb.stockItemId === insumoBrandModal && sb.brandId === b.id)).map((b) => (
+                  {activeBrands
+                    .filter((b) => !stockBrands.some((sb) => sb.stockItemId === insumoBrandModal && sb.brandId === b.id))
+                    .sort((a, b) => compararTexto(a.nome, b.nome))
+                    .map((b) => (
                     <option key={b.id} value={b.id}>{b.nome}</option>
                   ))}
                 </select>

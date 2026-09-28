@@ -1,5 +1,7 @@
 "use client";
 
+import { SEED_BATCHES } from "./seedData";
+
 export const STOCK_KEY = "ilma-stock";
 export const STOCK_BRANDS_KEY = "ilma-stock-brands";
 export const BATCH_KEY = "ilma-batches";
@@ -45,4 +47,15 @@ export function loadBatchesData<T>(): T[] {
     }
   } catch {}
   return [];
+}
+
+export function seedBatchesIfEmpty(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existentes = loadBatchesData<{ insumoId?: string }>();
+    const comLote = new Set(existentes.map((b) => b.insumoId));
+    const faltantes = SEED_BATCHES.filter((b) => !comLote.has(b.insumoId));
+    if (faltantes.length === 0) return;
+    saveBatchesData([...existentes, ...faltantes]);
+  } catch {}
 }

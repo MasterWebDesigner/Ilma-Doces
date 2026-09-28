@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCredoresStore } from "@/lib/credoresStore";
 import type { Credor, CompraCredor, CompraItem, PagamentoCredor } from "@/types/database";
 import { useCustomerStore, useProductStore, useOrderStore } from "@/lib/store";
-import { getLocalDateStr, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { formatarTelefone } from "@/lib/phone";
 import { useStoreConfig } from "@/lib/storeConfig";
 import { deveCobrar, compraAberta, diasAtraso, frequenciaDe, FREQUENCIAS_LEMBRETE, type FrequenciaLembrete } from "@/lib/cobranca";
@@ -1287,7 +1287,7 @@ export default function CredoresPage() {
                       className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
                     >
                       <option value="">Selecione um cliente...</option>
-                      {customers.map((c) => (
+                      {[...customers].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
                         <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
                       ))}
                     </select>
@@ -1321,9 +1321,9 @@ export default function CredoresPage() {
                           className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-white focus:outline-none"
                         >
                           <option value="">Selecione o produto...</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")})</option>
-                          ))}
+                            {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")})</option>
+                            ))}
                         </select>
                       ) : (
                         <input
@@ -1507,11 +1507,11 @@ export default function CredoresPage() {
                       className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none"
                     >
                       <option value="">Selecione o produto...</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} — R$ {p.price.toFixed(2).replace(".", ",")}
-                        </option>
-                      ))}
+                        {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} - R$ {p.price.toFixed(2).replace(".", ",")}
+                          </option>
+                        ))}
                     </select>
                   </div>
                   <div>

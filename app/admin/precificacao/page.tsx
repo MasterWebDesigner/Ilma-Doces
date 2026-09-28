@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useProductStore, useFichaTecnicaStore } from "@/lib/store";
-import { classNames } from "@/lib/utils";
+import { classNames, compararTexto } from "@/lib/utils";
 import type { FichaTecnicaIngrediente } from "@/types/database";
 import { getConsumptionUnits, getStep, converterCustoFicha } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
-import { BATCH_KEY, SEED_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, loadBatchesData, loadStockData, saveStockData } from "@/lib/stockStorage";
+import { calcularPrecificacao, ehReceitaPorUnidade, normalizarQuantidadeProduzida, somarCustoIngredientes } from "@/lib/precificacao";
+import { BATCH_KEY, SEED_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, loadBatchesData, loadStockData, saveStockData, seedBatchesIfEmpty } from "@/lib/stockStorage";
 import { SEED_STOCK } from "@/lib/seedData";
 
 interface StockItem {
@@ -33,6 +34,7 @@ interface Batch {
 function seedStockIfEmpty() {
   if (typeof window === "undefined") return;
   try {
+    seedBatchesIfEmpty();
     const alreadySeeded = localStorage.getItem(SEED_KEY);
     if (alreadySeeded) return;
     const existing = loadStockData<any[]>();
@@ -94,9 +96,9 @@ const UNIDADES_RECEITA = [
 const UNIDADES_RENDIMENTO = [
   { value: "un", label: "Unidade" },
   { value: "kg", label: "KG" },
-  { value: "fatia", label: "Fatia" },
-  { value: "porcao", label: "Porcao" },
 ];
+
+const HORAS_TRABALHADAS_MES = 160;
 
 export default function AdminPrecificacao() {
   const products = useProductStore((s) => s.products);
@@ -269,46 +271,43 @@ export default function AdminPrecificacao() {
 
   // ═══════ FORMULA DE PRECIFICACAO ═══════
 
-  // CI - Custo de Ingredientes
-  const custoIngredientes = useMemo(() => {
-    return ingredientes.reduce((s, ing) => s + ing.quantidade * (ing.custoUnitario ?? 0), 0);
-  }, [ingredientes]);
+  const custoIngredientes = useMemo(() => somarCustoIngredientes(ingredientes), [ingredientes]);
 
-  // Custos Invisiveis = CI * %
-  const custosInvisiveis = custoIngredientes * (custoInvisivelPct / 100);
+  const {
+    custoInvisivel,
+    taxaMinutoMO,
+    custoMaoDeObra,
+    custoTotalLote,
+    custoIngredientesUnitario,
+    custoUnitario,
+    precoSugeridoLote,
+    precoSugeridoUnitario,
+    lucroLiquidoUnitarioAtual,
+    margemLucroRealAtual,
+    diferencaPrecoUnitario,
+    lucroLiquidoUnitarioSugerido,
+    margemLucroRealSugerida,
+  } = calcularPrecificacao({
+    custoIngredientes,
+    percentualInvisivel: custoInvisivelPct,
+    horasTrabalhadasMes: HORAS_TRABALHADAS_MES,
+    salarioMensal,
+    tempoProducaoMinutos: minutosProducao,
+    quantidadeProduzida: rendimento,
+    margemDesejada: margemLucroPct,
+    precoCardapio,
+  });
 
-  // MO = Tempo (min) * (Salario / 9600min)
-  const valorMinutoConfeiteiro = salarioMensal / 9600;
-  const maoDeObra = minutosProducao * valorMinutoConfeiteiro;
+  const alertaCMV = precoCardapio > 0 && diferencaPrecoUnitario < 0 && custoIngredientes > 0;
 
-  // CT = CI + Invisiveis + MO
-  const custoTotal = custoIngredientes + custosInvisiveis + maoDeObra;
+  const retornoCIAtual =
+    custoIngredientesUnitario > 0 ? (lucroLiquidoUnitarioAtual / custoIngredientesUnitario) * 100 : 0;
+  const retornoCISugerido =
+    custoIngredientesUnitario > 0
+      ? (lucroLiquidoUnitarioSugerido / custoIngredientesUnitario) * 100
+      : 0;
 
-  // PV = CT * (1 + Margem/100)
-  const precoVendaSugerido = margemLucroPct < 100 ? custoTotal / (1 - margemLucroPct / 100) : custoTotal * 2;
-
-  // ═══════ REGRA: alerta se preco atual < preco sugerido ═══════
-  const diferencaPreco = precoCardapio - precoVendaSugerido;
-  const alertaCMV = precoCardapio > 0 && precoCardapio < precoVendaSugerido && custoIngredientes > 0;
-
-  // ═══════ METRICAS DERIVADAS - CENARIO ATUAL ═══════
-  const lucroAtual = precoCardapio - custoIngredientes;
-  const retornoCIAtual = custoIngredientes > 0 ? (lucroAtual / custoIngredientes) * 100 : 0;
-  const margemVendaAtual = precoCardapio > 0 ? (lucroAtual / precoCardapio) * 100 : 0;
-
-  // ═══════ METRICAS DERIVADAS - CENARIO SUGERIDO ═══════
-  const lucroSugerido = precoVendaSugerido - custoIngredientes;
-  const retornoCISugerido = custoIngredientes > 0 ? (lucroSugerido / custoIngredientes) * 100 : 0;
-  const margemVendaSugerida = precoVendaSugerido > 0 ? (lucroSugerido / precoVendaSugerido) * 100 : 0;
-
-  // Lucro Liquido
-  const lucroLiquido = precoVendaSugerido - custoTotal;
-  const lucroLiquidoPct = precoVendaSugerido > 0 ? (lucroLiquido / precoVendaSugerido) * 100 : 0;
-
-  // Custo por unidade de rendimento
-  const custoPorUnidade = rendimento > 0 ? custoTotal / rendimento : custoTotal;
-  const precoPorUnidade = rendimento > 0 ? precoVendaSugerido / rendimento : precoVendaSugerido;
-  const lucroPorUnidade = rendimento > 0 ? lucroLiquido / rendimento : lucroLiquido;
+  const lucroLoteSugerido = precoSugeridoLote - custoTotalLote;
 
   // ═══════ METRICAS AUXILIARES ═══════
 
@@ -316,7 +315,9 @@ export default function AdminPrecificacao() {
     return new Set(fichas.map((f) => f.productId));
   }, [fichas]);
 
-  const availableInsumos = stockItems.filter((s) => s.category === "Uso Interno");
+  const availableInsumos = stockItems
+    .filter((s) => s.category === "Uso Interno")
+    .sort((a, b) => compararTexto(a.name, b.name));
 
   function addIngrediente() {
     if (!ingInsumoId || !ingQtd) return;
@@ -391,9 +392,9 @@ export default function AdminPrecificacao() {
       ingredientes,
       custoInvisivelPct,
       maoDeObraMin: minutosProducao,
-      maoDeObraValorHora: valorMinutoConfeiteiro,
+      maoDeObraValorHora: taxaMinutoMO * 60,
       margemLucroPct,
-      rendimento,
+      rendimento: normalizarQuantidadeProduzida(rendimento, unidadeRendimento),
       unidadeRendimento,
     };
 
@@ -406,7 +407,7 @@ export default function AdminPrecificacao() {
 
   function handleAplicarPreco() {
     if (!selectedProductId) return;
-    setPrecoParaAplicar(precoVendaSugerido.toFixed(2).replace(".", ","));
+    setPrecoParaAplicar(precoSugeridoUnitario.toFixed(2).replace(".", ","));
     setShowPrecoModal(true);
   }
 
@@ -420,6 +421,13 @@ export default function AdminPrecificacao() {
   }
 
   const unLabel = unidadeRendimento === "kg" ? "KG" : unidadeRendimento === "fatia" ? "Fatia" : unidadeRendimento === "porcao" ? "Porcao" : "Un";
+  const receitaSimplificada = ehReceitaPorUnidade(rendimento, unidadeRendimento);
+  const custoBaseLabel = `Custo/${unLabel}`;
+  const precoBaseLabel = `Preco/${unLabel}`;
+  const precoSugeridoLabel =
+    unidadeRendimento === "kg"
+      ? "= Preco de Venda Sugerido (por kg)"
+      : "= Preco de Venda Sugerido (1 un)";
 
   return (
     <div className="space-y-6">
@@ -438,7 +446,7 @@ export default function AdminPrecificacao() {
           className="w-full max-w-md rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
         >
           <option value="">Selecione um produto do cardapio...</option>
-          {products.map((p) => (
+          {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} {productIdsWithFicha.has(p.id) ? "✓ Ficha Cadastrada" : ""}
             </option>
@@ -448,17 +456,17 @@ export default function AdminPrecificacao() {
         {selectedProduct && (
           <div className="mt-4 flex flex-wrap gap-3">
             <div className="rounded-lg bg-neutral-800/50 px-4 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Preco Atual no Cardapio</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Preco Atual no Cardapio (1 {unLabel})</p>
               <p className="text-lg font-bold text-wine-400">R$ {selectedProduct.price.toFixed(2).replace(".", ",")}</p>
             </div>
             {existingFicha && (
               <>
                 <div className="rounded-lg bg-amber-500/10 px-4 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Preco Sugerido (Ficha)</p>
-                  <p className="text-lg font-bold text-amber-400">R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Preco Sugerido (1 {unLabel})</p>
+                  <p className="text-lg font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</p>
                 </div>
                 {custoIngredientes > 0 && (() => {
-                  const diff = selectedProduct.price - precoVendaSugerido;
+                  const diff = diferencaPrecoUnitario;
                   const isBelow = diff < 0;
                   return (
                     <div className={`rounded-lg px-4 py-2 ${isBelow ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
@@ -486,7 +494,7 @@ export default function AdminPrecificacao() {
               <div>
                 <p className="text-sm font-bold text-red-400">Alerta: Preco abaixo do sugerido</p>
                 <p className="text-xs text-red-400/80">
-                  O preco atual no cardapio (R$ {precoCardapio.toFixed(2).replace(".", ",")}) esta R$ {Math.abs(diferencaPreco).toFixed(2).replace(".", ",")} abaixo do preco sugerido (R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}) para a margem desejada.
+                  O preco atual no cardapio (1 {unLabel}, R$ {precoCardapio.toFixed(2).replace(".", ",")}) esta R$ {Math.abs(diferencaPrecoUnitario).toFixed(2).replace(".", ",")} abaixo do preco sugerido (1 {unLabel}, R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}) para a margem desejada.
                 </p>
               </div>
             </div>
@@ -496,35 +504,39 @@ export default function AdminPrecificacao() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Custo Total */}
             <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400/70">Custo Total Producao</p>
-              <p className="mt-2 text-3xl font-bold text-red-400">R$ {custoTotal.toFixed(2).replace(".", ",")}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400/70">Custo Total da Receita</p>
+              <p className="mt-2 text-3xl font-bold text-red-400">R$ {custoTotalLote.toFixed(2).replace(".", ",")}</p>
               <p className="mt-1 text-[10px] text-neutral-500">
-                CI + Invisiveis + Mao de Obra
+                {receitaSimplificada
+                  ? `${custoBaseLabel} = Custo da Unidade (1 receita = 1 ${unLabel.toLowerCase()})`
+                  : "CI + Invisiveis + Mao de Obra (por lote da receita)"}
               </p>
             </div>
 
             {/* Custo/{un} */}
-            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/70">Custo por {unLabel}</p>
-              <p className="mt-2 text-3xl font-bold text-orange-400">R$ {custoPorUnidade.toFixed(2).replace(".", ",")}</p>
-              <p className="mt-1 text-[10px] text-neutral-500">
-                {rendimento} {unLabel.toLowerCase()}s produzidos
-              </p>
-            </div>
+            {!receitaSimplificada && (
+              <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/70">{custoBaseLabel}</p>
+                <p className="mt-2 text-3xl font-bold text-orange-400">R$ {custoUnitario.toFixed(2).replace(".", ",")}</p>
+                <p className="mt-1 text-[10px] text-neutral-500">
+                  Rendimento: {rendimento} {unLabel.toLowerCase()}
+                </p>
+              </div>
+            )}
 
             {/* Lucro Liquido */}
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/70">Lucro Liquido</p>
-              <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {lucroLiquido.toFixed(2).replace(".", ",")}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/70">Lucro Liquido (por {unLabel})</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {lucroLiquidoUnitarioAtual.toFixed(2).replace(".", ",")}</p>
               <p className="mt-1 text-[10px] text-neutral-500">
-                {lucroLiquidoPct.toFixed(1)}% sobre o preco de venda
+                {margemLucroRealAtual.toFixed(1)}% sobre o preco de venda
               </p>
             </div>
 
             {/* Preco Sugerido */}
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">Preco de Venda Sugerido</p>
-              <p className="mt-2 text-3xl font-bold text-amber-400">R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">Preco de Venda Sugerido (1 {unLabel})</p>
+              <p className="mt-2 text-3xl font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</p>
               <p className="mt-1 text-[10px] text-neutral-500">
                 Margem: {margemLucroPct}%
               </p>
@@ -547,12 +559,16 @@ export default function AdminPrecificacao() {
                   <div className="mt-3 space-y-2 border-t border-neutral-700 pt-3">
                     <div className="flex justify-between text-xs">
                       <span className="text-neutral-400">Custo de Ingredientes (CI)</span>
-                      <span className="text-red-400">- R$ {custoIngredientes.toFixed(2).replace(".", ",")}</span>
+                      <span className="text-red-400">- R$ {custoIngredientesUnitario.toFixed(2).replace(".", ",")}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-400">Custo Total (por {unLabel})</span>
+                      <span className="text-red-400">- R$ {custoUnitario.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="flex justify-between text-sm font-semibold">
-                      <span className="text-neutral-300">Lucro em Reais</span>
-                      <span className={lucroAtual >= 0 ? "text-emerald-400" : "text-red-400"}>
-                        R$ {lucroAtual.toFixed(2).replace(".", ",")}
+                      <span className="text-neutral-300">Lucro em Reais (por {unLabel})</span>
+                      <span className={lucroLiquidoUnitarioAtual >= 0 ? "text-emerald-400" : "text-red-400"}>
+                        R$ {lucroLiquidoUnitarioAtual.toFixed(2).replace(".", ",")}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
@@ -563,8 +579,8 @@ export default function AdminPrecificacao() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-neutral-400">Margem s/ Venda</span>
-                      <span className={margemVendaAtual >= 0 ? "text-emerald-400" : "text-red-400"}>
-                        {margemVendaAtual.toFixed(1)}%
+                      <span className={margemLucroRealAtual >= 0 ? "text-emerald-400" : "text-red-400"}>
+                        {margemLucroRealAtual.toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -576,17 +592,21 @@ export default function AdminPrecificacao() {
                     Cenario Sugerido (Ficha Tecnica)
                   </p>
                   <p className="mt-1 text-lg font-bold text-amber-400">
-                    R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}
+                    R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}
                   </p>
                   <div className="mt-3 space-y-2 border-t border-amber-500/20 pt-3">
                     <div className="flex justify-between text-xs">
                       <span className="text-neutral-400">Custo de Ingredientes (CI)</span>
-                      <span className="text-red-400">- R$ {custoIngredientes.toFixed(2).replace(".", ",")}</span>
+                      <span className="text-red-400">- R$ {custoIngredientesUnitario.toFixed(2).replace(".", ",")}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-400">Custo Total (por {unLabel})</span>
+                      <span className="text-red-400">- R$ {custoUnitario.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="flex justify-between text-sm font-semibold">
-                      <span className="text-neutral-300">Lucro em Reais</span>
-                      <span className={lucroSugerido >= 0 ? "text-emerald-400" : "text-red-400"}>
-                        R$ {lucroSugerido.toFixed(2).replace(".", ",")}
+                      <span className="text-neutral-300">Lucro em Reais (por {unLabel})</span>
+                      <span className={lucroLiquidoUnitarioSugerido >= 0 ? "text-emerald-400" : "text-red-400"}>
+                        R$ {lucroLiquidoUnitarioSugerido.toFixed(2).replace(".", ",")}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs">
@@ -597,21 +617,21 @@ export default function AdminPrecificacao() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-neutral-400">Margem s/ Venda</span>
-                      <span className={margemVendaSugerida >= 0 ? "text-emerald-400" : "text-red-400"}>
-                        {margemVendaSugerida.toFixed(1)}%
+                      <span className={margemLucroRealSugerida >= 0 ? "text-emerald-400" : "text-red-400"}>
+                        {margemLucroRealSugerida.toFixed(1)}%
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Diferenca de lucro */}
+              {/* Diferenca de preco (unitario) */}
               {precoCardapio > 0 && (
-                <div className={`mt-4 rounded-lg p-3 flex items-center justify-between ${precoVendaSugerido > precoCardapio ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-neutral-800/50 border border-neutral-800"}`}>
-                  <span className="text-xs text-neutral-400">Diferenca de lucro (Sugerido vs Atual)</span>
-                  <span className={`text-sm font-bold ${precoVendaSugerido - precoCardapio > 0 ? "text-emerald-400" : "text-neutral-400"}`}>
-                    {precoVendaSugerido - precoCardapio > 0 ? "+" : ""} R$ {(precoVendaSugerido - precoCardapio).toFixed(2).replace(".", ",")}
-                    {precoVendaSugerido > precoCardapio && (
+                <div className={`mt-4 rounded-lg p-3 flex items-center justify-between ${diferencaPrecoUnitario < 0 ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-neutral-800/50 border border-neutral-800"}`}>
+                  <span className="text-xs text-neutral-400">Diferenca de preco (Sugerido vs Atual, por {unLabel})</span>
+                  <span className={`text-sm font-bold ${-diferencaPrecoUnitario > 0 ? "text-emerald-400" : "text-neutral-400"}`}>
+                    {-diferencaPrecoUnitario > 0 ? "+" : ""} R$ {(-diferencaPrecoUnitario).toFixed(2).replace(".", ",")}
+                    {diferencaPrecoUnitario < 0 && (
                       <span className="ml-2 text-[10px] font-normal text-emerald-400/70">
                         voce esta deixando de ganhar isso
                       </span>
@@ -721,12 +741,18 @@ export default function AdminPrecificacao() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Quantidade Produzida</label>
-                    <input type="number" min="1" value={rendimento} onChange={(e) => setRendimento(parseInt(e.target.value) || 1)}
+                    <input type="number" min={unidadeRendimento === "kg" ? "0.1" : "1"} step={unidadeRendimento === "kg" ? "0.1" : "1"} value={rendimento}
+                      onChange={(e) => setRendimento(normalizarQuantidadeProduzida(parseFloat(e.target.value.replace(",", ".")), unidadeRendimento))}
                       className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Unidade</label>
-                    <select value={unidadeRendimento} onChange={(e) => setUnidadeRendimento(e.target.value)}
+                    <select value={unidadeRendimento}
+                      onChange={(e) => {
+                        const novaUnidade = e.target.value;
+                        setUnidadeRendimento(novaUnidade);
+                        setRendimento((atual) => normalizarQuantidadeProduzida(atual, novaUnidade));
+                      }}
                       className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500">
                       {UNIDADES_RENDIMENTO.map((u) => (
                         <option key={u.value} value={u.value}>{u.label}</option>
@@ -734,18 +760,21 @@ export default function AdminPrecificacao() {
                     </select>
                   </div>
                 </div>
-                {rendimento > 1 && (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-neutral-800/50 p-3 text-center">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Custo/{unLabel}</p>
-                      <p className="text-lg font-bold text-orange-400">R$ {custoPorUnidade.toFixed(2).replace(".", ",")}</p>
-                    </div>
-                    <div className="rounded-lg bg-neutral-800/50 p-3 text-center">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500">Preco/{unLabel}</p>
-                      <p className="text-lg font-bold text-amber-400">R$ {precoPorUnidade.toFixed(2).replace(".", ",")}</p>
-                    </div>
+                <p className="mt-2 text-[10px] leading-relaxed text-neutral-500">
+                  {unidadeRendimento === "kg"
+                    ? "Informe o peso final do bolo pronto em kg (ex: 2.5). O preco sugerido sera calculado por quilo."
+                    : "Informe quanto esta receita produz ao todo. Se os ingredientes acima são para exatamente 1 bolo inteiro, mantenha '1'."}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-neutral-800/50 p-3 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{custoBaseLabel}</p>
+                    <p className="text-lg font-bold text-orange-400">R$ {custoUnitario.toFixed(2).replace(".", ",")}</p>
                   </div>
-                )}
+                  <div className="rounded-lg bg-neutral-800/50 p-3 text-center">
+                    <p className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500">{precoBaseLabel}</p>
+                    <p className="text-lg font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</p>
+                  </div>
+                </div>
               </div>
 
               {/* Breakdown visual */}
@@ -754,35 +783,35 @@ export default function AdminPrecificacao() {
                 <div className="space-y-3">
                   {/* Barra visual do custo */}
                   <div className="h-6 flex overflow-hidden rounded-lg">
-                    {custoTotal > 0 && (
+                    {custoTotalLote > 0 && (
                       <>
                         <div
                           className="bg-amber-500 flex items-center justify-center text-[9px] font-bold text-black"
-                          style={{ width: `${(custoIngredientes / custoTotal) * 100}%` }}
+                          style={{ width: `${(custoIngredientes / custoTotalLote) * 100}%` }}
                           title={`Ingredientes: R$ ${custoIngredientes.toFixed(2)}`}
                         >
                           {custoIngredientes > 0 && "CI"}
                         </div>
                         <div
                           className="bg-purple-500 flex items-center justify-center text-[9px] font-bold text-white"
-                          style={{ width: `${(custosInvisiveis / custoTotal) * 100}%` }}
-                          title={`Invisiveis: R$ ${custosInvisiveis.toFixed(2)}`}
+                          style={{ width: `${(custoInvisivel / custoTotalLote) * 100}%` }}
+                          title={`Invisiveis: R$ ${custoInvisivel.toFixed(2)}`}
                         >
-                          {custosInvisiveis > 0 && "INV"}
+                          {custoInvisivel > 0 && "INV"}
                         </div>
                         <div
                           className="bg-blue-500 flex items-center justify-center text-[9px] font-bold text-white"
-                          style={{ width: `${(maoDeObra / custoTotal) * 100}%` }}
-                          title={`Mao de Obra: R$ ${maoDeObra.toFixed(2)}`}
+                          style={{ width: `${(custoMaoDeObra / custoTotalLote) * 100}%` }}
+                          title={`Mao de Obra: R$ ${custoMaoDeObra.toFixed(2)}`}
                         >
-                          {maoDeObra > 0 && "MO"}
+                          {custoMaoDeObra > 0 && "MO"}
                         </div>
                         <div
                           className="bg-emerald-500 flex items-center justify-center text-[9px] font-bold text-black"
-                          style={{ width: `${(lucroLiquido / precoVendaSugerido) * 100}%` }}
-                          title={`Lucro: R$ ${lucroLiquido.toFixed(2)}`}
+                          style={{ width: `${precoSugeridoLote > 0 ? (lucroLoteSugerido / precoSugeridoLote) * 100 : 0}%` }}
+                          title={`Lucro: R$ ${lucroLoteSugerido.toFixed(2)}`}
                         >
-                          {lucroLiquido > 0 && "LUCRO"}
+                          {lucroLoteSugerido > 0 && "LUCRO"}
                         </div>
                       </>
                     )}
@@ -807,30 +836,45 @@ export default function AdminPrecificacao() {
                         <span className="h-3 w-3 rounded-full bg-purple-500" />
                         <span className="text-neutral-400">Custos Invisiveis ({custoInvisivelPct}%)</span>
                       </div>
-                      <span className="font-bold text-purple-400">R$ {custosInvisiveis.toFixed(2).replace(".", ",")}</span>
+                      <span className="font-bold text-purple-400">R$ {custoInvisivel.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 rounded-full bg-blue-500" />
                         <span className="text-neutral-400">Mao de Obra ({minutosProducao}min = {Math.floor(minutosProducao / 60)}h {minutosProducao % 60}min)</span>
                       </div>
-                      <span className="font-bold text-blue-400">R$ {maoDeObra.toFixed(2).replace(".", ",")}</span>
+                      <span className="font-bold text-blue-400">R$ {custoMaoDeObra.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="border-t border-neutral-800 pt-2 flex justify-between items-center">
-                      <span className="text-sm font-semibold text-white">= Custo Total (CT)</span>
-                      <span className="text-lg font-bold text-red-400">R$ {custoTotal.toFixed(2).replace(".", ",")}</span>
+                      <span className="text-sm font-semibold text-white">
+                        {receitaSimplificada ? "= Custo Total (CT) = Custo da Unidade" : "= Custo Total (CT) - por lote"}
+                      </span>
+                      <span className="text-lg font-bold text-red-400">R$ {custoTotalLote.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 rounded-full bg-emerald-500" />
                         <span className="text-neutral-400">Lucro Liquido ({margemLucroPct}% margem)</span>
                       </div>
-                      <span className="font-bold text-emerald-400">R$ {lucroLiquido.toFixed(2).replace(".", ",")}</span>
+                      <span className="font-bold text-emerald-400">R$ {lucroLoteSugerido.toFixed(2).replace(".", ",")}</span>
                     </div>
-                    <div className="border-t border-amber-500/20 pt-2 flex justify-between items-center">
-                      <span className="text-sm font-bold text-white">= Preco de Venda Sugerido</span>
-                      <span className="text-xl font-bold text-amber-400">R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}</span>
-                    </div>
+                    {receitaSimplificada ? (
+                      <div className="border-t border-amber-500/20 pt-2 flex justify-between items-center">
+                        <span className="text-sm font-bold text-white">{precoSugeridoLabel}</span>
+                        <span className="text-xl font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="border-t border-amber-500/20 pt-2 flex justify-between items-center">
+                          <span className="text-sm font-bold text-white">= Preco de Venda Sugerido - por lote</span>
+                          <span className="text-xl font-bold text-amber-400">R$ {precoSugeridoLote.toFixed(2).replace(".", ",")}</span>
+                        </div>
+                        <div className="border-t border-neutral-800 pt-2 flex justify-between items-center">
+                          <span className="text-sm font-semibold text-white">{precoSugeridoLabel}</span>
+                          <span className="text-xl font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -852,7 +896,7 @@ export default function AdminPrecificacao() {
                         className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500" />
                       <span className="text-sm font-bold text-purple-400">%</span>
                     </div>
-                    <p className="mt-1 text-[10px] text-neutral-600">Calculado sobre CI: R$ {custosInvisiveis.toFixed(2).replace(".", ",")}</p>
+                    <p className="mt-1 text-[10px] text-neutral-600">Calculado sobre CI: R$ {custoInvisivel.toFixed(2).replace(".", ",")}</p>
                   </div>
 
                   {/* Mao de Obra */}
@@ -876,7 +920,7 @@ export default function AdminPrecificacao() {
                         className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500" />
                     </div>
                     <p className="mt-1 text-[10px] text-neutral-600">
-                      Valor/min: R$ {valorMinutoConfeiteiro.toFixed(4).replace(".", ",")} · Total: R$ {maoDeObra.toFixed(2).replace(".", ",")}
+                      Valor/min: R$ {taxaMinutoMO.toFixed(4).replace(".", ",")} · Total: R$ {custoMaoDeObra.toFixed(2).replace(".", ",")}
                     </p>
                   </div>
 
@@ -891,7 +935,7 @@ export default function AdminPrecificacao() {
                       <span className="text-sm font-bold text-emerald-400">%</span>
                     </div>
                     <p className="mt-1 text-[10px] text-neutral-600">
-                      Lucro estimado: R$ {lucroLiquido.toFixed(2).replace(".", ",")} ({lucroLiquidoPct.toFixed(1)}%)
+                      Lucro estimado (1 {unLabel}): R$ {lucroLiquidoUnitarioSugerido.toFixed(2).replace(".", ",")} ({margemLucroRealSugerida.toFixed(1)}%)
                     </p>
                   </div>
                 </div>
@@ -902,10 +946,11 @@ export default function AdminPrecificacao() {
                 <h3 className="mb-3 text-sm font-semibold text-white">Formula de Precificacao</h3>
                 <div className="space-y-2 text-xs text-neutral-400 font-mono">
                   <p><span className="text-amber-400">CI</span> = {ingredientes.length} insumos</p>
-                  <p><span className="text-purple-400">INV</span> = CI × {custoInvisivelPct}% = R$ {custosInvisiveis.toFixed(2)}</p>
-                  <p><span className="text-blue-400">MO</span> = {minutosProducao}min × R$ {valorMinutoConfeiteiro.toFixed(4)} = R$ {maoDeObra.toFixed(2)}</p>
-                  <p><span className="text-red-400">CT</span> = CI + INV + MO = R$ {custoTotal.toFixed(2)}</p>
-                        <p><span className="text-amber-400">PV</span> = CT / (1 - {margemLucroPct}%) = <span className="text-amber-400 font-bold">R$ {precoVendaSugerido.toFixed(2)}</span></p>
+                  <p><span className="text-purple-400">INV</span> = CI x {custoInvisivelPct}% = R$ {custoInvisivel.toFixed(2)}</p>
+                  <p><span className="text-blue-400">MO</span> = {minutosProducao}min x R$ {taxaMinutoMO.toFixed(4)} = R$ {custoMaoDeObra.toFixed(2)}</p>
+                  <p><span className="text-red-400">CT</span> = CI + INV + MO = R$ {custoTotalLote.toFixed(2)} (lote)</p>
+                  <p><span className="text-amber-400">PV</span> = CT / (1 - {margemLucroPct}%) = <span className="text-amber-400 font-bold">R$ {precoSugeridoLote.toFixed(2)}</span> (lote)</p>
+                  <p><span className="text-amber-400">PV/{unLabel.toLowerCase()}</span> = PV / {rendimento} = <span className="text-amber-400 font-bold">R$ {precoSugeridoUnitario.toFixed(2)}</span></p>
                 </div>
               </div>
 
@@ -917,7 +962,7 @@ export default function AdminPrecificacao() {
                   Salvar Ficha Tecnica
                 </button>
                 <button onClick={handleAplicarPreco}
-                  disabled={!selectedProductId || precoVendaSugerido <= 0}
+                  disabled={!selectedProductId || precoSugeridoUnitario <= 0}
                   className="w-full rounded-lg bg-amber-500 px-4 py-3 text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed">
                   Aplicar Preco no Cardapio
                 </button>
@@ -990,8 +1035,8 @@ export default function AdminPrecificacao() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Preco Sugerido (Ficha Tecnica)</label>
-                <p className="text-lg font-bold text-amber-400">R$ {precoVendaSugerido.toFixed(2).replace(".", ",")}</p>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Preco Sugerido (1 {unLabel}, Ficha Tecnica)</label>
+                <p className="text-lg font-bold text-amber-400">R$ {precoSugeridoUnitario.toFixed(2).replace(".", ",")}</p>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Preco para Aplicar no Cardapio</label>

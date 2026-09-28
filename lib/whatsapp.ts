@@ -223,3 +223,27 @@ export function montarAgradecimentoPagamento(d: {
     `Muito obrigado pela preferência e pela parceria de sempre! Tenha um ótimo dia! 🧁✨`,
   ].join("\n");
 }
+
+function listaSimplesItens(items: CartItem[]): string {
+  return items
+    .map((item) => `${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`)
+    .join(", ");
+}
+
+export function montarRecusaPedido(d: {
+  customerName: string;
+  numeroPedido: string;
+  items: CartItem[];
+  motivo?: string;
+}): string {
+  const motivo = (d.motivo || "").trim();
+  return `Olá, ${d.customerName}! Infelizmente não conseguiremos atender ao seu pedido nº ${d.numeroPedido} referente a: ${listaSimplesItens(d.items)}.${motivo ? ` Motivo: ${motivo}.` : ""} Agradecemos a compreensão e ficamos à disposição!`;
+}
+
+export function montarCancelamentoPedido(d: {
+  customerName: string;
+  numeroPedido: string;
+  items: CartItem[];
+}): string {
+  return `Olá, ${d.customerName}! Seu pedido nº ${d.numeroPedido} (${listaSimplesItens(d.items)}) foi cancelado. Se tiver alguma dúvida ou precisar de ajuda com o estorno/reagendamento, entre em contato conosco por aqui.`;
+}

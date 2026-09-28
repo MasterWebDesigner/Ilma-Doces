@@ -576,6 +576,9 @@ export const useOrderStore = create<OrderState>()(
           orderNumber,
           createdAt: new Date().toISOString(),
         };
+        if (order.status === "confirmado" || order.status === "concluido") {
+          order.estoqueBaixado = true;
+        }
 
         try {
           const sanitizedOrder = sanitizeForFirestore(order);
@@ -625,26 +628,37 @@ export const useOrderStore = create<OrderState>()(
         const prevStatus = prevOrder?.status ?? "pendente";
         const wasFinal = prevStatus === "confirmado" || prevStatus === "concluido";
 
+        const isFinalNovo = (updates.status === "confirmado" || updates.status === "concluido") && !wasFinal;
+        const encerrouPedido = updates.status === "recusado" || updates.status === "cancelado";
+        const estoqueDeduzido = prevOrder?.estoqueBaixado ?? (prevStatus === "confirmado" || prevStatus === "concluido");
+        const restaurarEstoque = encerrouPedido && !!prevOrder && estoqueDeduzido;
+
+        let payload: Partial<Order> = updates;
+        if (isFinalNovo) payload = { ...updates, estoqueBaixado: true };
+        else if (restaurarEstoque) payload = { ...updates, estoqueBaixado: false };
+
         let ok = false;
         try {
-          ok = await gravarAtualizacaoPedido(orderId, updates, transacao, opcoes?.permitirReverter);
+          ok = await gravarAtualizacaoPedido(orderId, payload, transacao, opcoes?.permitirReverter);
         } catch (err) {
           notifyError("Erro", "Não foi possível atualizar o pedido.");
           return false;
         }
         if (!ok) return false;
 
-        if (updates.status) {
-          const isFinal = updates.status === "confirmado" || updates.status === "concluido";
-          if (isFinal && !wasFinal && prevOrder) {
-            const itemsToDeduct = updates.items ?? prevOrder.items;
-            itemsToDeduct.forEach((item: any) => {
-              useProductStore.getState().deductStock(item.product.id, item.quantity);
-            });
-          }
+        if (isFinalNovo && prevOrder) {
+          const itemsToDeduct = updates.items ?? prevOrder.items;
+          itemsToDeduct.forEach((item: any) => {
+            useProductStore.getState().deductStock(item.product.id, item.quantity);
+          });
+        }
+        if (restaurarEstoque && prevOrder) {
+          prevOrder.items.forEach((item: any) => {
+            useProductStore.getState().restoreStock(item.product.id, item.quantity);
+          });
         }
         set((s) => ({
-          orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...updates } : o)),
+          orders: s.orders.map((o) => (o.id === orderId ? { ...o, ...payload } : o)),
         }));
         return true;
       },
@@ -822,6 +836,7 @@ interface ProductState {
   deleteProduct: (id: string) => void;
   toggleAvailable: (id: string) => void;
   deductStock: (productId: string, quantity: number) => void;
+  restoreStock: (productId: string, quantity: number) => void;
   adjustStock: (productId: string, newQty: number) => void;
   addCategory: (name: string) => void;
   updateCategory: (id: string, name: string) => void;
@@ -897,6 +912,25 @@ export const useProductStore = create<ProductState>()(
           updateDoc(doc(db, "produtos", productId), sanitizeForFirestore(updates));
         } catch (err) {
           notifyError("Erro", "Não foi possível atualizar o estoque do produto.");
+        }
+        set((s) => ({
+          products: s.products.map((p) => (p.id === productId ? { ...p, ...updates } : p)),
+        }));
+      },
+
+      restoreStock: (productId, quantity) => {
+        const product = get().products.find((p) => p.id === productId);
+        if (!product || !product.controlarEstoque) return;
+        const prevQty = product.estoque ?? 0;
+        const newQty = prevQty + quantity;
+        const updates: Partial<Product> = { estoque: newQty };
+        if (prevQty === 0 && newQty > 0 && !product.is_available) {
+          updates.is_available = true;
+        }
+        try {
+          updateDoc(doc(db, "produtos", productId), sanitizeForFirestore(updates));
+        } catch (err) {
+          notifyError("Erro", "Não foi possível restaurar o estoque do produto.");
         }
         set((s) => ({
           products: s.products.map((p) => (p.id === productId ? { ...p, ...updates } : p)),

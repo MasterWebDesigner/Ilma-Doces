@@ -127,4 +127,13 @@ describe("filterPaidOrders / filterUnpaidOrders", () => {
     const unpaid01 = filterUnpaidOrders(orders, "2026-09-01").map((o) => o.id);
     expect(unpaid01).toEqual(["b"]);
   });
+
+  it("ignora pedidos recusados e cancelados", () => {
+    const lista = [
+      makeOrder({ id: "r", createdAt: "2026-09-01T10:00:00.000Z", status: "recusado" }),
+      makeOrder({ id: "x", createdAt: "2026-09-01T11:00:00.000Z", status: "cancelado" }),
+      makeOrder({ id: "b", createdAt: "2026-09-01T12:00:00.000Z", status: "pendente" }),
+    ];
+    expect(filterUnpaidOrders(lista, "2026-09-01").map((o) => o.id)).toEqual(["b"]);
+  });
 });

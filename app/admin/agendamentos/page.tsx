@@ -16,6 +16,7 @@ const STATUS_LABELS: Record<string, string> = {
   pronto: "Pronto",
   saiu_entrega: "Saiu Entrega",
   concluido: "Concluído",
+  recusado: "Recusado",
   cancelado: "Cancelado",
 };
 
@@ -26,7 +27,8 @@ const STATUS_COLORS: Record<string, string> = {
   pronto: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   saiu_entrega: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
   concluido: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  cancelado: "bg-red-500/15 text-red-400 border-red-500/30",
+  recusado: "bg-red-500/15 text-red-400 border-red-500/30",
+  cancelado: "bg-orange-500/15 text-orange-400 border-orange-500/30",
 };
 
 const TIME_SLOTS = Array.from({ length: 26 }, (_, i) => {
@@ -337,7 +339,7 @@ export default function AdminAgendamentos() {
       <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
         {/* Status filters */}
         <div className="flex gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-          {["todos", "pendente", "confirmado", "em_producao", "concluido", "cancelado"].map((s) => (
+          {["todos", "pendente", "confirmado", "em_producao", "concluido", "recusado", "cancelado"].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -467,8 +469,8 @@ export default function AdminAgendamentos() {
                                     onClick={() => setDetailOrder(order)}
                                     className="mb-0.5 w-full truncate rounded px-1.5 py-0.5 text-left text-[10px] font-semibold transition-colors hover:brightness-110"
                                     style={{
-                                       backgroundColor: order.status === "concluido" ? "rgba(16,185,129,0.15)" : (order.status as string) === "cancelado" ? "rgba(239,68,68,0.15)" : "rgba(168,85,247,0.15)",
-                                       color: order.status === "concluido" ? "#34d399" : (order.status as string) === "cancelado" ? "#f87171" : "#c084fc",
+                          backgroundColor: order.status === "concluido" ? "rgba(16,185,129,0.15)" : (order.status as string) === "recusado" ? "rgba(239,68,68,0.15)" : (order.status as string) === "cancelado" ? "rgba(251,146,60,0.15)" : "rgba(168,85,247,0.15)",
+                          color: order.status === "concluido" ? "#34d399" : (order.status as string) === "recusado" ? "#f87171" : (order.status as string) === "cancelado" ? "#fb923c" : "#c084fc",
                                     }}
                                   >
                                     {order.customerName}

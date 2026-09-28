@@ -6,7 +6,7 @@ import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { notifyInfo } from "@/lib/notifications";
-import { formatCurrency, getLocalDateStr, paymentLabelOf, formatItemQty } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, paymentLabelOf, formatItemQty } from "@/lib/utils";
 import { PaymentMethod, CartItem, CompraItem } from "@/types/database";
 import { formatarTelefone } from "@/lib/phone";
 import { isBrindeProduct } from "@/lib/brinde";
@@ -411,9 +411,9 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                     <option value="">
                       {isFiado ? "— Selecione o cliente —" : "Consumidor Final (Balcão / Anônimo)"}
                     </option>
-                    {clientesFiltrados.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
-                    ))}
+                      {[...clientesFiltrados].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
+                      ))}
                   </select>
 
                   {isFiado && (

@@ -5,7 +5,7 @@ import { useOrderStore, useExpenseStore, useProductStore, useCustomerStore, EXPE
 import { useCredoresStore } from "@/lib/credoresStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
-import { classNames, getLocalDateStr, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
+import { classNames, compararTexto, getLocalDateStr, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders } from "@/lib/faturamento";
 
 type Periodo = "dia" | "mes" | "ano";
@@ -127,7 +127,7 @@ export default function AdminFinanceiro() {
   const custoBrindes = brindeExpensesPeriodo.reduce((s, e) => s + (Number(e.valor) || 0), 0);
   const qtdResgates = brindeExpensesPeriodo.length;
 
-  const pendentes = ordersFiltrados.filter((o) => o.status !== "concluido" && !o.isFiado);
+  const pendentes = ordersFiltrados.filter((o) => o.status !== "concluido" && !o.isFiado && o.status !== "recusado" && o.status !== "cancelado");
   const valorPrevisto = pendentes.reduce((s, o) => {
     const sinalPago = Number(o.valorPagoSinal) || 0;
     return s + Math.max(0, (Number(o.total) || 0) - sinalPago);
@@ -391,7 +391,7 @@ export default function AdminFinanceiro() {
             <select value={filtroCategoriaDesp} onChange={(e) => { setFiltroCategoriaDesp(e.target.value); setPageDespesas(1); }}
               className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-white outline-none focus:border-wine-500">
               <option value="Todas">Todas as Categorias</option>
-              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {[...EXPENSE_CATEGORIES].sort(compararTexto).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <select value={filtroStatusDesp} onChange={(e) => { setFiltroStatusDesp(e.target.value); setPageDespesas(1); }}
               className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-white outline-none focus:border-wine-500">
@@ -539,16 +539,21 @@ export default function AdminFinanceiro() {
                         <span className={classNames(
                           "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
                           order.status === "concluido" ? "bg-emerald-500/15 text-emerald-400"
+                            : order.status === "recusado" ? "bg-red-500/15 text-red-400"
+                            : order.status === "cancelado" ? "bg-orange-500/15 text-orange-400"
                             : order.isFiado ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
                             : order.status === "pendente" ? "bg-amber-500/15 text-amber-400"
                             : order.status === "em_producao" ? "bg-purple-500/15 text-purple-400"
                             : "bg-blue-500/15 text-blue-400"
                         )}>
                           {order.status === "concluido" ? "Concluido"
+                            : order.status === "recusado" ? "Recusado"
+                            : order.status === "cancelado" ? "Cancelado"
                             : order.isFiado ? "Fiado / Credor"
                             : order.status === "pendente" ? "Pendente"
                             : order.status === "em_producao" ? "Em Producao"
-                            : "Agendado"}
+                            : "Agendado"
+                          }
                         </span>
                       </td>
                     </tr>

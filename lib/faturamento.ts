@@ -50,6 +50,7 @@ export function filterUnpaidOrders(
   prefix: string
 ): Order[] {
   return orders.filter((o) => {
+    if (o.status === "recusado" || o.status === "cancelado") return false;
     if (isOrderPaid(o)) return false;
     const created = (o.createdAt || "").slice(0, prefix.length);
     return created === prefix;

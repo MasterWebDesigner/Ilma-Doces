@@ -15,6 +15,8 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
   pronto: { label: "Pronto", color: "bg-blue-500/15 text-blue-400" },
   saiu_entrega: { label: "Saiu p/ Entrega", color: "bg-cyan-500/15 text-cyan-400" },
   concluido: { label: "Concluido", color: "bg-emerald-500/15 text-emerald-400" },
+  recusado: { label: "Recusado", color: "bg-red-500/15 text-red-400" },
+  cancelado: { label: "Cancelado", color: "bg-orange-500/15 text-orange-400" },
 };
 
 export default function AdminDashboard() {
@@ -25,7 +27,7 @@ export default function AdminDashboard() {
   const today = getLocalDateStr();
   const todayOrders = orders.filter((o) => o.createdAt.slice(0, 10) === today);
   const completed = todayOrders.filter((o) => o.status === "concluido").length;
-  const pending = todayOrders.filter((o) => o.status !== "concluido").length;
+  const pending = todayOrders.filter((o) => o.status !== "concluido" && o.status !== "recusado" && o.status !== "cancelado").length;
   const todayRevenue = sumReceitasByDate(transactions, today);
   const todayPrevisto = filterUnpaidOrders(orders, today).reduce((s, o) => s + orderRemaining(o), 0);
   const pendentes = todayOrders.filter((o) => o.status === "pendente" || o.status === "em_producao");
