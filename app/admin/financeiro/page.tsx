@@ -242,7 +242,7 @@ export default function AdminFinanceiro() {
           <h1 className="text-2xl font-bold text-white">Financeiro</h1>
           <button
             onClick={() => setShowDespesaModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-wine-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600"
+            className="flex items-center gap-2 rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
           >
             <span className="text-lg">+</span> Lancar Despesa
           </button>
@@ -255,9 +255,9 @@ export default function AdminFinanceiro() {
                 onClick={() => setPeriodo(p.key)}
                 className={classNames(
                   "rounded-md px-4 py-1.5 text-xs font-bold transition-all",
-                  periodo === p.key
-                    ? "bg-wine-500/20 text-wine-400 border border-wine-500/40"
-                    : "text-neutral-400 hover:bg-neutral-800 hover:text-white border border-transparent"
+          periodo === p.key
+            ? "bg-[#8B1D22] text-white shadow-sm"
+            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
                 )}
               >
                 {p.label}
@@ -366,13 +366,13 @@ export default function AdminFinanceiro() {
         <h3 className="mb-4 text-sm font-semibold text-white">Entradas por Pagamento</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
-            { label: "Pix", value: porPagamento.pix, icon: "💠", color: "text-emerald-400" },
-            { label: "Dinheiro", value: porPagamento.dinheiro, icon: "💵", color: "text-yellow-400" },
-            { label: "Cartao Debito", value: porPagamento.cartao_debito, icon: "💳", color: "text-blue-400" },
-            { label: "Cartao Credito", value: porPagamento.cartao_credito, icon: "💳", color: "text-purple-400" },
+            { label: "Pix", value: porPagamento.pix, icon: "💠", color: "text-neutral-100" },
+            { label: "Dinheiro", value: porPagamento.dinheiro, icon: "💵", color: "text-neutral-100" },
+            { label: "Cartao Debito", value: porPagamento.cartao_debito, icon: "💳", color: "text-neutral-100" },
+            { label: "Cartao Credito", value: porPagamento.cartao_credito, icon: "💳", color: "text-neutral-100" },
             { label: "Outros", value: porPagamento.outros, icon: "🏷️", color: "text-neutral-400" },
           ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-neutral-800 bg-neutral-800/50 p-4 text-center">
+            <div key={item.label} className="rounded-xl border border-[#8B1D22]/30 bg-neutral-800/50 p-4 text-center">
               <span className="text-2xl">{item.icon}</span>
               <p className="mt-2 text-xs font-semibold text-neutral-500">{item.label}</p>
               <p className={classNames("mt-1 text-lg font-bold", item.color)}>

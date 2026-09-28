@@ -7,7 +7,7 @@ import { classNames, compararTexto, formatCurrency } from "@/lib/utils";
 function chipClass(ativo: boolean): string {
   return classNames(
     "flex-shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold transition-all",
-    ativo ? "bg-wine-500 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+    ativo ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
   );
 }
 
@@ -100,8 +100,8 @@ export default function CardapioRapidoPage() {
               type="button"
               onClick={() => setApenasEsgotados(!apenasEsgotados)}
               className={classNames(
-                "flex-shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-all",
-                apenasEsgotados ? "bg-red-500 text-white" : "bg-neutral-800 text-neutral-400 hover:text-white"
+                "flex-shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold transition-all",
+                apenasEsgotados ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
               )}
             >
               Apenas Esgotados ({esgotadosTotal})

@@ -152,7 +152,7 @@ export default function AdminConfiguracoes() {
         </div>
         <button
           onClick={handleSave}
-          className="rounded-lg bg-wine-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600 hover:shadow-xl"
+          className="rounded-xl bg-[#8B1D22] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
         >
           {saved ? "Salvo!" : "Salvar Alteracoes"}
         </button>
@@ -234,7 +234,7 @@ export default function AdminConfiguracoes() {
           </div>
           <div className="flex gap-2">
             <input type="time" value={newTimeSlot} onChange={(e) => setNewTimeSlot(e.target.value)} className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-wine-500" />
-            <button onClick={addTimeSlot} className="rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-400 transition-colors hover:border-wine-500 hover:bg-wine-500/10 hover:text-wine-400">
+            <button onClick={addTimeSlot} className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold">
               + Adicionar
             </button>
           </div>
@@ -271,8 +271,8 @@ export default function AdminConfiguracoes() {
             Posts do Instagram
           </h2>
           <button
-            onClick={addInstagramPost}
-            className="rounded-lg border border-wine-500/40 bg-wine-500/10 px-4 py-2 text-xs font-semibold text-wine-400 transition-colors hover:bg-wine-500/20"
+          onClick={addInstagramPost}
+          className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
           >
             + Adicionar Post
           </button>
@@ -301,7 +301,7 @@ export default function AdminConfiguracoes() {
                   </label>
                   <button
                     onClick={() => removeInstagramPost(post.id)}
-                    className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20"
+                    className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-md px-3 py-1 text-xs font-semibold"
                   >
                     Remover
                   </button>
@@ -366,7 +366,7 @@ export default function AdminConfiguracoes() {
             </div>
             <button
               onClick={handleClearOrders}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20"
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
             >
               Limpar Pedidos
             </button>
@@ -378,7 +378,7 @@ export default function AdminConfiguracoes() {
             </div>
             <button
               onClick={handleClearCustomers}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20"
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
             >
               Limpar Clientes
             </button>
@@ -390,7 +390,7 @@ export default function AdminConfiguracoes() {
             </div>
             <button
               onClick={handleClearCredores}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20"
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
             >
               Limpar Credores
             </button>
@@ -402,7 +402,7 @@ export default function AdminConfiguracoes() {
             </div>
             <button
               onClick={handleClearFinanceiro}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20"
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
             >
               Limpar Caixa
             </button>

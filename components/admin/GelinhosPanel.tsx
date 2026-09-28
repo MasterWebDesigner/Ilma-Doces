@@ -198,7 +198,7 @@ export default function GelinhosPanel() {
               onClick={() => setFilterStatus(f.key)}
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-all ${
                 filterStatus === f.key
-                  ? f.color === "red" ? "bg-red-500 text-white" : f.color === "amber" ? "bg-amber-500 text-white" : f.color === "emerald" ? "bg-emerald-500 text-white" : "bg-wine-500 text-white"
+                  ? f.color === "red" ? "bg-red-500 text-white" : f.color === "amber" ? "bg-amber-500 text-white" : f.color === "emerald" ? "bg-emerald-500 text-white" : "bg-[#8B1D22] text-white shadow-sm"
                   : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"
               }`}
             >
@@ -208,7 +208,7 @@ export default function GelinhosPanel() {
         </div>
         <button
           onClick={() => setNewModalOpen(true)}
-          className="rounded-lg bg-wine-500 px-3 py-1.5 text-[10px] font-bold text-white shadow transition-all hover:bg-wine-600"
+          className="rounded-xl bg-[#8B1D22] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
         >
           + Novo
         </button>

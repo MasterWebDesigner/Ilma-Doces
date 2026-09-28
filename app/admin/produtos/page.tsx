@@ -356,15 +356,15 @@ export default function AdminProdutos() {
               <button
                 onClick={migrateBase64Images}
                 disabled={uploadingImage}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                className="border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 rounded-xl font-medium px-4 py-2.5 text-sm transition-all disabled:opacity-50"
               >
                 Migrar {base64ImageCount} foto(s) antigas
               </button>
             )}
-            <button onClick={() => setCategoryModalOpen(true)} className="rounded-lg border border-wine-500/30 bg-wine-500/10 px-4 py-2.5 text-sm font-semibold text-wine-400 transition-all hover:bg-wine-500/20">
+            <button onClick={() => setCategoryModalOpen(true)} className="border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 rounded-xl font-medium px-4 py-2.5 text-sm transition-all">
               Gerenciar Categorias
             </button>
-            <button onClick={openCreate} className="rounded-lg bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600 hover:shadow-xl">
+            <button onClick={openCreate} className="rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]">
               + Novo Produto
             </button>
           </div>
@@ -376,7 +376,7 @@ export default function AdminProdutos() {
         <button
           onClick={() => setActiveTab("produtos")}
           className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
-            activeTab === "produtos" ? "bg-wine-500 text-white shadow" : "text-neutral-400 hover:text-white"
+            activeTab === "produtos" ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
           }`}
         >
           Produtos
@@ -384,7 +384,7 @@ export default function AdminProdutos() {
         <button
           onClick={() => setActiveTab("gelinhos")}
           className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
-            activeTab === "gelinhos" ? "bg-wine-500 text-white shadow" : "text-neutral-400 hover:text-white"
+            activeTab === "gelinhos" ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
           }`}
         >
           Pronta Entrega / Gelinhos
@@ -396,12 +396,12 @@ export default function AdminProdutos() {
       ) : (
       <>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setFilter("all")} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === "all" && !onlyRapido ? "bg-wine-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>Todos ({products.length})</button>
-        <button onClick={() => setOnlyRapido(!onlyRapido)} className={`pill-rapido rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${onlyRapido ? "bg-red-700 text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white"}`}>⚡ Cardápio Rápido ({rapidCount})</button>
+        <button onClick={() => setFilter("all")} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === "all" && !onlyRapido ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>Todos ({products.length})</button>
+        <button onClick={() => setOnlyRapido(!onlyRapido)} className={`pill-rapido rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${onlyRapido ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>⚡ Cardápio Rápido ({rapidCount})</button>
         {categories.map((cat) => {
           const count = products.filter((p) => p.category_id === cat.id).length;
           return (
-            <button key={cat.id} onClick={() => { setFilter(cat.id); setOnlyRapido(false); }} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === cat.id && !onlyRapido ? "bg-wine-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>
+            <button key={cat.id} onClick={() => { setFilter(cat.id); setOnlyRapido(false); }} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === cat.id && !onlyRapido ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>
               {cat.name} ({count})
             </button>
           );
@@ -435,7 +435,7 @@ export default function AdminProdutos() {
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-white">{p.name}</p>
                         {productIdsWithFicha.has(p.id) ? (
-                          <button onClick={() => setFichaPreviewProductId(p.id)} className="cursor-pointer rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-bold text-blue-400 transition-all hover:bg-blue-500/25">
+                          <button onClick={() => setFichaPreviewProductId(p.id)} className="cursor-pointer rounded-full border border-[#8B1D22]/30 bg-transparent px-2 py-0.5 text-[9px] font-bold text-[#8B1D22] transition-all hover:bg-[#8B1D22]/10">
                             Ficha
                           </button>
                         ) : (
@@ -462,17 +462,17 @@ export default function AdminProdutos() {
                     {p.is_available ? "Ativo" : "Esgotado"}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
                   <button
                     onClick={() => updateProduct(p.id, { cardapioRapido: !p.cardapioRapido })}
-                    className={`badge-rapido mr-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${p.cardapioRapido ? "border border-red-900/60 bg-red-950/60 text-red-300 hover:bg-red-900/50" : "bg-neutral-700/50 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"}`}
+                    className={`badge-rapido rounded-md px-2.5 py-1 text-xs font-medium transition-all ${p.cardapioRapido ? "border border-red-900/60 bg-red-950/60 text-red-300 hover:bg-red-900/50" : "bg-neutral-700/50 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"}`}
                     title={p.cardapioRapido ? "Remover do Cardápio Rápido (Venda Rápida)" : "Adicionar ao Cardápio Rápido (Venda Rápida)"}
                   >
                     ⚡ {p.cardapioRapido ? "Rápido" : "Não"}
                   </button>
-                  <button onClick={() => openEdit(p)} className="mr-1.5 rounded-md bg-blue-500/15 px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-500/25">Editar</button>
-                  <button onClick={() => openDuplicate(p)} className="mr-1.5 rounded-md bg-neutral-700/50 px-2.5 py-1 text-xs font-medium text-neutral-400 hover:bg-neutral-700 hover:text-white">Duplicar</button>
-                  <button onClick={() => setDeleteConfirm(p.id)} className="rounded-md bg-red-500/15 px-2.5 py-1 text-xs font-medium text-red-400 hover:bg-red-500/25">Excluir</button>
+                  <button onClick={() => openEdit(p)} className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold">Editar</button>
+                  <button onClick={() => openDuplicate(p)} className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold">Duplicar</button>
+                  <button onClick={() => setDeleteConfirm(p.id)} className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold">Excluir</button>
                 </td>
               </tr>
             ))}
@@ -724,14 +724,14 @@ export default function AdminProdutos() {
                               </button>
                               <button
                                 onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }}
-                                className="rounded-md px-2 py-1 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-blue-500/10"
+                                className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
                               >
                                 Editar
                               </button>
                               {!inUse && (
                                 <button
                                   onClick={() => setDeleteBrandId(b.id)}
-                                  className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-400 transition-colors hover:bg-red-500/10"
+                                  className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
                                 >
                                   Excluir
                                 </button>
@@ -931,14 +931,14 @@ export default function AdminProdutos() {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => { setEditingCategoryId(c.id); setEditCategoryName(c.name); setCategoryError(""); }}
-                                className="rounded-md px-2 py-1 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-blue-500/10"
+                                className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
                               >
                                 Editar
                               </button>
                               {categories.length > 1 && (
                                 <button
                                   onClick={() => setDeleteCategoryId(c.id)}
-                                  className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-400 transition-colors hover:bg-red-500/10"
+                                  className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
                                 >
                                   Excluir
                                 </button>

@@ -176,8 +176,8 @@ export default function AdminAgendamentos() {
               onClick={() => setViewMode(mode)}
               className={`rounded-md px-5 py-2 text-xs font-bold transition-all ${
                 viewMode === mode
-                  ? "bg-[#8B1D22] text-white border border-[#8B1D22] shadow-sm dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40 dark:shadow-amber-500/10"
-                  : "text-stone-700 hover:bg-stone-100 hover:text-stone-900 border border-transparent dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white"
+                  ? "bg-[#8B1D22] text-white shadow-sm"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
               }`}
             >
               {mode === "dia" ? "Dia" : mode === "grade" ? "Grade" : "Lista"}
@@ -243,15 +243,15 @@ export default function AdminAgendamentos() {
                       onClick={() => selectDate(day)}
                       className={`relative flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-all ${
                         isSelected
-                          ? "bg-[#8B1D22] text-white border border-[#8B1D22] dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40"
+                          ? "bg-[#8B1D22] text-white shadow-sm"
                           : isTodayDate
-                            ? "bg-[#8B1D22]/10 text-[#8B1D22] border border-[#8B1D22]/30 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+                            ? "bg-[#8B1D22]/10 text-[#8B1D22] border border-[#8B1D22]/30"
                             : "bg-white text-stone-700 border border-[#8B1D22]/30 hover:bg-stone-50 dark:bg-transparent dark:text-neutral-400 dark:border-transparent dark:hover:bg-neutral-800 dark:hover:text-white"
                       }`}
                     >
                       {day}
                       {hasOrders && (
-                        <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[#8B1D22] dark:bg-amber-400" />
+                        <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[#8B1D22]" />
                       )}
                     </button>
                   );
@@ -261,7 +261,7 @@ export default function AdminAgendamentos() {
               <div className="mt-3 flex justify-center">
                 <button
                   onClick={goToToday}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#8B1D22] transition-colors hover:bg-[#8B1D22]/10 dark:text-amber-400 dark:hover:bg-amber-500/10"
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#8B1D22] transition-colors hover:bg-[#8B1D22]/10"
                 >
                   Ir para Hoje
                 </button>
@@ -291,18 +291,18 @@ export default function AdminAgendamentos() {
                   onClick={() => setSelectedDate(d)}
                   className={`flex flex-col items-center rounded-xl py-3 transition-all ${
                     isSelected
-                      ? "bg-[#8B1D22] border border-[#8B1D22] shadow-sm dark:bg-amber-500/15 dark:border-amber-500/40 dark:shadow-amber-500/10"
+                      ? "bg-[#8B1D22] border border-[#8B1D22] shadow-sm"
                       : "bg-white border border-[#8B1D22]/30 hover:bg-stone-50 dark:bg-transparent dark:border-transparent dark:hover:bg-neutral-900"
                   }`}
                 >
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-white dark:text-amber-400" : "text-stone-500 dark:text-neutral-500"}`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-white" : "text-stone-500 dark:text-neutral-500"}`}>
                     {DAY_NAMES_SHORT[d.getDay()]}
                   </span>
-                  <span className={`mt-1 text-2xl font-bold ${isSelected ? "text-white dark:text-amber-300" : todayCheck ? "text-stone-900 dark:text-white" : "text-stone-700 dark:text-neutral-400"}`}>
+                  <span className={`mt-1 text-2xl font-bold ${isSelected ? "text-white" : todayCheck ? "text-stone-900 dark:text-white" : "text-stone-700 dark:text-neutral-400"}`}>
                     {d.getDate()}
                   </span>
                   {daysWithOrders.includes(d.getDate()) && d.getMonth() === calMonth && (
-                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#8B1D22] dark:bg-amber-400" />
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#8B1D22]" />
                   )}
                 </button>
               );
@@ -318,7 +318,7 @@ export default function AdminAgendamentos() {
 
           <button
             onClick={goToToday}
-            className="flex-shrink-0 rounded-lg border border-[#8B1D22] bg-[#8B1D22] px-3 py-1.5 text-[10px] font-bold text-white transition-colors hover:bg-[#721519] dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
+            className="flex-shrink-0 rounded-lg border border-[#8B1D22] bg-[#8B1D22] px-3 py-1.5 text-[10px] font-bold text-white transition-colors hover:bg-[#721519]"
           >
             Hoje
           </button>
@@ -327,7 +327,7 @@ export default function AdminAgendamentos() {
 
       {/* ═══════ DATE LABEL ═══════ */}
       <div className="px-6 pt-4 pb-2">
-        <p className="text-sm font-bold text-[#8B1D22] dark:text-amber-400">
+          <p className="text-sm font-bold text-[#8B1D22]">
           {isToday ? "Hoje " : ""}
           {DAY_NAMES_MIN[selectedDate.getDay()]}.
 
@@ -345,8 +345,8 @@ export default function AdminAgendamentos() {
               onClick={() => setStatusFilter(s)}
               className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-all ${
                 statusFilter === s
-                  ? "bg-[#8B1D22] text-white border border-[#8B1D22] dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40"
-                  : "text-stone-700 hover:bg-stone-100 hover:text-stone-900 border border-transparent dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white"
+                  ? "bg-[#8B1D22] text-white shadow-sm"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
               }`}
             >
               {s === "todos" ? "Todos" : STATUS_LABELS[s] ?? s}
@@ -438,11 +438,11 @@ export default function AdminAgendamentos() {
                           key={d.toISOString()}
                           onClick={() => setSelectedDate(d)}
                           className={`border-r border-neutral-800 px-2 py-3 text-center transition-colors ${
-                            isSelected ? "bg-[#8B1D22] dark:bg-amber-500/10" : todayCheck ? "bg-neutral-800/50" : ""
+                            isSelected ? "bg-[#8B1D22]" : todayCheck ? "bg-neutral-800/50" : ""
                           }`}
                         >
                           <p className={`text-[10px] font-semibold uppercase ${isSelected ? "text-white/80 dark:text-neutral-500" : "text-neutral-500"}`}>{DAY_NAMES_SHORT[d.getDay()]}</p>
-                          <p className={`text-lg font-bold ${isSelected ? "text-white dark:text-amber-300" : todayCheck ? "text-stone-900 dark:text-white" : "text-stone-700 dark:text-neutral-400"}`}>{d.getDate()}</p>
+                          <p className={`text-lg font-bold ${isSelected ? "text-white" : todayCheck ? "text-stone-900 dark:text-white" : "text-stone-700 dark:text-neutral-400"}`}>{d.getDate()}</p>
                         </button>
                       );
                     })}

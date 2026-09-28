@@ -512,19 +512,19 @@ export default function AdminEstoque() {
         </div>
         <div className="flex gap-3">
           <button onClick={handleResetData}
-            className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/20">
+            className="border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 rounded-xl font-medium px-4 py-2.5 text-sm transition-all">
             Reiniciar Dados
           </button>
           <button onClick={() => setBrandModalOpen(true)}
-            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-all hover:bg-amber-500/20">
+            className="border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 rounded-xl font-medium px-4 py-2.5 text-sm transition-all">
             Gerenciar Marcas
           </button>
           <button onClick={() => openBatchEntry()}
-            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20">
+            className="border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 rounded-xl font-medium px-4 py-2.5 text-sm transition-all">
             + Nova Entrada
           </button>
           <button onClick={openCreate}
-            className="rounded-lg bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600">
+            className="rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]">
             + Novo Insumo
           </button>
         </div>
@@ -536,7 +536,7 @@ export default function AdminEstoque() {
           <div className="flex gap-2">
             {["all", "Uso Interno", "Embalagens"].map((cat) => (
               <button key={cat} onClick={() => setFilter(cat)}
-                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === cat ? "bg-wine-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${filter === cat ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>
                 {cat === "all" ? "Todos" : cat}
               </button>
             ))}
@@ -549,7 +549,7 @@ export default function AdminEstoque() {
               { key: "sem_estoque", label: `Sem Estoque (${semEstoqueCount})` },
             ].map((s) => (
               <button key={s.key} onClick={() => setFilterStatus(s.key)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${filterStatus === s.key ? "bg-emerald-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${filterStatus === s.key ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>
                 {s.label}
               </button>
             ))}
@@ -704,9 +704,9 @@ export default function AdminEstoque() {
                                         <button onClick={(e) => { e.stopPropagation(); openBatchEntry(item.id, sb.brandId); }}
                                           className="rounded-md bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-400 hover:bg-emerald-500/25">+Entrada</button>
                                         <button onClick={(e) => { e.stopPropagation(); setHistoryInsumoId(item.id); setHistoryBrandId(sb.brandId); }}
-                                          className="rounded-md bg-blue-500/15 px-2 py-1 text-[10px] font-medium text-blue-400 hover:bg-blue-500/25">Lotes</button>
+                                          className="rounded-md border border-[#8B1D22]/30 bg-transparent px-2 py-1 text-[10px] font-medium text-[#8B1D22] hover:bg-[#8B1D22]/10">Lotes</button>
                                         <button onClick={(e) => { e.stopPropagation(); removeBrandFromInsumo(sb.id); }}
-                                          className="rounded-md bg-red-500/15 px-2 py-1 text-[10px] font-medium text-red-400 hover:bg-red-500/25">X</button>
+                                          className="rounded-md bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 text-[10px] font-medium hover:bg-rose-100">X</button>
                                       </div>
                                     </div>
                                   );
@@ -733,19 +733,19 @@ export default function AdminEstoque() {
                             <div className="h-6 w-px bg-neutral-800" />
 
                             <button onClick={(e) => { e.stopPropagation(); setHistoryInsumoId(item.id); setHistoryBrandId(null); }}
-                              className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-400 transition-all hover:bg-blue-500/20">
+                              className="flex items-center gap-1.5 border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                               Historico Geral
                             </button>
 
                             <button onClick={(e) => { e.stopPropagation(); openEdit(item); }}
-                              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs font-semibold text-neutral-400 transition-all hover:bg-neutral-700 hover:text-white">
+                              className="flex items-center gap-1.5 border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               Editar
                             </button>
 
                             <button onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); }}
-                              className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 transition-all hover:bg-red-500/20">
+                              className="flex items-center gap-1.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               Excluir
                             </button>
@@ -998,14 +998,14 @@ export default function AdminEstoque() {
             {getBrandsForInsumo(historyInsumoId).length > 1 && (
               <div className="flex gap-2 border-b border-neutral-800 px-6 py-2">
                 <button onClick={() => setHistoryBrandId(null)}
-                  className={`rounded-full px-3 py-1 text-[10px] font-semibold transition-all ${!historyBrandId ? "bg-amber-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>
+                  className={`rounded-full px-3 py-1 text-[10px] font-semibold transition-all ${!historyBrandId ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>
                   Todas
                 </button>
                 {getBrandsForInsumo(historyInsumoId).map((sb) => {
                   const bName = getBrandNameById(sb.brandId);
                   return (
                     <button key={sb.id} onClick={() => setHistoryBrandId(sb.brandId)}
-                      className={`rounded-full px-3 py-1 text-[10px] font-semibold transition-all ${historyBrandId === sb.brandId ? "bg-amber-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"}`}>
+                      className={`rounded-full px-3 py-1 text-[10px] font-semibold transition-all ${historyBrandId === sb.brandId ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"}`}>
                       {bName}
                     </button>
                   );
@@ -1158,8 +1158,8 @@ export default function AdminEstoque() {
                           </div>
                           <div className="flex items-center gap-1">
                             <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md px-2 py-1 text-[10px] font-semibold hover:bg-neutral-800">{b.status === "Ativa" ? <span className="text-amber-400">Desativar</span> : <span className="text-emerald-400">Ativar</span>}</button>
-                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md px-2 py-1 text-[10px] font-semibold text-blue-400 hover:bg-blue-500/10">Editar</button>
-                            <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md px-2 py-1 text-[10px] font-semibold text-red-400 hover:bg-red-500/10">Excluir</button>
+                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold">Editar</button>
+                            <button onClick={() => setDeleteBrandId(b.id)} className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold">Excluir</button>
                           </div>
                         </>
                       )}

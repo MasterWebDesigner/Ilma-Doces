@@ -427,7 +427,7 @@ export default function AdminVendasPage() {
                 onClick={() => changeGranularidade(g)}
                 className={classNames(
                   "rounded-md px-3 py-1.5 text-[11px] font-semibold transition-all",
-                  granularidade === g ? "bg-wine-500 text-white shadow" : "text-neutral-400 hover:text-white"
+                  granularidade === g ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
                 )}
               >
                 {label}
@@ -554,7 +554,7 @@ export default function AdminVendasPage() {
                   onClick={() => setAbaAnalise(key)}
                   className={classNames(
                     "rounded-md px-3 py-1 text-[11px] font-semibold transition-all",
-                    abaAnalise === key ? "bg-wine-500 text-white shadow" : "text-neutral-400 hover:text-white"
+                    abaAnalise === key ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
                   )}
                 >
                   {label}
@@ -712,7 +712,7 @@ export default function AdminVendasPage() {
                   <div key={hour} className="flex items-center gap-3">
                     <span className="w-12 text-xs font-bold text-neutral-400">{String(hour).padStart(2, "0")}:00</span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-stone-200 dark:bg-neutral-800">
-                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style={{ width: `${(data.count / maxPeak) * 100}%` }} />
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#8B1D22] to-[#B85C00]" style={{ width: `${(data.count / maxPeak) * 100}%` }} />
                     </div>
                     <span className="w-14 text-right text-[11px] font-semibold text-white">{data.count} pedidos</span>
                   </div>

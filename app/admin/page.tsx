@@ -42,7 +42,7 @@ export default function AdminDashboard() {
         </div>
         <button
           onClick={() => setQuickSaleOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
         >
           ⚡ + Venda Rápida (Balcão)
         </button>
@@ -116,7 +116,7 @@ export default function AdminDashboard() {
                     href={`https://wa.me/55${order.customerPhone.replace(/\D/g, "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                    className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
                   >
                     WhatsApp
                   </a>

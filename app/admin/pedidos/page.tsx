@@ -204,7 +204,7 @@ export default function AdminPedidos() {
         </div>
         <button
           onClick={() => setManualModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 transition-all hover:bg-wine-600"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
         >
           + Criar Pedido Manual
         </button>
@@ -246,7 +246,7 @@ export default function AdminPedidos() {
               key={s}
               onClick={() => { setFilterStatus(s); setPagePedidos(1); }}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                filterStatus === s ? "bg-wine-500 text-white" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"
+                filterStatus === s ? "bg-[#8B1D22] text-white shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
               }`}
             >
               {s === "all" ? "Todos" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -270,11 +270,11 @@ export default function AdminPedidos() {
               <div key={order.id} className="rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden">
                 {/* Order Header */}
                 <div
-                  className="flex items-center gap-4 px-6 py-4 cursor-pointer transition-colors hover:bg-neutral-800/30"
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4 cursor-pointer transition-colors hover:bg-neutral-800/30"
                   onClick={() => setExpandedId(isExpanded ? null : order.id)}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-white">{order.customerName}</p>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.color}`}>
                         {status.label}
@@ -290,11 +290,11 @@ export default function AdminPedidos() {
                       {order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ")}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-sm font-bold text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</p>
                     <p className="text-[10px] text-neutral-500">{formatDate(order.createdAt)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {order.valorPagoSinal ? (
                       <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold text-amber-400">
                         Sinal: {formatCurrency(order.valorPagoSinal)} ({order.formaPagamentoSinal?.toUpperCase()})
@@ -337,7 +337,7 @@ export default function AdminPedidos() {
                           e.stopPropagation();
                           setEncerrarPedido({ order, tipo: "recusar" });
                         }}
-                        className="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/25"
+                        className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
                       >
                         Recusar
                       </button>
@@ -348,7 +348,7 @@ export default function AdminPedidos() {
                           e.stopPropagation();
                           setEncerrarPedido({ order, tipo: "cancelar" });
                         }}
-                        className="rounded-lg bg-orange-500/15 px-3 py-1.5 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/25"
+                        className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
                       >
                         Cancelar
                       </button>
@@ -369,7 +369,7 @@ export default function AdminPedidos() {
                         e.stopPropagation();
                         setEditingOrder(order);
                       }}
-                      className="rounded-lg bg-blue-500/15 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/25"
+                      className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
                     >
                       Editar
                     </button>
@@ -499,7 +499,7 @@ export default function AdminPedidos() {
                       href={`https://wa.me/55${order.customerPhone.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
+                      className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
                     >
                       WhatsApp
                     </a>
