@@ -601,4 +601,11 @@ html:not(.dark) .admin-shell .stock-out {
   filter: blur(7px);
   user-select: none;
 }
+html:not(.dark).phone-blurred .phone-mask,
+html.dark.phone-blurred .phone-mask,
+html:not(.dark).phone-blurred .admin-shell input.phone-mask,
+html.dark.phone-blurred .admin-shell input.phone-mask {
+  color: #8b1d22 !important;
+  background-color: rgba(139, 29, 34, 0.16) !important;
+}
 
