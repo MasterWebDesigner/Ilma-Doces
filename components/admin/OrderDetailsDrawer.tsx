@@ -31,8 +31,11 @@ interface OrderDetailsDrawerProps {
   onEncerrar: (tipo: "recusar" | "cancelar") => void;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+function formatarDataHoraBR(iso: string) {
+  const d = new Date(iso);
+  const data = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${data} às ${hora}`;
 }
 
 function waMeLink(telefone: string) {
@@ -241,7 +244,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
                   {order.scheduledTime && ` às ${order.scheduledTime}`}
                 </>
               ) : (
-                formatDate(order.createdAt)
+                formatarDataHoraBR(order.createdAt)
               )}
             </p>
           </div>

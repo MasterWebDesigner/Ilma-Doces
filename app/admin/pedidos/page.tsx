@@ -139,8 +139,12 @@ export default function AdminPedidos() {
   const concluidosHoje = todayOrders.filter((o) => o.status === "concluido").length;
   const drawerOrder = orders.find((o) => o.id === drawerOrderId) || null;
 
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  function formatarDataBR(iso: string) {
+    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function formatarHoraBR(iso: string) {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false });
   }
 
   return (
@@ -216,10 +220,10 @@ export default function AdminPedidos() {
             const status = STATUS_CONFIG[order.status];
             const quando = order.scheduledDate
               ? order.scheduledDate.split("-").reverse().join("/")
-              : formatDate(order.createdAt).slice(0, 10);
+              : formatarDataBR(order.createdAt);
             const hora = order.scheduledDate
               ? order.scheduledTime || ""
-              : formatDate(order.createdAt).split(", ")[1] || "";
+              : formatarHoraBR(order.createdAt);
             const resumo = order.items
               .map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)
               .join(", ");
