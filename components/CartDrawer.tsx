@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useCartStore, useOrderStore, useCustomerStore, useProductStore } from "@/lib/store";
+import { useCartStore, useOrderStore, useCustomerStore, useProductStore, totalItemsCount } from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
 import type { Order, PaymentMethod, DeliveryType } from "@/types/database";
 import { formatCurrency, formatItemQty, formatWeightKg } from "@/lib/utils";
@@ -66,6 +66,7 @@ export default function CartDrawer() {
   const phoneDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const subtotal = paidSubtotal(items);
+  const contagemItens = totalItemsCount(items);
   const brindeAtivo = config.brindeAtivo;
   const regrasBrinde = getBrindeRegras();
   const brindeSubtotal = subtotalParaBrinde(items, regrasBrinde);
@@ -267,7 +268,14 @@ export default function CartDrawer() {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-neutral-950">
           <div>
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{stepLabel}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{stepLabel}</h2>
+              {contagemItens > 0 && (
+                <span className="rounded-full bg-[#8B1D22]/10 px-2 py-0.5 text-[10px] font-bold text-[#8B1D22] dark:bg-[#8B1D22]/30 dark:text-white">
+                  {contagemItens} {contagemItens === 1 ? "item" : "itens"}
+                </span>
+              )}
+            </div>
             <div className="mt-1 h-0.5 w-10" style={{ backgroundColor: WINE }} />
           </div>
           <button
@@ -309,7 +317,7 @@ export default function CartDrawer() {
             ) : (
               <div className="space-y-3">
                 {/* Fidelity bar */}
-                {brindeAtivo && (
+                {brindeAtivo && temItemElegivel && (
                   !progress.eligible ? (
                     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 space-y-2 dark:border-neutral-800 dark:bg-neutral-900">
                       <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">

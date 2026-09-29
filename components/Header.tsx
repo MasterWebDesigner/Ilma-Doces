@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCartStore } from "@/lib/store";
+import CartBadge from "@/components/CartBadge";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV = [
@@ -13,8 +14,7 @@ const NAV = [
 ];
 
 export default function Header() {
-  const { items, setOpen } = useCartStore();
-  const cartCount = items.reduce((s, i) => s + (i.is_brinde ? 1 : i.quantity), 0);
+  const { setOpen } = useCartStore();
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 bg-[#8B1D22]">
@@ -44,11 +44,7 @@ export default function Header() {
             className="rounded-full border border-white/25 px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-80"
           >
             Carrinho
-            {cartCount > 0 && (
-              <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px] font-bold">
-                {cartCount}
-              </span>
-            )}
+            <CartBadge />
           </button>
         </div>
       </div>

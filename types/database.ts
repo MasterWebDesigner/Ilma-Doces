@@ -27,6 +27,7 @@ export interface Product {
 export interface CartItem {
   product: Product;
   quantity: number;
+  unidades?: number;
   notes?: string;
   is_brinde?: boolean;
   preco_unitario?: number;

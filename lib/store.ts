@@ -408,6 +408,16 @@ interface CartState {
   setOpen: (open: boolean) => void;
 }
 
+export function totalItemsCount(items: CartItem[]): number {
+  return Math.round(
+    items.reduce((total, item) => {
+      if (item.is_brinde) return total + 1;
+      if (item.product.isCustomWeight) return total + (item.unidades ?? 1);
+      return total + item.quantity;
+    }, 0)
+  );
+}
+
 export const useCartStore = create<CartState>((set) => ({
   items: [],
   isOpen: false,
@@ -417,6 +427,8 @@ export const useCartStore = create<CartState>((set) => ({
       const addQty = product.isCustomWeight ? Math.max(1, Math.round((weight || 1) * 2) / 2) : 1;
       const existing = state.items.find((i) => i.product.id === product.id && !i.is_brinde);
       const currentQty = existing ? existing.quantity : 0;
+      const pesoExtra = product.isCustomWeight ? { unidades: (existing?.unidades ?? 1) + 1 } : {};
+      const pesoNovo = product.isCustomWeight ? { unidades: 1 } : {};
 
       if (product.controlarEstoque) {
         const estoque = Math.max(0, product.estoque ?? 0);
@@ -439,20 +451,20 @@ export const useCartStore = create<CartState>((set) => ({
         const next = existing
           ? state.items.map((i) =>
               i.product.id === product.id && !i.is_brinde
-                ? { ...i, quantity: i.quantity + clampedAdd }
+                ? { ...i, quantity: i.quantity + clampedAdd, ...pesoExtra }
                 : i
             )
-          : [...state.items, { product, quantity: clampedAdd }];
+          : [...state.items, { product, quantity: clampedAdd, ...pesoNovo }];
         return { items: enforceBrindeRule(next, { allowLoyalty: true }) };
       }
 
       const next = existing
         ? state.items.map((i) =>
             i.product.id === product.id && !i.is_brinde
-              ? { ...i, quantity: i.quantity + addQty }
+              ? { ...i, quantity: i.quantity + addQty, ...pesoExtra }
               : i
           )
-        : [...state.items, { product, quantity: addQty }];
+        : [...state.items, { product, quantity: addQty, ...pesoNovo }];
       return { items: enforceBrindeRule(next, { allowLoyalty: true }) };
     });
     if (toastMsg) notifyInfo("Estoque", toastMsg);
