@@ -5,19 +5,8 @@ import { useOrderStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { getLocalDateStr } from "@/lib/utils";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
-import type { OrderStatus } from "@/types/database";
 import QuickSaleModal from "@/components/admin/QuickSaleModal";
-
-const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-  pendente: { label: "Pendente", color: "bg-amber-500/15 text-amber-400" },
-  confirmado: { label: "Confirmado", color: "bg-blue-500/15 text-blue-400" },
-  em_producao: { label: "Em Producao", color: "bg-purple-500/15 text-purple-400" },
-  pronto: { label: "Pronto", color: "bg-blue-500/15 text-blue-400" },
-  saiu_entrega: { label: "Saiu p/ Entrega", color: "bg-cyan-500/15 text-cyan-400" },
-  concluido: { label: "Concluido", color: "bg-emerald-500/15 text-emerald-400" },
-  recusado: { label: "Recusado", color: "bg-red-500/15 text-red-400" },
-  cancelado: { label: "Cancelado", color: "bg-orange-500/15 text-orange-400" },
-};
+import { STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 
 export default function AdminDashboard() {
   const orders = useOrderStore((s) => s.orders);
@@ -94,7 +83,7 @@ export default function AdminDashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-white">{order.customerName}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.color}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${status.color}`}>
                         {status.label}
                       </span>
                     </div>

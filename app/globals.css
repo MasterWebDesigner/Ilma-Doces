@@ -172,7 +172,7 @@ html:not(.dark) .admin-shell thead th {
   background-color: rgba(245, 245, 244, 0.8) !important;
 }
 html:not(.dark) .admin-shell tbody tr:hover {
-  background-color: rgba(250, 250, 249, 0.8) !important;
+  background-color: #f8fafc !important;
 }
 html:not(.dark) .admin-shell .hover\:bg-neutral-800\/30:hover {
   background-color: rgba(250, 250, 249, 0.8) !important;
@@ -450,7 +450,15 @@ html:not(.dark) .admin-shell .bg-purple-500.text-white,
 html:not(.dark) .admin-shell .bg-orange-500 .text-white,
 html:not(.dark) .admin-shell .bg-orange-500.text-white,
 html:not(.dark) .admin-shell .bg-cyan-500 .text-white,
-html:not(.dark) .admin-shell .bg-cyan-500.text-white {
+html:not(.dark) .admin-shell .bg-cyan-500.text-white,
+html:not(.dark) .admin-shell .bg-purple-600 .text-white,
+html:not(.dark) .admin-shell .bg-purple-600.text-white,
+html:not(.dark) .admin-shell .bg-cyan-600 .text-white,
+html:not(.dark) .admin-shell .bg-cyan-600.text-white,
+html:not(.dark) .admin-shell .bg-indigo-600 .text-white,
+html:not(.dark) .admin-shell .bg-indigo-600.text-white,
+html:not(.dark) .admin-shell .bg-red-700 .text-white,
+html:not(.dark) .admin-shell .bg-red-700.text-white {
   color: #fff !important;
 }
 html:not(.dark) .admin-shell .bg-amber-500.text-black,

@@ -10,14 +10,14 @@ import { formatarTelefone } from "@/lib/phone";
 import type { Order, OrderStatus } from "@/types/database";
 
 export const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-  pendente: { label: "Pendente", color: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400" },
-  confirmado: { label: "Confirmado", color: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400" },
-  em_producao: { label: "Em Produção", color: "bg-purple-100 text-purple-800 dark:bg-purple-500/15 dark:text-purple-400" },
-  pronto: { label: "Pronto", color: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400" },
-  saiu_entrega: { label: "Saiu Entrega", color: "bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400" },
-  concluido: { label: "Concluído", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400" },
-  recusado: { label: "Recusado", color: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400" },
-  cancelado: { label: "Cancelado", color: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-400" },
+  pendente: { label: "Pendente", color: "bg-[#8B1D22] text-white font-medium" },
+  confirmado: { label: "Confirmado", color: "bg-blue-600 text-white font-medium" },
+  em_producao: { label: "Em Produção", color: "bg-purple-600 text-white font-medium" },
+  pronto: { label: "Pronto", color: "bg-cyan-600 text-white font-medium" },
+  saiu_entrega: { label: "Saiu Entrega", color: "bg-indigo-600 text-white font-medium" },
+  concluido: { label: "Concluído", color: "bg-emerald-600 text-white font-medium" },
+  recusado: { label: "Recusado", color: "bg-red-600 text-white font-medium" },
+  cancelado: { label: "Cancelado", color: "bg-red-700 text-white font-medium" },
 };
 
 const STATUS_TERMINAIS: OrderStatus[] = ["concluido", "recusado", "cancelado"];
@@ -166,7 +166,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-neutral-500">Pedido #{order.orderNumber || order.id.slice(-6)}</p>
-              <h2 className="truncate text-lg font-bold text-gray-900 dark:text-white">{order.customerName}</h2>
+              <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{order.customerName}</h2>
             </div>
             <button
               onClick={fechar}
@@ -177,7 +177,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
             </button>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <span className={`rounded-full px-3 py-1.5 text-sm font-bold ${status.color}`}>{status.label}</span>
+            <span className={`rounded-full px-3 py-1.5 text-sm ${status.color}`}>{status.label}</span>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-neutral-800 dark:text-neutral-400">
               {ehEntrega ? "Entrega" : "Retirada"}
             </span>
@@ -231,10 +231,10 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           {/* Agendamento */}
           <div className="rounded-xl border border-slate-200 bg-slate-100 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-amber-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-amber-400">
               {ehEntrega ? "Entrega" : "Retirada"} Agendada
             </p>
-            <p className="mt-1 text-sm font-bold text-slate-800 dark:text-white">
+            <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
               {order.scheduledDate ? (
                 <>
                   {order.scheduledDate.split("-").reverse().join("/")}
@@ -251,34 +251,34 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Dados do Cliente</p>
             <div className="space-y-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-neutral-500">Nome</span>
-                <span className="font-semibold text-gray-900 dark:text-white">{order.customerName}</span>
+                <span className="text-slate-600 dark:text-neutral-500">Nome</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{order.customerName}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-neutral-500">WhatsApp</span>
+                <span className="text-slate-600 dark:text-neutral-500">WhatsApp</span>
                 <a
                   href={waMeLink(order.customerPhone)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-semibold text-emerald-400 transition-colors hover:text-emerald-300 hover:underline"
+                  className="font-semibold text-slate-900 transition-colors hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
                 >
                   {formatarTelefone(order.customerPhone)}
                 </a>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-neutral-500">Modalidade</span>
-                <span className="font-semibold text-gray-900 dark:text-white">{ehEntrega ? "Entrega" : "Retirada na Loja"}</span>
+                <span className="text-slate-600 dark:text-neutral-500">Modalidade</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{ehEntrega ? "Entrega" : "Retirada na Loja"}</span>
               </div>
               {order.address && (
                 <div className="flex items-start justify-between gap-3">
-                  <span className="shrink-0 text-neutral-500">Endereço</span>
-                  <span className="text-right text-gray-900 dark:text-white">{order.address}</span>
+                  <span className="shrink-0 text-slate-600 dark:text-neutral-500">Endereço</span>
+                  <span className="text-right font-semibold text-slate-900 dark:text-white">{order.address}</span>
                 </div>
               )}
               {!!order.trocoPara && order.trocoPara > 0 && (
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-neutral-500">Troco Para</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.trocoPara)}</span>
+                  <span className="text-slate-600 dark:text-neutral-500">Troco Para</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(order.trocoPara)}</span>
                 </div>
               )}
             </div>
@@ -352,7 +352,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
                 </div>
                 <div className="flex justify-between border-t border-amber-500/20 pt-2 text-[11px]">
                   <span className="text-amber-800 dark:text-amber-200/60">Peso solicitado pelo cliente</span>
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-slate-900 dark:text-white">
                     {formatItemQty(order.items.find((i) => i.product.isCustomWeight)?.quantity ?? 0, true)}
                   </span>
                 </div>
@@ -360,9 +360,9 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
             )}
 
             {order.generalNotes && (
-              <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Observações Gerais</p>
-                <p className="mt-1 text-sm text-neutral-300">{order.generalNotes}</p>
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-100 p-3 dark:border-amber-500/20 dark:bg-amber-500/5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-amber-500">Observações Gerais</p>
+                <p className="mt-1 text-sm text-slate-800 dark:text-neutral-300">{order.generalNotes}</p>
               </div>
             )}
           </section>
@@ -373,24 +373,24 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
           <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Resumo Financeiro</p>
           <dl className="mt-2 space-y-1.5 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-neutral-400">Forma de pagamento</dt>
-              <dd className="font-semibold text-gray-900 dark:text-white">{order.isFiado ? "Fiado / A Pagar" : paymentLabelOf(order.paymentMethod)}</dd>
+              <dt className="text-slate-600 dark:text-neutral-400">Forma de pagamento</dt>
+              <dd className="font-semibold text-slate-900 dark:text-white">{order.isFiado ? "Fiado / A Pagar" : paymentLabelOf(order.paymentMethod)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-neutral-400">Sinal pago</dt>
-              <dd className="font-semibold text-gray-900 dark:text-amber-400">
+              <dt className="text-slate-600 dark:text-neutral-400">Sinal pago</dt>
+              <dd className="font-semibold text-slate-900 dark:text-amber-400">
                 {sinalPago > 0
                   ? `${formatCurrency(sinalPago)}${order.formaPagamentoSinal ? ` (${paymentLabelOf(order.formaPagamentoSinal)})` : ""}`
                   : "—"}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-neutral-400">Valor restante</dt>
-              <dd className="font-semibold text-gray-900 dark:text-white">{formatCurrency(restante)}</dd>
+              <dt className="text-slate-600 dark:text-neutral-400">Valor restante</dt>
+              <dd className="font-semibold text-slate-900 dark:text-white">{formatCurrency(restante)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-neutral-800 pt-2">
-              <dt className="text-sm font-bold text-gray-900 dark:text-white">Total</dt>
-              <dd className="text-base font-bold text-gray-900 dark:text-emerald-400">{formatCurrency(order.total)}</dd>
+              <dt className="text-sm font-bold text-slate-900 dark:text-white">Total</dt>
+              <dd className="text-base font-bold text-slate-900 dark:text-emerald-400">{formatCurrency(order.total)}</dd>
             </div>
           </dl>
         </div>
