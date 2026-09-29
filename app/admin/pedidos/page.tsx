@@ -7,39 +7,26 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import type { CompraItem } from "@/types/database";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
-import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
 import { compararTexto, formatCurrency, getLocalDateStr, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
-import type { Order, OrderStatus, PaymentMethod, CartItem, Product } from "@/types/database";
-import { formatarTelefone } from "@/lib/phone";
+import type { Order, PaymentMethod, CartItem } from "@/types/database";
 import { OpcaoTelefone } from "@/lib/phoneBlur";
-
-const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-  pendente: { label: "Pendente", color: "bg-amber-500/15 text-amber-400" },
-  confirmado: { label: "Confirmado", color: "bg-blue-500/15 text-blue-400" },
-  em_producao: { label: "Em Produção", color: "bg-purple-500/15 text-purple-400" },
-  pronto: { label: "Pronto", color: "bg-blue-500/15 text-blue-400" },
-  saiu_entrega: { label: "Saiu Entrega", color: "bg-blue-500/15 text-blue-400" },
-  concluido: { label: "Concluído", color: "bg-emerald-500/15 text-emerald-400" },
-  recusado: { label: "Recusado", color: "bg-red-500/15 text-red-400" },
-  cancelado: { label: "Cancelado", color: "bg-orange-500/15 text-orange-400" },
-};
+import { OrderDetailsDrawer, STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 
 const PEDIDOS_PAGE_SIZE = 15;
 
 export default function AdminPedidos() {
-  const { orders, updateStatus, updateOrder } = useOrderStore();
+  const { orders } = useOrderStore();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [pagePedidos, setPagePedidos] = useState(1);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [drawerOrderId, setDrawerOrderId] = useState<string | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [sinalOrder, setSinalOrder] = useState<Order | null>(null);
   const [encerrarPedido, setEncerrarPedido] = useState<{ order: Order; tipo: "recusar" | "cancelar" } | null>(null);
-  const [pesoRealInputs, setPesoRealInputs] = useState<Record<string, string>>({});
 
   const customers = useCustomerStore((s) => s.customers);
   const products = useProductStore((s) => s.products);
@@ -149,50 +136,10 @@ export default function AdminPedidos() {
   const todayPrevisto = filterUnpaidOrders(orders, today).reduce((s, o) => s + orderRemaining(o), 0);
   const pendentes = orders.filter((o) => o.status === "pendente").length;
   const concluidosHoje = todayOrders.filter((o) => o.status === "concluido").length;
+  const drawerOrder = orders.find((o) => o.id === drawerOrderId) || null;
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  }
-
-  function confirmarPesoReal(order: Order) {
-    const raw = pesoRealInputs[order.id] ?? String(order.peso_real_kg ?? order.items.find((i) => i.product.isCustomWeight)?.quantity ?? "");
-    const pesoReal = Math.round((parseFloat(raw.replace(",", ".")) || 0) * 10) / 10;
-    if (!pesoReal || pesoReal < 0.1) return;
-    const customIdx = order.items.findIndex((i) => i.product.isCustomWeight);
-    if (customIdx < 0) return;
-
-    const newItems = order.items.map((it, idx) => (idx === customIdx ? { ...it, quantity: pesoReal } : it));
-    const newTotal = newItems.reduce((s, it) => s + itemLineTotal(it), 0);
-
-    updateOrder(order.id, {
-      items: newItems,
-      total: newTotal,
-      peso_real_kg: pesoReal,
-      status: "confirmado",
-    });
-
-    confirmOrderWhatsApp({
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      deliveryType: order.deliveryType,
-      scheduledDate: order.scheduledDate,
-      scheduledTime: order.scheduledTime,
-      items: newItems,
-      total: newTotal,
-    });
-
-    useNotificationStore.getState().addNotification({
-      title: "Pedido Confirmado",
-      message: `${order.customerName} — peso real ${pesoReal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg — ${formatCurrency(newTotal)}`,
-      type: "order",
-    });
-    playNotificationSound();
-
-    setPesoRealInputs((m) => {
-      const next = { ...m };
-      delete next[order.id];
-      return next;
-    });
   }
 
   return (
@@ -266,251 +213,43 @@ export default function AdminPedidos() {
         <div className="space-y-3">
           {pedidosPaginados.map((order) => {
             const status = STATUS_CONFIG[order.status];
-            const isExpanded = expandedId === order.id;
+            const quando = order.scheduledDate
+              ? order.scheduledDate.split("-").reverse().join("/")
+              : formatDate(order.createdAt).slice(0, 10);
+            const hora = order.scheduledDate
+              ? order.scheduledTime || ""
+              : formatDate(order.createdAt).split(", ")[1] || "";
+            const resumo = order.items
+              .map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)
+              .join(", ");
             return (
-              <div key={order.id} className="rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden">
-                {/* Order Header */}
-                <div
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4 cursor-pointer transition-colors hover:bg-neutral-800/30"
-                  onClick={() => setExpandedId(isExpanded ? null : order.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-white">{order.customerName}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.color}`}>
-                        {status.label}
-                      </span>
-                      <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-                        {order.deliveryType === "entrega" ? "Entrega" : "Retirada"}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.origem === "manual" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
-                        {order.origem === "manual" ? "Manual" : "Site / Automático"}
-                      </span>
-                      {order.scheduledDate && (
-                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-                          Agendado: {order.scheduledDate.split("-").reverse().join("/")}{order.scheduledTime ? ` às ${order.scheduledTime}` : ""}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-neutral-500 truncate">
-                      {order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ")}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</p>
-                    <p className="text-[10px] text-neutral-500">{formatDate(order.createdAt)}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {order.valorPagoSinal ? (
-                      <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold text-amber-400">
-                        Sinal: {formatCurrency(order.valorPagoSinal)} ({order.formaPagamentoSinal?.toUpperCase()})
-                      </span>
-                    ) : !["concluido", "recusado", "cancelado"].includes(order.status) ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSinalOrder(order);
-                        }}
-                        className="rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/25"
-                      >
-                        Registrar Sinal / Produção
-                      </button>
-                    ) : null}
-
-                    {order.status === "pendente" && !order.valorPagoSinal && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          confirmOrderWhatsApp({
-                            customerName: order.customerName,
-                            customerPhone: order.customerPhone,
-                            deliveryType: order.deliveryType,
-                            scheduledDate: order.scheduledDate,
-                            scheduledTime: order.scheduledTime,
-                            items: order.items,
-                            total: order.total,
-                          });
-                          updateStatus(order.id, "confirmado");
-                        }}
-                        className="rounded-lg bg-blue-500/15 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/25"
-                      >
-                        Confirmar
-                      </button>
-                    )}
-                    {order.status === "pendente" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEncerrarPedido({ order, tipo: "recusar" });
-                        }}
-                        className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
-                      >
-                        Recusar
-                      </button>
-                    )}
-                    {["confirmado", "em_producao", "pronto", "saiu_entrega"].includes(order.status) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEncerrarPedido({ order, tipo: "cancelar" });
-                        }}
-                        className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-xs font-semibold"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                    {!["concluido", "recusado", "cancelado"].includes(order.status) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditOrder(order);
-                        }}
-                        className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/25"
-                      >
-                        Finalizar Pedido
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingOrder(order);
-                      }}
-                      className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
-                    >
-                      Editar
-                    </button>
-                  </div>
+              <div
+                key={order.id}
+                onClick={() => setDrawerOrderId(order.id)}
+                className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900 px-5 py-4 text-left transition-all hover:border-neutral-700 hover:bg-neutral-800/50"
+              >
+                <div className="w-28 shrink-0">
+                  <p className="text-sm font-bold text-amber-400">{quando}</p>
+                  <p className="text-xs font-semibold text-amber-300/80">{hora || "—"}</p>
                 </div>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="border-t border-neutral-800 px-6 py-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Telefone</p>
-                        <p className="phone-mask mt-1 text-white">{formatarTelefone(order.customerPhone)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pagamento</p>
-                        <p className="mt-1 text-white">
-                          {order.isFiado ? "Fiado / A Pagar" : paymentLabelOf(order.paymentMethod)}
-                        </p>
-                      </div>
-                      {order.scheduledDate && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Data Agendada</p>
-                          <p className="mt-1 text-white">{order.scheduledDate} {order.scheduledTime || ""}</p>
-                        </div>
-                      )}
-                      {order.address && (
-                        <div className="col-span-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Endereço de Entrega</p>
-                          <p className="mt-1 text-white">{order.address}</p>
-                        </div>
-                      )}
-                      {order.trocoPara && order.trocoPara > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Troco Para</p>
-                          <p className="mt-1 text-white">R$ {order.trocoPara.toFixed(2).replace(".", ",")}</p>
-                        </div>
-                      )}
-                      {order.generalNotes && (
-                        <div className="col-span-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Observações</p>
-                          <p className="mt-1 text-white">{order.generalNotes}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 mb-2">Itens</p>
-                      <div className="space-y-1">
-                        {order.items.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex justify-between text-sm rounded-md px-2 py-1 ${
-                              item.is_brinde
-                                ? "bg-emerald-500/10 border border-emerald-500/30"
-                                : ""
-                            }`}
-                          >
-                            <span className={item.is_brinde ? "text-emerald-300 font-semibold" : "text-neutral-300"}>
-                              {item.is_brinde && (
-                                <span className="mr-1.5 rounded bg-emerald-500/25 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300">
-                                  🎁 BRINDE FIDELIDADE
-                                </span>
-                              )}
-                              {item.product.name} {formatItemQty(item.quantity, item.product.isCustomWeight)}{item.notes ? ` (${item.notes})` : ""}
-                            </span>
-                            {item.is_brinde ? (
-                              <span className="text-emerald-400 whitespace-nowrap">
-                                <span className="mr-1 text-neutral-500 line-through">{formatCurrency(item.product.price)}</span>
-                                R$ 0,00
-                              </span>
-                            ) : (
-                              <span className="text-emerald-400">R$ {itemLineTotal(item).toFixed(2).replace(".", ",")}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-2 flex justify-between border-t border-neutral-800 pt-2 text-sm font-bold">
-                        <span className="text-white">Total</span>
-                        <span className="text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</span>
-                      </div>
-                      {order.peso_real_kg !== undefined && (
-                        <p className="mt-2 rounded-lg bg-blue-500/10 border border-blue-500/25 px-2.5 py-1.5 text-[11px] font-semibold text-blue-300">
-                          ⚖️ Peso real confirmado: {order.peso_real_kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg
-                        </p>
-                      )}
-                    </div>
-
-                    {order.status === "pendente" && order.items.some((i) => i.product.isCustomWeight) && (
-                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">⚖️ Peso Real do Bolo (kg) — Aprovação Obrigatória</p>
-                          <p className="mt-1 text-xs text-amber-200/70">
-                            Confira na balança, informe o peso final. O total será recalculado, o pedido virará Confirmado e o cliente será avisado do valor final.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0.1"
-                            value={pesoRealInputs[order.id] ?? order.peso_real_kg ?? order.items.find((i) => i.product.isCustomWeight)?.quantity ?? 1}
-                            onChange={(e) => setPesoRealInputs((m) => ({ ...m, [order.id]: e.target.value }))}
-                            className="w-32 rounded-lg border border-amber-500/50 bg-neutral-950 px-3 py-2 text-sm font-bold text-amber-400 outline-none focus:border-amber-400"
-                            title="Peso real (kg)"
-                          />
-                          <span className="text-xs font-semibold text-amber-400">kg</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              confirmarPesoReal(order);
-                            }}
-                            className="ml-auto rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-neutral-950 transition-colors hover:bg-amber-400"
-                          >
-                            Confirmar Peso & Aprovar Pedido
-                          </button>
-                        </div>
-                        <div className="flex justify-between border-t border-amber-500/20 pt-2 text-[11px]">
-                          <span className="text-amber-200/60">Peso solicitado pelo cliente</span>
-                          <span className="font-semibold text-white">
-                            {formatItemQty(order.items.find((i) => i.product.isCustomWeight)?.quantity ?? 0, true)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <a
-                      href={`https://wa.me/55${order.customerPhone.replace(/\D/g, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-                    >
-                      WhatsApp
-                    </a>
-                  </div>
-                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">{order.customerName}</p>
+                  <p className="mt-0.5 truncate text-xs text-neutral-500">{resumo}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${status.color}`}>
+                  {status.label}
+                </span>
+                <p className="w-24 shrink-0 text-right text-sm font-bold text-emerald-400">
+                  R$ {order.total.toFixed(2).replace(".", ",")}
+                </p>
+                <svg
+                  className="h-4 w-4 shrink-0 text-neutral-600 transition-colors group-hover:text-neutral-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
             );
           })}
@@ -537,6 +276,18 @@ export default function AdminPedidos() {
           </div>
         )}
         </>
+      )}
+
+      {/* Drawer de Detalhes do Pedido */}
+      {drawerOrder && (
+        <OrderDetailsDrawer
+          order={drawerOrder}
+          onClose={() => setDrawerOrderId(null)}
+          onRegistrarSinal={() => setSinalOrder(drawerOrder)}
+          onEditar={() => setEditingOrder(drawerOrder)}
+          onFinalizar={() => setEditOrder(drawerOrder)}
+          onEncerrar={(tipo) => setEncerrarPedido({ order: drawerOrder, tipo })}
+        />
       )}
 
       {/* Finalize / Edit Modal */}
