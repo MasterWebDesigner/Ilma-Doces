@@ -226,11 +226,11 @@ export default function AdminPedidos() {
               <div
                 key={order.id}
                 onClick={() => setDrawerOrderId(order.id)}
-                className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900 px-5 py-4 text-left transition-all hover:border-neutral-700 hover:bg-neutral-800/50"
+                className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-neutral-800 bg-white px-5 py-4 text-left shadow-sm transition-all hover:border-neutral-700 hover:bg-slate-50 dark:bg-neutral-900 dark:shadow-none dark:hover:bg-neutral-800/50"
               >
-                <div className="w-28 shrink-0">
-                  <p className="text-sm font-bold text-amber-400">{quando}</p>
-                  <p className="text-xs font-semibold text-amber-300/80">{hora || "—"}</p>
+                <div className="w-28 shrink-0 rounded-lg bg-slate-100 px-3 py-1.5 text-center dark:bg-transparent dark:text-left">
+                  <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{quando}</p>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-amber-300/80">{hora || "—"}</p>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">{order.customerName}</p>
@@ -243,7 +243,7 @@ export default function AdminPedidos() {
                   R$ {order.total.toFixed(2).replace(".", ",")}
                 </p>
                 <svg
-                  className="h-4 w-4 shrink-0 text-neutral-600 transition-colors group-hover:text-neutral-400"
+                  className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-slate-700 dark:text-neutral-600 dark:group-hover:text-neutral-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
