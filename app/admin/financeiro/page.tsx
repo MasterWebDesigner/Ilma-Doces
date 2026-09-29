@@ -184,10 +184,23 @@ export default function AdminFinanceiro() {
       });
     });
 
-    return Object.entries(catMap)
+    const lista = Object.entries(catMap)
       .filter(([_, val]) => val > 0)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value]) => ({ name, value }));
+    const totalCat = lista.reduce((s, d) => s + d.value, 0);
+    if (totalCat <= 0) return lista.map((d) => ({ ...d, pct: 0 }));
+    const decimos = lista.map((d) => Math.floor((d.value / totalCat) * 1000));
+    let resto = 1000 - decimos.reduce((s, v) => s + v, 0);
+    const fracoes = lista
+      .map((d, i) => ({ i, frac: (d.value / totalCat) * 1000 - Math.floor((d.value / totalCat) * 1000) }))
+      .sort((a, b) => b.frac - a.frac);
+    for (const { i } of fracoes) {
+      if (resto <= 0) break;
+      decimos[i] += 1;
+      resto--;
+    }
+    return lista.map((d, i) => ({ ...d, pct: decimos[i] / 10 }));
   }, [ordersPagosPeriodo, categories]);
 
   const maxEntrada = Math.max(...distribuicaoEntradas.map((d) => d.value), 1);
@@ -327,7 +340,7 @@ export default function AdminFinanceiro() {
                 <div key={item.name}>
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="text-neutral-400">{item.name}</span>
-                    <span className="text-neutral-300">{totalEntradas > 0 ? Math.round((item.value / totalEntradas) * 100) : 0}% · R$ {safeMoney(item.value)}</span>
+                    <span className="text-neutral-300">{item.pct.toFixed(1).replace(".", ",")}% · R$ {safeMoney(item.value)}</span>
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-neutral-800">
                     <div className="h-full rounded-full bg-emerald-500" style={{ width: `${(item.value / maxEntrada) * 100}%` }} />
@@ -364,18 +377,17 @@ export default function AdminFinanceiro() {
       {/* ═══════ ENTRADAS POR PAGAMENTO ═══════ */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <h3 className="mb-4 text-sm font-semibold text-white">Entradas por Pagamento</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { label: "Pix", value: porPagamento.pix, icon: "💠", color: "text-neutral-100" },
-            { label: "Dinheiro", value: porPagamento.dinheiro, icon: "💵", color: "text-neutral-100" },
-            { label: "Cartao Debito", value: porPagamento.cartao_debito, icon: "💳", color: "text-neutral-100" },
-            { label: "Cartao Credito", value: porPagamento.cartao_credito, icon: "💳", color: "text-neutral-100" },
-            { label: "Outros", value: porPagamento.outros, icon: "🏷️", color: "text-neutral-400" },
+            { label: "PIX", value: porPagamento.pix, icon: "💠" },
+            { label: "Dinheiro", value: porPagamento.dinheiro, icon: "💵" },
+            { label: "Cartão Débito", value: porPagamento.cartao_debito, icon: "💳" },
+            { label: "Cartão Crédito", value: porPagamento.cartao_credito, icon: "💳" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-[#8B1D22]/30 bg-neutral-800/50 p-4 text-center">
               <span className="text-2xl">{item.icon}</span>
               <p className="mt-2 text-xs font-semibold text-neutral-500">{item.label}</p>
-              <p className={classNames("mt-1 text-lg font-bold", item.color)}>
+              <p className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 R$ {safeMoney(item.value)}
               </p>
             </div>
