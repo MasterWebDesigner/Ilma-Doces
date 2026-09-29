@@ -83,6 +83,7 @@ export default function AdminAgendamentos() {
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState("todos");
   const [searchQuery, setSearchQuery] = useState("");
+  const [mostrarVagos, setMostrarVagos] = useState(false);
   const [drawerOrderId, setDrawerOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [finalizeOrder, setFinalizeOrder] = useState<Order | null>(null);
@@ -366,6 +367,20 @@ export default function AdminAgendamentos() {
       </div>
 
       {/* ═══════ DAY VIEW ═══════ */}
+      {viewMode === "dia" && (
+        <div className="flex items-center justify-end px-6 pb-2">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-xs font-semibold text-neutral-500">
+            <input
+              type="checkbox"
+              className="peer sr-only"
+              checked={mostrarVagos}
+              onChange={(e) => setMostrarVagos(e.target.checked)}
+            />
+            <span className="relative h-5 w-9 rounded-full bg-neutral-700 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-[#8B1D22] peer-checked:after:translate-x-4" />
+            Mostrar horários vagos
+          </label>
+        </div>
+      )}
       {viewMode === "dia" && (() => {
         const comHorario = todayOrders.filter((o) => normalizarHora(o.scheduledTime));
         const semHorario = todayOrders.filter((o) => !normalizarHora(o.scheduledTime));
@@ -373,6 +388,26 @@ export default function AdminAgendamentos() {
           .map((o) => normalizarHora(o.scheduledTime))
           .filter((t): t is string => !!t && !TIME_SLOTS.includes(t));
         const diaSlots = [...new Set([...TIME_SLOTS, ...diaExtras])].sort();
+        const slotsVisiveis = mostrarVagos
+          ? diaSlots
+          : diaSlots.filter((t) => comHorario.some((o) => normalizarHora(o.scheduledTime) === t));
+
+        if (todayOrders.length === 0 && !mostrarVagos) {
+          const totalNoDia = scheduledOrders.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
+          return (
+            <div className="mx-6 mb-6 rounded-xl border border-neutral-800 bg-neutral-900 px-6 py-14 text-center">
+              <svg className="mx-auto h-8 w-8 text-neutral-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="mt-3 text-sm font-semibold text-neutral-400">
+                {totalNoDia === 0 ? "Nenhum agendamento para esta data." : "Nenhum agendamento encontrado com esses filtros."}
+              </p>
+              <p className="mt-1 text-xs text-neutral-600">
+                {totalNoDia === 0 ? "Selecione outra data na faixa acima." : "Ajuste a busca ou os filtros de status."}
+              </p>
+            </div>
+          );
+        }
         return (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 mx-6 mb-6">
           {semHorario.length > 0 && (
@@ -389,8 +424,9 @@ export default function AdminAgendamentos() {
               ))}
             </div>
           )}
-          <div className="divide-y divide-neutral-800/50">
-            {diaSlots.map((time) => {
+          {slotsVisiveis.length > 0 && (
+            <div className="divide-y divide-neutral-800/50">
+              {slotsVisiveis.map((time) => {
               const slotOrders = comHorario.filter((o) => normalizarHora(o.scheduledTime) === time);
               return (
                 <div key={time} className="flex min-h-[52px]">
@@ -433,7 +469,8 @@ export default function AdminAgendamentos() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
         );
       })()}
@@ -509,7 +546,45 @@ export default function AdminAgendamentos() {
       )}
 
       {/* ═══════ LIST VIEW ═══════ */}
-      {viewMode === "lista" && (
+      {viewMode === "lista" && (() => {
+        const listaFiltrada = scheduledOrders
+          .filter((o) => o.scheduledDate === formatDate(selectedDate))
+          .filter((o) => {
+            if (statusFilter !== "todos" && o.status !== statusFilter) return false;
+            if (searchQuery) {
+              const q = searchQuery.toLowerCase();
+              const matchName = o.customerName.toLowerCase().includes(q);
+              const matchPhone = o.customerPhone.includes(q);
+              const matchItems = o.items.some((i) => i.product.name.toLowerCase().includes(q));
+              if (!matchName && !matchPhone && !matchItems) return false;
+            }
+            return true;
+          })
+          .sort((a, b) => {
+            const da = a.scheduledDate ?? "";
+            const db = b.scheduledDate ?? "";
+            if (da !== db) return da.localeCompare(db);
+            return (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "");
+          });
+
+        if (listaFiltrada.length === 0) {
+          const totalNoDia = scheduledOrders.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
+          return (
+            <div className="mx-6 mb-6 rounded-xl border border-neutral-800 bg-neutral-900 px-6 py-14 text-center">
+              <svg className="mx-auto h-8 w-8 text-neutral-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p className="mt-3 text-sm font-semibold text-neutral-400">
+                {totalNoDia === 0 ? "Nenhum agendamento para esta data." : "Nenhum agendamento encontrado com esses filtros."}
+              </p>
+              <p className="mt-1 text-xs text-neutral-600">
+                {totalNoDia === 0 ? "Selecione outra data na faixa acima." : "Ajuste a busca ou os filtros de status."}
+              </p>
+            </div>
+          );
+        }
+
+        return (
         <div className="mx-6 mb-6 overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
           <table className="w-full text-left text-sm">
             <thead>
@@ -522,24 +597,7 @@ export default function AdminAgendamentos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/50">
-              {scheduledOrders
-                .filter((o) => {
-                  if (statusFilter !== "todos" && o.status !== statusFilter) return false;
-                  if (searchQuery) {
-                    const q = searchQuery.toLowerCase();
-                    const matchName = o.customerName.toLowerCase().includes(q);
-                    const matchPhone = o.customerPhone.includes(q);
-                    const matchItems = o.items.some((i) => i.product.name.toLowerCase().includes(q));
-                    if (!matchName && !matchPhone && !matchItems) return false;
-                  }
-                  return true;
-                })
-                .sort((a, b) => {
-                  const da = a.scheduledDate ?? "";
-                  const db = b.scheduledDate ?? "";
-                  if (da !== db) return da.localeCompare(db);
-                  return (a.scheduledTime ?? "").localeCompare(b.scheduledTime ?? "");
-                })
+              {listaFiltrada
                 .map((order) => (
                   <tr
                     key={order.id}
@@ -566,14 +624,9 @@ export default function AdminAgendamentos() {
                 ))}
             </tbody>
           </table>
-          {scheduledOrders.length === 0 && (
-            <div className="py-12 text-center text-neutral-500">
-              <p className="text-lg font-semibold">Nenhum pedido agendado.</p>
-              <p className="mt-1 text-sm">Pedidos com data agendada aparecerão aqui.</p>
-            </div>
-          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══════ DRAWER DE DETALHES ═══════ */}
       {drawerOrder && (
