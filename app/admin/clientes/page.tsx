@@ -534,7 +534,7 @@ export default function AdminClientes() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-neutral-400">{formatarTelefone(row.phone || row.phoneClean)}</td>
+                        <td className="phone-mask px-4 py-3 text-xs text-neutral-400">{formatarTelefone(row.phone || row.phoneClean)}</td>
                         <td className="px-4 py-3 text-right text-sm font-bold text-[#8B1D22] dark:text-red-500">
                           {row.label}
                         </td>
@@ -615,7 +615,7 @@ export default function AdminClientes() {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-xs text-neutral-400">{formatarTelefone(c.phone)}</td>
+                  <td className="phone-mask px-6 py-4 text-xs text-neutral-400">{formatarTelefone(c.phone)}</td>
                   <td className="px-6 py-4 text-center">
                     <span
                       className={`text-sm font-bold ${
@@ -799,7 +799,7 @@ export default function AdminClientes() {
                     setForm((f) => ({ ...f, phone: e.valor }));
                     setPhoneError(e.erro);
                   }}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-wine-500 focus:ring-1 focus:ring-wine-500/30"
+                  className="phone-mask w-full rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-wine-500 focus:ring-1 focus:ring-wine-500/30"
                 />
                 {phoneError && (
                   <p className="mt-1.5 text-xs font-medium text-red-400">{phoneError}</p>

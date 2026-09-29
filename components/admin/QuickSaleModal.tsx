@@ -8,7 +8,7 @@ import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { notifyInfo } from "@/lib/notifications";
 import { compararTexto, formatCurrency, getLocalDateStr, paymentLabelOf, formatItemQty } from "@/lib/utils";
 import { PaymentMethod, CartItem, CompraItem } from "@/types/database";
-import { formatarTelefone } from "@/lib/phone";
+import { OpcaoTelefone } from "@/lib/phoneBlur";
 import { isBrindeProduct } from "@/lib/brinde";
 
 interface QuickSaleModalProps {
@@ -412,7 +412,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                       {isFiado ? "— Selecione o cliente —" : "Consumidor Final (Balcão / Anônimo)"}
                     </option>
                       {[...clientesFiltrados].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
+                        <OpcaoTelefone key={c.id} value={c.id} nome={c.name} telefone={c.phone} />
                       ))}
                   </select>
 

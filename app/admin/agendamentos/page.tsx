@@ -6,6 +6,7 @@ import { confirmOrderWhatsApp } from "@/lib/whatsapp";
 import { formatCurrency, paymentLabelOf } from "@/lib/utils";
 import type { Order, OrderStatus, PaymentMethod } from "@/types/database";
 import { formatarTelefone, mascaraTelefone, higienizarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
+import { useStoreConfig, DEFAULT_SETTINGS } from "@/lib/storeConfig";
 
 type ViewMode = "dia" | "grade" | "lista";
 
@@ -79,6 +80,20 @@ function getWeekDays(date: Date): Date[] {
 
 function formatShortDate(d: Date): string {
   return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+}
+
+const HORA_PADRAO = TIME_SLOTS[0];
+
+function normalizarHora(h?: string): string | null {
+  if (!h) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(h.trim());
+  if (!m) return null;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+}
+
+function horaCelula(o: Order): string {
+  const h = normalizarHora(o.scheduledTime);
+  return h ? `${h.slice(0, 2)}:00` : HORA_PADRAO;
 }
 
 export default function AdminAgendamentos() {
@@ -370,11 +385,32 @@ export default function AdminAgendamentos() {
       </div>
 
       {/* ═══════ DAY VIEW ═══════ */}
-      {viewMode === "dia" && (
+      {viewMode === "dia" && (() => {
+        const comHorario = todayOrders.filter((o) => normalizarHora(o.scheduledTime));
+        const semHorario = todayOrders.filter((o) => !normalizarHora(o.scheduledTime));
+        const diaExtras = comHorario
+          .map((o) => normalizarHora(o.scheduledTime))
+          .filter((t): t is string => !!t && !TIME_SLOTS.includes(t));
+        const diaSlots = [...new Set([...TIME_SLOTS, ...diaExtras])].sort();
+        return (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 mx-6 mb-6">
+          {semHorario.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800/50 px-4 py-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-600">Sem horário definido</span>
+              {semHorario.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => setDetailOrder(order)}
+                  className="rounded-full border border-neutral-700 bg-neutral-800/50 px-3 py-1 text-xs font-semibold text-neutral-300 transition-colors hover:border-amber-500/40 hover:text-white"
+                >
+                  {order.customerName}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="divide-y divide-neutral-800/50">
-            {TIME_SLOTS.map((time) => {
-              const slotOrders = todayOrders.filter((o) => o.scheduledTime === time);
+            {diaSlots.map((time) => {
+              const slotOrders = comHorario.filter((o) => normalizarHora(o.scheduledTime) === time);
               return (
                 <div key={time} className="flex min-h-[52px]">
                   <div className="flex w-20 flex-shrink-0 items-start justify-end border-r border-neutral-800 px-3 pt-2.5">
@@ -418,7 +454,8 @@ export default function AdminAgendamentos() {
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══════ GRID/WEEK VIEW ═══════ */}
       {viewMode === "grade" && (
@@ -426,6 +463,10 @@ export default function AdminAgendamentos() {
           <div className="min-w-[700px]">
             {(() => {
               const gridWeekDays = getWeekDays(selectedDate);
+              const gradeHours = [...new Set([
+                ...TIME_SLOTS.filter((_, i) => i % 2 === 0),
+                ...scheduledOrders.map((o) => horaCelula(o)),
+              ])].sort();
               return (
                 <>
                   <div className="grid grid-cols-8 border-b border-neutral-800">
@@ -449,7 +490,7 @@ export default function AdminAgendamentos() {
                   </div>
                   <div className="grid grid-cols-8">
                     <div className="border-r border-neutral-800">
-                      {TIME_SLOTS.filter((_, i) => i % 2 === 0).map((time) => (
+                      {gradeHours.map((time) => (
                         <div key={time} className="h-14 border-b border-neutral-800/50 px-2 pt-1">
                           <span className="text-[10px] font-semibold text-neutral-600">{time}</span>
                         </div>
@@ -459,8 +500,8 @@ export default function AdminAgendamentos() {
                       const dayOrders = getOrdersForDate(d);
                       return (
                         <div key={d.toISOString()} className="border-r border-neutral-800">
-                          {TIME_SLOTS.filter((_, i) => i % 2 === 0).map((time) => {
-                            const slotOrders = dayOrders.filter((o) => o.scheduledTime === time);
+                          {gradeHours.map((time) => {
+                            const slotOrders = dayOrders.filter((o) => horaCelula(o) === time);
                             return (
                               <div key={time} className="h-14 border-b border-neutral-800/50 p-1">
                                 {slotOrders.map((order) => (
@@ -530,10 +571,10 @@ export default function AdminAgendamentos() {
                     <td className="px-6 py-4 text-sm text-white">
                       {order.scheduledDate ? parseDate(order.scheduledDate)?.toLocaleDateString("pt-BR") : "—"}
                     </td>
-                    <td className="px-6 py-4 text-sm font-bold text-amber-400">{order.scheduledTime ?? "—"}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-amber-400">{normalizarHora(order.scheduledTime) ?? "—"}</td>
                     <td className="px-6 py-4">
                       <p className="font-semibold text-white">{order.customerName}</p>
-                      <p className="text-xs text-neutral-500">{formatarTelefone(order.customerPhone)}</p>
+                      <p className="phone-mask text-xs text-neutral-500">{formatarTelefone(order.customerPhone)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="max-w-xs text-xs text-neutral-400 line-clamp-1">
@@ -581,7 +622,7 @@ export default function AdminAgendamentos() {
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-bold text-white">{detailOrder.customerName}</h2>
-                <p className="text-sm text-neutral-500">{formatarTelefone(detailOrder.customerPhone)}</p>
+                <p className="phone-mask text-sm text-neutral-500">{formatarTelefone(detailOrder.customerPhone)}</p>
               </div>
               <button onClick={() => setDetailOrder(null)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -726,6 +767,9 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
 
 function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const { updateOrder } = useOrderStore();
+  const config = useStoreConfig();
+  const baseHorarios = config.timeSlots.length > 0 ? config.timeSlots : DEFAULT_SETTINGS.timeSlots;
+  const horariosEdicao = [...new Set([...baseHorarios, ...(order.scheduledTime ? [order.scheduledTime] : [])])].sort();
   const [form, setForm] = useState({
     customerName: order.customerName,
     customerPhone: mascaraTelefone(order.customerPhone),
@@ -779,7 +823,7 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Telefone</label>
               <input type="tel" inputMode="numeric" value={form.customerPhone} onChange={(e) => { setPhoneError(""); setForm((f) => ({ ...f, customerPhone: mascaraTelefone(e.target.value) })); }}
                 onBlur={() => { const e = estadoTelefone(form.customerPhone); setForm((f) => ({ ...f, customerPhone: e.valor })); setPhoneError(e.erro); }}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500" />
+                className="phone-mask w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500" />
               {phoneError && <p className="mt-1.5 text-xs font-medium text-red-400">{phoneError}</p>}
             </div>
           </div>
@@ -794,10 +838,9 @@ function EditOrderModal({ order, onClose }: { order: Order; onClose: () => void 
               <select value={form.scheduledTime} onChange={(e) => setForm((f) => ({ ...f, scheduledTime: e.target.value }))}
                 className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500">
                 <option value="">Selecione...</option>
-                <option value="10:00">10:00</option>
-                <option value="11:30">11:30</option>
-                <option value="14:00">14:00</option>
-                <option value="16:30">16:30</option>
+                {horariosEdicao.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
               </select>
             </div>
           </div>

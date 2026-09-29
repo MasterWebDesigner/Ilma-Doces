@@ -587,3 +587,10 @@ html:not(.dark) .admin-shell .critical-stock-warn {
 html:not(.dark) .admin-shell .stock-out {
   border-color: rgba(139, 29, 34, 0.65) !important;
 }
+
+/* === BORRAR TELEFONES — MODO GRAVACAO === */
+.phone-blurred .phone-mask {
+  filter: blur(7px);
+  user-select: none;
+}
+

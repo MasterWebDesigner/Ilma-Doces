@@ -13,6 +13,7 @@ import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import type { Order, OrderStatus, PaymentMethod, CartItem, Product } from "@/types/database";
 import { formatarTelefone } from "@/lib/phone";
+import { OpcaoTelefone } from "@/lib/phoneBlur";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
   pendente: { label: "Pendente", color: "bg-amber-500/15 text-amber-400" },
@@ -285,6 +286,11 @@ export default function AdminPedidos() {
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.origem === "manual" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}>
                         {order.origem === "manual" ? "Manual" : "Site / Automático"}
                       </span>
+                      {order.scheduledDate && (
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                          Agendado: {order.scheduledDate.split("-").reverse().join("/")}{order.scheduledTime ? ` às ${order.scheduledTime}` : ""}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 text-xs text-neutral-500 truncate">
                       {order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ")}
@@ -382,7 +388,7 @@ export default function AdminPedidos() {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Telefone</p>
-                        <p className="mt-1 text-white">{formatarTelefone(order.customerPhone)}</p>
+                        <p className="phone-mask mt-1 text-white">{formatarTelefone(order.customerPhone)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pagamento</p>
@@ -574,7 +580,7 @@ export default function AdminPedidos() {
                   >
                     <option value="">Selecione um cliente...</option>
                       {[...customers].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
+                        <OpcaoTelefone key={c.id} value={c.id} nome={c.name} telefone={c.phone} />
                       ))}
                   </select>
                 </div>

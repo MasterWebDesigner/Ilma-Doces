@@ -7,7 +7,7 @@ import type { Order, PaymentMethod, DeliveryType } from "@/types/database";
 import { formatCurrency, formatItemQty, formatWeightKg } from "@/lib/utils";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
-import { useStoreConfig } from "@/lib/storeConfig";
+import { useStoreConfig, DEFAULT_SETTINGS } from "@/lib/storeConfig";
 import {
   paidSubtotal,
   brindeProgress,
@@ -15,6 +15,7 @@ import {
   availableBrindeFlavors,
   subtotalParaBrinde,
   getBrindeRegras,
+  itemContaParaBrinde,
 } from "@/lib/brinde";
 import { computeLoyaltyBalance, loyaltyProgress } from "@/lib/fidelidade";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
@@ -28,6 +29,11 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; emoji: string }[] 
   { value: "cartao_debito", label: "Cartão de Débito", emoji: "💳" },
   { value: "dinheiro", label: "Dinheiro", emoji: "💵" },
 ];
+
+function hojeISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function CartDrawer() {
   const { items, isOpen, setOpen, removeItem, updateQuantity, updateNotes, setBrinde, clearBrinde, clearCart } = useCartStore();
@@ -44,6 +50,8 @@ export default function CartDrawer() {
   const [flavorOpen, setFlavorOpen] = useState(false);
   const [phoneValue, setPhoneValue] = useState("");
   const [nameValue, setNameValue] = useState("");
+  const [dateValue, setDateValue] = useState("");
+  const [timeValue, setTimeValue] = useState("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("retirada");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [trocoValue, setTrocoValue] = useState("");
@@ -62,6 +70,8 @@ export default function CartDrawer() {
   const regrasBrinde = getBrindeRegras();
   const brindeSubtotal = subtotalParaBrinde(items, regrasBrinde);
   const progress = brindeProgress(brindeSubtotal);
+  const temItemElegivel = items.some((i) => itemContaParaBrinde(i, regrasBrinde));
+  const horariosRetirada = config.timeSlots.length > 0 ? config.timeSlots : DEFAULT_SETTINGS.timeSlots;
   const categoriasPromoNomes = regrasBrinde.todasCategorias
     ? []
     : categories.filter((c) => regrasBrinde.categoriasPromo.includes(c.id)).map((c) => c.name);
@@ -102,6 +112,8 @@ export default function CartDrawer() {
     setFlavorOpen(false);
     setPhoneValue("");
     setNameValue("");
+    setDateValue("");
+    setTimeValue("");
     setDeliveryType("retirada");
     setPaymentMethod("pix");
     setTrocoValue("");
@@ -120,6 +132,9 @@ export default function CartDrawer() {
 
     if (!name) { setValidationError("Informe seu nome completo"); return; }
     if (!phone) { setValidationError(MENSAGEM_WHATSAPP_INVALIDO); return; }
+    if (!dateValue) { setValidationError("Informe a data desejada para a retirada"); return; }
+    if (dateValue < hojeISO()) { setValidationError("A data desejada não pode ser no passado"); return; }
+    if (!timeValue) { setValidationError("Informe o horário da retirada"); return; }
 
     let address: string | undefined;
     if (deliveryType === "entrega") {
@@ -165,6 +180,8 @@ export default function CartDrawer() {
       total: totalGeral,
       deliveryType,
       address,
+      scheduledDate: dateValue,
+      scheduledTime: timeValue,
       paymentMethod,
       trocoPara: trocoNum,
       origem: "site",
@@ -183,6 +200,8 @@ export default function CartDrawer() {
       customerPhone: formatarTelefone(phone),
       deliveryType,
       address,
+      scheduledDate: dateValue,
+      scheduledTime: timeValue,
       paymentMethod,
       trocoPara: trocoNum,
       deliveryFee,
@@ -560,7 +579,7 @@ export default function CartDrawer() {
                 </div>
 
                 {/* Loyalty */}
-                {brindeAtivo && loyalty && phoneClean.length >= 10 && (
+                {brindeAtivo && temItemElegivel && loyalty && phoneClean.length >= 10 && (
                   <div
                     className={`rounded-xl border p-3 space-y-2 ${
                       loyalty.eligible
@@ -636,6 +655,30 @@ export default function CartDrawer() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Data da Retirada */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Data da Retirada <span className="text-red-500">*</span></p>
+                <input
+                  type="date"
+                  className="input-field"
+                  min={hojeISO()}
+                  value={dateValue}
+                  onChange={(e) => { setDateValue(e.target.value); setValidationError(""); }}
+                />
+                <label className="label-field">Horário da Retirada <span className="text-red-500">*</span></label>
+                <select
+                  className="input-field"
+                  value={timeValue}
+                  onChange={(e) => { setTimeValue(e.target.value); setValidationError(""); }}
+                >
+                  <option value="">Selecione o horário</option>
+                  {horariosRetirada.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-neutral-500">Escolha o dia e o horário em que pretende retirar o pedido.</p>
               </div>
 
               {/* Entrega / Retirada */}
@@ -821,6 +864,18 @@ export default function CartDrawer() {
                     <span className="text-neutral-500">Tipo</span>
                     <span className="font-semibold text-neutral-900 dark:text-white">
                       {confirmedOrder.deliveryType === "entrega" ? "Entrega" : "Retirada"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500">Data da Retirada</span>
+                    <span className="font-semibold text-neutral-900 dark:text-white">
+                      {confirmedOrder.scheduledDate ? formatDate(confirmedOrder.scheduledDate) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500">Horário da Retirada</span>
+                    <span className="font-semibold text-neutral-900 dark:text-white">
+                      {confirmedOrder.scheduledTime || "—"}
                     </span>
                   </div>
                   {confirmedOrder.address && (

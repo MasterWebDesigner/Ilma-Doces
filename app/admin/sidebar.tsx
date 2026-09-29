@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { classNames } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { useOrderStore } from "@/lib/store";
 import { sair, nomeConectado, useAuth } from "@/lib/auth";
 import NotificationToast from "@/components/NotificationToast";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useBorracaoTelefones, definirBorracaoTelefones, sincronizarBorracaoTelefones } from "@/lib/phoneBlur";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" },
@@ -34,6 +35,11 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
   const { user } = useAuth();
   const conectado = nomeConectado(user?.email);
   const iniciais = conectado.substring(0, 2).toUpperCase();
+  const telefonesBorrados = useBorracaoTelefones();
+
+  useEffect(() => {
+    sincronizarBorracaoTelefones();
+  }, []);
 
   async function handleSair() {
     if (!confirm("Deseja realmente sair do painel?")) return;
@@ -164,6 +170,25 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
               </div>
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => definirBorracaoTelefones(!telefonesBorrados)}
+            title={collapsed ? (telefonesBorrados ? "Telefones Borrados" : "Borrar Telefones") : "Oculta os telefones dos clientes (modo gravacao)"}
+            className={classNames(
+              "mb-2 flex items-center justify-center gap-2 rounded-lg border text-xs font-semibold transition-colors",
+              telefonesBorrados
+                ? "border-white bg-white text-[#8B1D22] hover:bg-white/90"
+                : "border-white/25 text-white/90 hover:border-white/50 hover:bg-white/10 hover:text-white",
+              collapsed ? "w-full px-2 py-2" : "w-full px-3 py-2"
+            )}
+          >
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3l18 18" />
+              <path d="M10.73 5.08A10.43 10.43 0 0112 5c4.76 0 8.77 3.01 10.06 7.18a1.01 1.01 0 010 .64C20.58 16.49 16.64 19.5 12 19.5a10.43 10.43 0 01-4.73-1.12" />
+              <path d="M9.88 9.88a3 3 0 104.24 4.24" />
+            </svg>
+            {!collapsed && (telefonesBorrados ? "Telefones Borrados" : "Borrar Telefones")}
+          </button>
           <button
             type="button"
             onClick={handleSair}

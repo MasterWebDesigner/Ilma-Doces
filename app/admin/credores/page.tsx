@@ -7,6 +7,7 @@ import type { Credor, CompraCredor, CompraItem, PagamentoCredor } from "@/types/
 import { useCustomerStore, useProductStore, useOrderStore } from "@/lib/store";
 import { compararTexto, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { formatarTelefone } from "@/lib/phone";
+import { OpcaoTelefone } from "@/lib/phoneBlur";
 import { useStoreConfig } from "@/lib/storeConfig";
 import { deveCobrar, compraAberta, diasAtraso, frequenciaDe, FREQUENCIAS_LEMBRETE, type FrequenciaLembrete } from "@/lib/cobranca";
 import { montarCobrancaVencimento, montarCobrancaAtraso, montarAgradecimentoPagamento, urlWaMe } from "@/lib/whatsapp";
@@ -1005,7 +1006,7 @@ export default function CredoresPage() {
                         )}
                       </div>
                       <p className="text-xs text-neutral-400 mt-0.5">
-                        📱 {formatarTelefone(credor.whatsapp)} {credor.observacoes ? `• 📝 ${credor.observacoes}` : ""}
+                        📱 <span className="phone-mask">{formatarTelefone(credor.whatsapp)}</span> {credor.observacoes ? `• 📝 ${credor.observacoes}` : ""}
                       </p>
                     </div>
                   </div>
@@ -1288,7 +1289,7 @@ export default function CredoresPage() {
                     >
                       <option value="">Selecione um cliente...</option>
                       {[...customers].sort((a, b) => compararTexto(a.name, b.name)).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} ({formatarTelefone(c.phone)})</option>
+                        <OpcaoTelefone key={c.id} value={c.id} nome={c.name} telefone={c.phone} />
                       ))}
                     </select>
                   </div>
