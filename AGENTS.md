@@ -25,6 +25,7 @@
 - `node scripts/verify-login.mjs` confere se o login local está respondendo.
 - `firestore.rules` é allow-all **do emulador** — nunca rodar `firebase deploy` (o CLI nem está logado; manter assim).
 - Dados locais persistem em `emulator-data/` (gitignored; `--import=./emulator-data --export-on-exit` no script `dev`). Requisitos: Java (OpenJDK 21) e `firebase-tools` (devDependency).
+- **Confiabilidade de dados**: `emulator-data/` está fora do git — commit protege só o código, nunca os dados. O `--export-on-exit` só roda em saída limpa (Ctrl+C); parada bruta (janela fechada/kill/sleep) faz o próximo `npm run dev` reimportar o último snapshot e perder o que foi criado desde então. Sempre encerrar o dev com Ctrl+C e rodar `npm run db:export` (com o dev no ar) como snapshot manual antes/experimentalmente. Para recuperar o estado real: `npm run db:sync` (produção → local).
 
 ## Convenções
 
