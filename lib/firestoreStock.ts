@@ -1,6 +1,5 @@
-import { doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, orderBy, writeBatch } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, getDocs, onSnapshot, query, orderBy, writeBatch, where } from "firebase/firestore";
 import { db } from "./firebase";
-import { StockItem, StockBrand, Batch } from "./app/admin/estoque/page";
 
 export interface FirestoreStockItem {
   id: string;
