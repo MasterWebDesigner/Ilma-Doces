@@ -1141,49 +1141,49 @@ export default function AdminEstoque() {
       {/* ═══════ BRAND MANAGEMENT MODAL ═══════ */}
       {brandModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => setBrandModalOpen(false)}>
-          <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-white p-6 shadow-2xl dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+          <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-neutral-800">
               <div className="flex items-start gap-2.5">
-                <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-wine-500" />
+                <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-[#8B1D22] dark:bg-wine-500" />
                 <div>
-                  <h3 className="text-xl font-bold text-white">Gerenciar Marcas</h3>
-                  <p className="mt-0.5 text-xs text-neutral-500">Cadastre as marcas disponiveis. Depois vincule-as aos insumos.</p>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">Gerenciar Marcas</h3>
+                  <p className="mt-0.5 text-xs text-slate-700 dark:text-slate-400">Cadastre as marcas disponiveis. Depois vincule-as aos insumos.</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setBrandModalOpen(false)} className="text-xl leading-none text-neutral-500 hover:text-white">✕</button>
+              <button type="button" onClick={() => setBrandModalOpen(false)} className="text-xl leading-none text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">✕</button>
             </div>
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input type="text" value={brandSearch} onChange={(e) => setBrandSearch(e.target.value)} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 py-2.5 pl-10 pr-3.5 text-sm text-white focus:border-wine-500 focus:outline-none" placeholder="Buscar marca..." />
+              <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={brandSearch} onChange={(e) => setBrandSearch(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-[#8B1D22] focus:outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-slate-100 dark:placeholder:text-slate-400" placeholder="Buscar marca..." />
             </div>
             <div className="flex gap-2">
-              <input type="text" value={newBrandName} onChange={(e) => { setNewBrandName(e.target.value); setBrandError(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddBrand(); } }} className="flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none" placeholder="Nova marca..." />
-              <button onClick={handleAddBrand} className="rounded-xl bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600">+</button>
+              <input type="text" value={newBrandName} onChange={(e) => { setNewBrandName(e.target.value); setBrandError(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddBrand(); } }} className="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-[#8B1D22] focus:outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-slate-100 dark:placeholder:text-slate-400" placeholder="Nova marca..." />
+              <button onClick={handleAddBrand} className="rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-[#FFFFFF] shadow-lg hover:bg-[#721519] dark:bg-wine-500 dark:hover:bg-wine-600">+</button>
             </div>
-            {brandError && <p className="text-xs text-red-400">{brandError}</p>}
-            <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-800 bg-white dark:bg-neutral-950">
+            {brandError && <p className="text-xs text-red-600 dark:text-red-400">{brandError}</p>}
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
               {filteredBrands.length === 0 ? (
-                <div className="py-8 text-center text-sm text-neutral-500">{brandSearch ? "Nenhuma marca encontrada." : "Nenhuma marca cadastrada."}</div>
+                <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">{brandSearch ? "Nenhuma marca encontrada." : "Nenhuma marca cadastrada."}</div>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-slate-200 dark:divide-neutral-800">
                   {filteredBrands.map((b) => (
-                    <li key={b.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-neutral-800/30">
+                    <li key={b.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/40">
                       {editingBrandId === b.id ? (
                         <div className="flex w-full items-center gap-2">
-                          <input type="text" value={editBrandName} onChange={(e) => setEditBrandName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUpdateBrand(b.id); if (e.key === "Escape") { setEditingBrandId(null); setEditBrandName(""); } }} autoFocus className="flex-1 rounded-lg border border-wine-500 bg-neutral-950 px-2 py-1 text-sm text-white outline-none" />
-                          <button onClick={() => handleUpdateBrand(b.id)} className="rounded-lg bg-wine-500 px-2 py-1 text-xs font-semibold text-white hover:bg-wine-600">Salvar</button>
-                          <button onClick={() => { setEditingBrandId(null); setEditBrandName(""); }} className="rounded-lg border border-neutral-700 bg-transparent px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white">Cancelar</button>
+                          <input type="text" value={editBrandName} onChange={(e) => setEditBrandName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUpdateBrand(b.id); if (e.key === "Escape") { setEditingBrandId(null); setEditBrandName(""); } }} autoFocus className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 outline-none focus:border-[#8B1D22] dark:border-neutral-700 dark:bg-neutral-950 dark:text-slate-100" />
+                          <button onClick={() => handleUpdateBrand(b.id)} className="rounded-lg bg-[#8B1D22] px-2 py-1 text-xs font-semibold text-[#FFFFFF] hover:bg-[#721519] dark:bg-wine-500 dark:hover:bg-wine-600">Salvar</button>
+                          <button onClick={() => { setEditingBrandId(null); setEditBrandName(""); }} className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-neutral-600 dark:bg-transparent dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100">Cancelar</button>
                         </div>
                       ) : (
                         <>
                           <div className="flex items-center gap-2.5">
-                            <span className="text-sm font-medium text-white">{b.nome}</span>
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">{b.status}</span>
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{b.nome}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-100">{b.status}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md bg-neutral-100 px-2 py-1 text-[10px] font-semibold text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">{b.status === "Ativa" ? "Desativar" : "Ativar"}</button>
-                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md bg-wine-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-wine-600">Editar</button>
-                            <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md bg-wine-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-wine-600">Excluir</button>
+                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">{b.status === "Ativa" ? "Desativar" : "Ativar"}</button>
+                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md bg-[#8B1D22] px-2.5 py-1 text-xs font-semibold text-[#FFFFFF] shadow-sm hover:bg-[#721519] dark:bg-wine-500 dark:hover:bg-wine-600">Editar</button>
+                            <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md bg-[#8B1D22] px-2.5 py-1 text-xs font-semibold text-[#FFFFFF] shadow-sm hover:bg-[#721519] dark:bg-wine-500 dark:hover:bg-wine-600">Excluir</button>
                           </div>
                         </>
                       )}
@@ -1193,7 +1193,7 @@ export default function AdminEstoque() {
               )}
             </div>
             <div className="flex justify-end pt-2">
-              <button onClick={() => { setBrandModalOpen(false); setBrandSearch(""); setBrandError(""); setEditingBrandId(null); }} className="rounded-xl bg-wine-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600">Fechar</button>
+              <button onClick={() => { setBrandModalOpen(false); setBrandSearch(""); setBrandError(""); setEditingBrandId(null); }} className="rounded-xl bg-[#8B1D22] px-5 py-2.5 text-sm font-semibold text-[#FFFFFF] shadow-lg hover:bg-[#721519] dark:bg-wine-500 dark:hover:bg-wine-600">Fechar</button>
             </div>
           </div>
         </div>
