@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useOrderStore } from "@/lib/store";
@@ -161,6 +161,11 @@ export default function AdminAgendamentos() {
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay = getFirstDayOfMonth(calYear, calMonth);
   const isToday = isSameDay(selectedDate, new Date());
+
+  const gradeHours = [...new Set([
+    ...TIME_SLOTS.filter((_, i) => i % 2 === 0),
+    ...scheduledOrders.map((o) => horaCelula(o)),
+  ])].sort();
 
   return (
     <div className="space-y-0">
@@ -427,123 +432,100 @@ export default function AdminAgendamentos() {
           {slotsVisiveis.length > 0 && (
             <div className="divide-y divide-neutral-800/50">
               {slotsVisiveis.map((time) => {
-              const slotOrders = comHorario.filter((o) => normalizarHora(o.scheduledTime) === time);
-              return (
-                <div key={time} className="flex min-h-[52px]">
-                  <div className="flex w-20 flex-shrink-0 items-start justify-end border-r border-neutral-800 px-3 pt-2.5">
-                    <span className="text-xs font-semibold text-neutral-600">{time}</span>
-                  </div>
-                  <div className="flex-1 px-4 py-2">
-                    {slotOrders.length === 0 ? (
-                      <div className="flex h-full items-center pt-1">
-                        <span className="text-xs text-neutral-700">—</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {slotOrders.map((order) => (
-                          <button
-                            key={order.id}
-                            onClick={() => setDrawerOrderId(order.id)}
-                            className="w-full cursor-pointer rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-left transition-all hover:border-amber-500/30 hover:bg-neutral-800"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-white">{order.customerName}</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[9px] ${STATUS_CONFIG[order.status].color}`}>
-                                  {STATUS_CONFIG[order.status].label}
-                                </span>
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-purple-500/15 dark:text-purple-400">
-                                  {order.deliveryType === "entrega" ? "Entrega" : "Retirada"}
-                                </span>
+                const slotOrders = comHorario.filter((o) => normalizarHora(o.scheduledTime) === time);
+                return (
+                  <div key={time} className="flex min-h-[52px]">
+                    <div className="flex w-20 flex-shrink-0 items-start justify-end border-r border-neutral-800 px-3 pt-2.5">
+                      <span className="text-xs font-semibold text-neutral-600">{time}</span>
+                    </div>
+                    <div className="flex-1 px-4 py-2">
+                      {slotOrders.length === 0 ? (
+                        <div className="flex h-full items-center pt-1">
+                          <span className="text-xs text-neutral-700">—</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {slotOrders.map((order) => (
+                            <button
+                              key={order.id}
+                              onClick={() => setDrawerOrderId(order.id)}
+                              className="w-full cursor-pointer rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-left transition-all hover:border-amber-500/30 hover:bg-neutral-800"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-white">{order.customerName}</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-[9px] ${STATUS_CONFIG[order.status].color}`}>
+                                    {STATUS_CONFIG[order.status].label}
+                                  </span>
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-purple-500/15 dark:text-purple-400">
+                                    {order.deliveryType === "entrega" ? "Entrega" : "Retirada"}
+                                  </span>
+                                </div>
+                                <span className="text-sm font-bold text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</span>
                               </div>
-                              <span className="text-sm font-bold text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</span>
-                            </div>
-                            <p className="mt-1 text-xs text-neutral-500 line-clamp-1">
-                              {order.items.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                              <p className="mt-1 text-xs text-neutral-500 line-clamp-1">
+                                {order.items.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </div>
         );
       })()}
 
-      {/* ═══════ GRID/WEEK VIEW ═══════ */}
-      {viewMode === "grade" && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 mx-6 mb-6 overflow-x-auto">
-          <div className="min-w-[700px]">
-            {(() => {
-              const gridWeekDays = getWeekDays(selectedDate);
-              const gradeHours = [...new Set([
-                ...TIME_SLOTS.filter((_, i) => i % 2 === 0),
-                ...scheduledOrders.map((o) => horaCelula(o)),
-              ])].sort();
-              return (
-                <>
-                  <div className="grid grid-cols-8 border-b border-neutral-800">
-                    <div className="border-r border-neutral-800 px-2 py-3" />
-                    {gridWeekDays.map((d) => {
-                      const todayCheck = isSameDay(d, new Date());
-                      const isSelected = isSameDay(d, selectedDate);
-                      return (
-                        <button
-                          key={d.toISOString()}
-                          onClick={() => setSelectedDate(d)}
-                          className={`border-r border-neutral-800 px-2 py-3 text-center transition-colors ${
-                            isSelected ? "bg-[#8B1D22]" : todayCheck ? "bg-neutral-800/50" : ""
-                          }`}
-                        >
-                          <p className={`text-[10px] font-semibold uppercase ${isSelected ? "text-white/80 dark:text-neutral-500" : "text-neutral-500"}`}>{DAY_NAMES_SHORT[d.getDay()]}</p>
-                          <p className={`text-lg font-bold ${isSelected ? "text-white" : todayCheck ? "text-stone-900 dark:text-white" : "text-stone-700 dark:text-neutral-400"}`}>{d.getDate()}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-8">
-                    <div className="border-r border-neutral-800">
-                      {gradeHours.map((time) => (
-                        <div key={time} className="h-14 border-b border-neutral-800/50 px-2 pt-1">
-                          <span className="text-[10px] font-semibold text-neutral-600">{time}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {gridWeekDays.map((d) => {
-                      const dayOrders = getOrdersForDate(d);
-                      return (
-                        <div key={d.toISOString()} className="border-r border-neutral-800">
-                          {gradeHours.map((time) => {
-                            const slotOrders = dayOrders.filter((o) => horaCelula(o) === time);
-                            return (
-                              <div key={time} className="h-14 border-b border-neutral-800/50 p-1">
-                                {slotOrders.map((order) => (
-                                  <button
-                                    key={order.id}
-                                    onClick={() => setDrawerOrderId(order.id)}
-                                    className={`mb-0.5 w-full cursor-pointer truncate rounded px-1.5 py-0.5 text-left text-[10px] transition-colors hover:brightness-110 ${STATUS_CONFIG[order.status].color}`}
+{/* ═══════ GRID/WEEK VIEW ═══════ */}
+                  {viewMode === "grade" && (
+                    <div className="space-y-2">
+                      {gradeHours.map((time) => {
+                        const dayOrdersByDay = weekDays.map((d) => {
+                          const dayOrders = getOrdersForDate(d);
+                          return dayOrders.filter((o) => horaCelula(o) === time);
+                        });
+                        return (
+                          <div
+                            key={time}
+                            className="flex items-stretch border-b border-neutral-200 min-h-[64px]"
+                          >
+                            {/* Coluna 1: Texto do Horário (largura fixa) */}
+                            <div
+                              className="w-20 flex-shrink-0 text-xs text-neutral-500 p-2 font-medium border-r border-neutral-200"
+                            >
+                              {time}
+                            </div>
+                            {/* Colunas 2-8: 7 dias da semana (DOM a SAB) */}
+                            <div className="flex-1 flex flex-row gap-1">
+                              {weekDays.map((d) => {
+                                const slotOrders = dayOrdersByDay[weekDays.indexOf(d)];
+                                return (
+                                  <div
+                                    key={d.toISOString()}
+                                    className="flex-1 border-r border-b border-neutral-200 p-1 flex flex-col gap-1 min-h-[64px]"
                                   >
-                                    {order.customerName}
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+                                    {slotOrders.map((order) => (
+                                      <button
+                                        key={order.id}
+                                        onClick={() => setDrawerOrderId(order.id)}
+                                        className={`mb-0.5 w-full cursor-pointer rounded-lg border border-neutral-200/50 p-2 text-left text-[10px] transition-colors hover:brightness-110 ${STATUS_CONFIG[order.status].color}`}
+                                      >
+                                        {order.customerName}
+                                      </button>
+                                    ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
       {/* ═══════ LIST VIEW ═══════ */}
       {viewMode === "lista" && (() => {
