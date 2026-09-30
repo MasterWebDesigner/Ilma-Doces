@@ -9,6 +9,7 @@ devlog.txt
 tsconfig.tsbuildinfo
 firebase-emulator-data/
 emulator-data/
+emulator-data-pre-sync/
 .firebase/
 
 .vercel
