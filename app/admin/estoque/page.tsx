@@ -512,19 +512,19 @@ export default function AdminEstoque() {
         </div>
         <div className="flex gap-3">
           <button onClick={handleResetData}
-            className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-700 hover:text-white">
+            className="rounded-xl border border-neutral-700 bg-transparent px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-800 hover:text-white">
             Reiniciar Dados
           </button>
           <button onClick={() => setBrandModalOpen(true)}
-            className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-700 hover:text-white">
+            className="rounded-xl border border-neutral-700 bg-transparent px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-800 hover:text-white">
             Gerenciar Marcas
           </button>
           <button onClick={() => openBatchEntry()}
-            className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-700 hover:text-white">
+            className="rounded-xl border border-neutral-700 bg-transparent px-4 py-2.5 text-sm font-medium text-neutral-400 transition-all hover:bg-neutral-800 hover:text-white">
             + Nova Entrada
           </button>
           <button onClick={openCreate}
-            className="rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]">
+            className="rounded-xl bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#721519]">
             + Novo Insumo
           </button>
         </div>
@@ -551,8 +551,8 @@ export default function AdminEstoque() {
         </div>
       </div>
 
-      {/* ═══════ FILTERS ═══════ */}
-      <div className="flex flex-wrap gap-4">
+      {/* ═══════ FILTROS + BUSCA (mesmo container, topo da tabela) ═══════ */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
         <div className="flex gap-2">
           {["all", "Uso Interno", "Embalagens"].map((cat) => (
             <button key={cat} onClick={() => setFilter(cat)}
@@ -574,7 +574,7 @@ export default function AdminEstoque() {
             </button>
           ))}
         </div>
-        <div className="relative ml-auto w-full max-w-xs">
+        <div className="relative ml-auto w-full max-w-xs min-w-[220px]">
           <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 py-2.5 pl-10 pr-3 text-sm text-white outline-none focus:border-wine-500" placeholder="Buscar insumo..." />
         </div>
@@ -601,7 +601,7 @@ export default function AdminEstoque() {
               <th className="px-6 py-2.5 text-center">Minimo</th>
               <th className="px-6 py-2.5 text-right cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleSort("precoMedio")}>Preco Medio{sortIcon("precoMedio")}</th>
               <th className="px-6 py-2.5 text-center cursor-pointer select-none hover:text-white transition-colors" onClick={() => toggleSort("lotesAtivos")}>Lotes{sortIcon("lotesAtivos")}</th>
-              <th className="px-6 py-2.5 text-center">Status</th>
+              <th className="whitespace-nowrap px-8 py-2.5 text-center min-w-[136px]">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
@@ -652,8 +652,8 @@ export default function AdminEstoque() {
                         {item.lotesAtivos} {item.lotesAtivos === 1 ? "lote" : "lotes"}
                       </span>
                     </td>
-                    <td className="px-6 py-2 text-center">
-                      <span className={classNames("rounded-full px-2.5 py-0.5 text-[10px] font-medium text-white", isLow ? "bg-red-600" : "bg-emerald-600")}>
+                    <td className="whitespace-nowrap px-8 py-2 text-center">
+                      <span className={classNames("rounded-full px-3 py-1 text-[11px] font-medium text-white", isLow ? "bg-red-600" : "bg-emerald-600")}>
                         {isLow ? "Estoque Baixo" : "Em Dia"}
                       </span>
                     </td>
@@ -684,7 +684,7 @@ export default function AdminEstoque() {
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Marcas Cadastradas</p>
                               <button onClick={(e) => { e.stopPropagation(); setInsumoBrandModal(item.id); setNewInsumoBrandId(""); }}
-                                className="rounded-md border border-[#8B1D22]/30 bg-transparent px-2 py-1 text-[10px] font-semibold text-[#8B1D22] hover:bg-[#8B1D22]/10">+ Marca</button>
+                                className="rounded-md border border-wine-500/30 bg-transparent px-2 py-1 text-[10px] font-semibold text-wine-400 hover:bg-wine-500/10">+ Marca</button>
                             </div>
                             {item.itemBrands.length === 0 ? (
                               <p className="text-xs text-neutral-600">Nenhuma marca vinculada. Adicione marcas pra registrar lotes.</p>
@@ -710,9 +710,9 @@ export default function AdminEstoque() {
                                       <span className="rounded-full bg-wine-500/15 px-2 py-0.5 text-[10px] font-bold text-wine-400">{brandName}</span>
                                       <div className="ml-auto flex items-center gap-1">
                                         <button onClick={(e) => { e.stopPropagation(); openBatchEntry(item.id, sb.brandId); }}
-                                          className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-400 hover:bg-emerald-500/25">+Entrada</button>
+                                          className="rounded-md border border-wine-500/40 bg-wine-500/15 px-2 py-1 text-[10px] font-medium text-wine-400 hover:bg-wine-500/25">+Entrada</button>
                                         <button onClick={(e) => { e.stopPropagation(); setHistoryInsumoId(item.id); setHistoryBrandId(sb.brandId); }}
-                                          className="rounded-md border border-[#8B1D22]/30 bg-transparent px-2 py-1 text-[10px] font-medium text-[#8B1D22] hover:bg-[#8B1D22]/10">Lotes</button>
+                                          className="rounded-md border border-wine-500/30 bg-transparent px-2 py-1 text-[10px] font-medium text-wine-400 hover:bg-wine-500/10">Lotes</button>
                                         <button onClick={(e) => { e.stopPropagation(); removeBrandFromInsumo(sb.id); }}
                                           className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-medium text-red-400 hover:bg-red-500/20">X</button>
                                       </div>
@@ -734,20 +734,20 @@ export default function AdminEstoque() {
                               <span className="min-w-[4ch] text-center text-lg font-bold text-white">{formatQty(item.qty, item.unit)}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); openBatchEntry(item.id); }}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-lg font-bold text-emerald-400 transition-all hover:bg-emerald-500/20"
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-wine-500/40 bg-wine-500/15 text-lg font-bold text-wine-400 transition-all hover:bg-wine-500/25"
                               >+</button>
                             </div>
 
                             <div className="h-6 w-px bg-neutral-300 dark:bg-neutral-700" />
 
                             <button onClick={(e) => { e.stopPropagation(); setHistoryInsumoId(item.id); setHistoryBrandId(null); }}
-                              className="flex items-center gap-1.5 border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
+                              className="flex items-center gap-1.5 border border-wine-500/30 text-wine-400 hover:bg-wine-500/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                               Historico Geral
                             </button>
 
                             <button onClick={(e) => { e.stopPropagation(); openEdit(item); }}
-                              className="flex items-center gap-1.5 border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
+                              className="flex items-center gap-1.5 border border-wine-500/30 text-wine-400 hover:bg-wine-500/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               Editar
                             </button>
@@ -775,7 +775,10 @@ export default function AdminEstoque() {
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => setModalOpen(false)}>
           <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h3 className="text-lg font-bold text-white">{editingId ? "Editar Insumo" : "Cadastrar Novo Insumo"}</h3>
+              <div className="flex items-center gap-2.5">
+                <span className="h-5 w-1 shrink-0 rounded-full bg-wine-500" />
+                <h3 className="text-xl font-bold text-white">{editingId ? "Editar Insumo" : "Cadastrar Novo Insumo"}</h3>
+              </div>
               <button type="button" onClick={() => setModalOpen(false)} className="text-xl leading-none text-neutral-500 hover:text-white">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -841,9 +844,12 @@ export default function AdminEstoque() {
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => setBatchModalOpen(false)}>
           <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-white">Nova Entrada de Estoque</h3>
-                <p className="mt-0.5 text-[10px] text-neutral-500">Registra um novo lote com preco e quantidade</p>
+              <div className="flex items-start gap-2.5">
+                <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-wine-500" />
+                <div>
+                  <h3 className="text-xl font-bold text-white">Nova Entrada de Estoque</h3>
+                  <p className="mt-0.5 text-[10px] text-neutral-500">Registra um novo lote com preco e quantidade</p>
+                </div>
               </div>
               <button type="button" onClick={() => setBatchModalOpen(false)} className="text-xl leading-none text-neutral-500 hover:text-white">✕</button>
             </div>
@@ -897,11 +903,11 @@ export default function AdminEstoque() {
                 <label className="mb-1 block text-xs font-medium text-neutral-400">Data de Validade</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setBatchForm((f) => ({ ...f, temValidade: false, validade: "" }))}
-                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${!batchForm.temValidade ? "border-wine-500 bg-wine-500/15 text-wine-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:text-white"}`}>
+                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${!batchForm.temValidade ? "border-wine-500 bg-wine-500/15 text-wine-400" : "border-neutral-700 bg-transparent text-neutral-500 hover:border-neutral-500 hover:text-white"}`}>
                     Sem validade
                   </button>
                   <button type="button" onClick={() => setBatchForm((f) => ({ ...f, temValidade: true }))}
-                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${batchForm.temValidade ? "border-wine-500/50 bg-wine-500/15 text-wine-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:text-white"}`}>
+                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${batchForm.temValidade ? "border-wine-500 bg-wine-500/15 text-wine-400" : "border-neutral-700 bg-transparent text-neutral-500 hover:border-neutral-500 hover:text-white"}`}>
                     Com validade
                   </button>
                 </div>
@@ -1084,7 +1090,7 @@ export default function AdminEstoque() {
             </div>
 
             <div className="border-t border-neutral-800 px-6 py-3 flex justify-end">
-              <button onClick={() => { setHistoryInsumoId(null); setHistoryBrandId(null); }} className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm font-medium text-neutral-400 hover:bg-neutral-800 hover:text-white">Fechar</button>
+              <button onClick={() => { setHistoryInsumoId(null); setHistoryBrandId(null); }} className="rounded-xl bg-wine-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600">Fechar</button>
             </div>
           </div>
         </div>
@@ -1095,9 +1101,12 @@ export default function AdminEstoque() {
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => { setInsumoBrandModal(null); setInlineBrandName(""); setNewInsumoBrandId(""); }}>
           <div className="my-8 w-full max-w-sm space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-white">Adicionar Marca</h3>
-                <p className="mt-0.5 text-xs text-neutral-500">Vincule uma marca existente ou crie uma nova.</p>
+              <div className="flex items-start gap-2.5">
+                <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-wine-500" />
+                <div>
+                  <h3 className="text-xl font-bold text-white">Adicionar Marca</h3>
+                  <p className="mt-0.5 text-xs text-neutral-500">Vincule uma marca existente ou crie uma nova.</p>
+                </div>
               </div>
               <button type="button" onClick={() => { setInsumoBrandModal(null); setInlineBrandName(""); setNewInsumoBrandId(""); }} className="text-xl leading-none text-neutral-500 hover:text-white">✕</button>
             </div>
@@ -1143,9 +1152,12 @@ export default function AdminEstoque() {
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => setBrandModalOpen(false)}>
           <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-white">Gerenciar Marcas</h3>
-                <p className="mt-0.5 text-xs text-neutral-500">Cadastre as marcas disponiveis. Depois vincule-as aos insumos.</p>
+              <div className="flex items-start gap-2.5">
+                <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-wine-500" />
+                <div>
+                  <h3 className="text-xl font-bold text-white">Gerenciar Marcas</h3>
+                  <p className="mt-0.5 text-xs text-neutral-500">Cadastre as marcas disponiveis. Depois vincule-as aos insumos.</p>
+                </div>
               </div>
               <button type="button" onClick={() => setBrandModalOpen(false)} className="text-xl leading-none text-neutral-500 hover:text-white">✕</button>
             </div>
@@ -1168,8 +1180,8 @@ export default function AdminEstoque() {
                       {editingBrandId === b.id ? (
                         <div className="flex w-full items-center gap-2">
                           <input type="text" value={editBrandName} onChange={(e) => setEditBrandName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUpdateBrand(b.id); if (e.key === "Escape") { setEditingBrandId(null); setEditBrandName(""); } }} autoFocus className="flex-1 rounded-lg border border-wine-500 bg-neutral-950 px-2 py-1 text-sm text-white outline-none" />
-                          <button onClick={() => handleUpdateBrand(b.id)} className="rounded-lg bg-emerald-500 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-600">Salvar</button>
-                          <button onClick={() => { setEditingBrandId(null); setEditBrandName(""); }} className="rounded-lg bg-neutral-700 px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-600">Cancelar</button>
+                          <button onClick={() => handleUpdateBrand(b.id)} className="rounded-lg bg-wine-500 px-2 py-1 text-xs font-semibold text-white hover:bg-wine-600">Salvar</button>
+                          <button onClick={() => { setEditingBrandId(null); setEditBrandName(""); }} className="rounded-lg border border-neutral-700 bg-transparent px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white">Cancelar</button>
                         </div>
                       ) : (
                         <>
@@ -1178,8 +1190,8 @@ export default function AdminEstoque() {
                             <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${b.status === "Ativa" ? "bg-emerald-500/15 text-emerald-400" : "bg-neutral-700 text-neutral-500"}`}>{b.status}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md px-2 py-1 text-[10px] font-semibold hover:bg-neutral-800">{b.status === "Ativa" ? <span className="text-amber-400">Desativar</span> : <span className="text-emerald-400">Ativar</span>}</button>
-                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md border border-[#8B1D22]/30 bg-transparent px-3 py-1.5 text-xs font-semibold text-[#8B1D22] transition-colors hover:bg-[#8B1D22]/10 dark:text-[#E8B4B8]">Editar</button>
+                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md px-2 py-1 text-[10px] font-semibold hover:bg-neutral-800">{b.status === "Ativa" ? <span className="text-amber-400">Desativar</span> : <span className="text-wine-400">Ativar</span>}</button>
+                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md border border-wine-500/30 bg-transparent px-3 py-1.5 text-xs font-semibold text-wine-400 transition-colors hover:bg-wine-500/10">Editar</button>
                             <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20">Excluir</button>
                           </div>
                         </>
@@ -1190,7 +1202,7 @@ export default function AdminEstoque() {
               )}
             </div>
             <div className="flex justify-end pt-2">
-              <button onClick={() => { setBrandModalOpen(false); setBrandSearch(""); setBrandError(""); setEditingBrandId(null); }} className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm font-medium text-neutral-400 hover:bg-neutral-800 hover:text-white">Fechar</button>
+              <button onClick={() => { setBrandModalOpen(false); setBrandSearch(""); setBrandError(""); setEditingBrandId(null); }} className="rounded-xl bg-wine-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600">Fechar</button>
             </div>
           </div>
         </div>
