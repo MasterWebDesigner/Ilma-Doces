@@ -620,15 +620,6 @@ export default function AdminEstoque() {
                     </td>
                     <td className="px-6 py-2">
                       <p className="font-semibold text-white">{item.name}</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {item.itemBrands.map((sb) => {
-                          const bName = getBrandNameById(sb.brandId);
-                          return bName ? (
-                            <span key={sb.id} className="rounded-full bg-wine-500/15 px-2 py-0.5 text-[9px] font-semibold text-wine-400">{bName}</span>
-                          ) : null;
-                        })}
-                        {item.itemBrands.length === 0 && <span className="text-[10px] text-neutral-600">Sem marca</span>}
-                      </div>
                     </td>
                     <td className="px-6 py-2">
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-neutral-700 dark:text-neutral-300">{item.category}</span>
