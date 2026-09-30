@@ -1141,7 +1141,7 @@ export default function AdminEstoque() {
       {/* ═══════ BRAND MANAGEMENT MODAL ═══════ */}
       {brandModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4" onClick={() => setBrandModalOpen(false)}>
-          <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="my-8 w-full max-w-md space-y-4 rounded-2xl border border-neutral-800 bg-white p-6 shadow-2xl dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div className="flex items-start gap-2.5">
                 <span className="mt-1 h-5 w-1 shrink-0 rounded-full bg-wine-500" />
@@ -1161,13 +1161,13 @@ export default function AdminEstoque() {
               <button onClick={handleAddBrand} className="rounded-xl bg-wine-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600">+</button>
             </div>
             {brandError && <p className="text-xs text-red-400">{brandError}</p>}
-            <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950">
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-800 bg-white dark:bg-neutral-950">
               {filteredBrands.length === 0 ? (
                 <div className="py-8 text-center text-sm text-neutral-500">{brandSearch ? "Nenhuma marca encontrada." : "Nenhuma marca cadastrada."}</div>
               ) : (
                 <ul className="divide-y divide-neutral-800">
                   {filteredBrands.map((b) => (
-                    <li key={b.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-neutral-900">
+                    <li key={b.id} className="flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-neutral-800/30">
                       {editingBrandId === b.id ? (
                         <div className="flex w-full items-center gap-2">
                           <input type="text" value={editBrandName} onChange={(e) => setEditBrandName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUpdateBrand(b.id); if (e.key === "Escape") { setEditingBrandId(null); setEditBrandName(""); } }} autoFocus className="flex-1 rounded-lg border border-wine-500 bg-neutral-950 px-2 py-1 text-sm text-white outline-none" />
@@ -1178,12 +1178,12 @@ export default function AdminEstoque() {
                         <>
                           <div className="flex items-center gap-2.5">
                             <span className="text-sm font-medium text-white">{b.nome}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${b.status === "Ativa" ? "bg-emerald-500/15 text-emerald-400" : "bg-neutral-700 text-neutral-500"}`}>{b.status}</span>
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">{b.status}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md px-2 py-1 text-[10px] font-semibold hover:bg-neutral-800">{b.status === "Ativa" ? <span className="text-amber-400">Desativar</span> : <span className="text-wine-400">Ativar</span>}</button>
-                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md border border-wine-500/30 bg-transparent px-3 py-1.5 text-xs font-semibold text-wine-400 transition-colors hover:bg-wine-500/10">Editar</button>
-                            <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20">Excluir</button>
+                            <button onClick={() => updateBrand(b.id, { status: b.status === "Ativa" ? "Inativa" : "Ativa" })} className="rounded-md bg-neutral-100 px-2 py-1 text-[10px] font-semibold text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">{b.status === "Ativa" ? "Desativar" : "Ativar"}</button>
+                            <button onClick={() => { setEditingBrandId(b.id); setEditBrandName(b.nome); setBrandError(""); }} className="rounded-md bg-wine-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-wine-600">Editar</button>
+                            <button onClick={() => setDeleteBrandId(b.id)} className="rounded-md bg-wine-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-wine-600">Excluir</button>
                           </div>
                         </>
                       )}
