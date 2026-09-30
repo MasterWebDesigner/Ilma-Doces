@@ -294,34 +294,34 @@ export default function AdminFinanceiro() {
       {/* ═══════ KPI CARDS ═══════ */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Entradas</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Total Entradas</p>
           <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(totalEntradas)}</p>
           <p className="mt-1 text-xs text-neutral-500">{pedidosConcluidos.length} pedidos concluidos</p>
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Saidas</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Total Saidas</p>
           <p className="mt-2 text-3xl font-bold text-red-400">R$ {safeMoney(totalSaidas)}</p>
           <p className="mt-1 text-xs text-neutral-500">{despMes.filter((e) => e.status === "Pago").length} despesas pagas</p>
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Lucro Liquido</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Lucro Liquido</p>
           <p className={classNames("mt-2 text-3xl font-bold", lucroLiquido >= 0 ? "text-emerald-400" : "text-red-400")}>
             R$ {safeMoney(lucroLiquido)}
           </p>
           <p className="mt-1 text-xs text-neutral-500">Lucro do mes</p>
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">Faturamento Previsto</p>
-          <p className="mt-2 text-3xl font-bold text-blue-400">R$ {safeMoney(valorPrevisto)}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Faturamento Previsto</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(valorPrevisto)}</p>
           <p className="mt-1 text-xs text-neutral-500">{pendentes.length} agendamentos pendentes</p>
         </div>
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">TOTAL A RECEBER (FIADOS)</p>
-          <p className="mt-2 text-3xl font-bold text-amber-400">R$ {safeMoney(totalFiadoAberto)}</p>
-          <p className="mt-1 text-xs text-neutral-400">{qtdClientesDevendo} clientes devendo</p>
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">TOTAL A RECEBER (FIADOS)</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(totalFiadoAberto)}</p>
+          <p className="mt-1 text-xs text-neutral-500">{qtdClientesDevendo} clientes devendo</p>
         </div>
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8B1D22] dark:text-red-500">CUSTO DE BRINDES (FIDELIDADE)</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">CUSTO DE BRINDES (FIDELIDADE)</p>
           <p className="mt-2 text-3xl font-bold text-[#8B1D22] dark:text-red-500">R$ {safeMoney(custoBrindes)}</p>
           <p className="mt-1 text-xs text-neutral-500">{qtdResgates} resgatado{qtdResgates === 1 ? "" : "s"} no período</p>
         </div>
@@ -331,7 +331,7 @@ export default function AdminFinanceiro() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Entradas por Categoria */}
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Distribuicao de Entradas (Concluído)</p>
+          <h3 className="mb-4 text-sm font-semibold text-white">Distribuição de Entradas (Concluído)</h3>
           {distribuicaoEntradas.length === 0 ? (
             <p className="text-sm text-neutral-500">Nenhuma entrada concluída no período. Use &quot;Faturamento Previsto&quot; para pedidos abertos.</p>
           ) : (
@@ -353,7 +353,7 @@ export default function AdminFinanceiro() {
 
         {/* Saidas por Categoria */}
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
-          <h3 className="mb-4 text-sm font-semibold text-white">Distribuicao de Saidas</h3>
+          <h3 className="mb-4 text-sm font-semibold text-white">Distribuição de Saídas</h3>
           {distribuicoesSaidas.length === 0 ? (
             <p className="text-sm text-neutral-500">Nenhuma despesa registrada.</p>
           ) : (
