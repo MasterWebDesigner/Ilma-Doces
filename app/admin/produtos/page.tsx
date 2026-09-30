@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useProductStore, useBrandStore, useFichaTecnicaStore } from "@/lib/store";
+import { auth } from "@/lib/firebase";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
 import { compararTexto } from "@/lib/utils";
@@ -306,7 +307,12 @@ export default function AdminProdutos() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const resp = await fetch("/api/upload", { method: "POST", body: fd });
+      const token = await auth.currentUser?.getIdToken().catch(() => null);
+      const resp = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.error || "Erro ao enviar a imagem.");
       return data.path as string;
@@ -320,7 +326,7 @@ export default function AdminProdutos() {
   async function migrateBase64Images() {
     if (
       !window.confirm(
-        `Converter ${base64ImageCount} foto(s) salvas em texto para arquivos em /imagens/?`
+        `Converter ${base64ImageCount} foto(s) salvas em texto para arquivos no Storage?`
       )
     ) {
       return;

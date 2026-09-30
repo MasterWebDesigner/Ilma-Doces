@@ -11,6 +11,7 @@ import { OpcaoTelefone } from "@/lib/phoneBlur";
 import { useStoreConfig } from "@/lib/storeConfig";
 import { deveCobrar, compraAberta, diasAtraso, frequenciaDe, FREQUENCIAS_LEMBRETE, type FrequenciaLembrete } from "@/lib/cobranca";
 import { montarCobrancaVencimento, montarCobrancaAtraso, montarAgradecimentoPagamento, urlWaMe } from "@/lib/whatsapp";
+import { notifyError, notifySuccess } from "@/lib/notifications";
 
 interface ItemCarrinho {
   id: string;
@@ -2019,7 +2020,7 @@ export default function CredoresPage() {
                             removerPagamento(
                               credoresAgrupados.find((c) => c.nome === entrada.credorNome)?.id || "",
                               entrada.id
-                            ).catch((err: any) => alert(err.message || "Erro ao estornar a baixa."));
+                            ).catch((err: any) => notifyError("Erro", err.message || "Erro ao estornar a baixa."));
                           }
                         }}
                         className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition-colors"

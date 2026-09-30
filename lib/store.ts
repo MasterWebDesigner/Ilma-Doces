@@ -5,30 +5,40 @@ import { PRODUCTS as INITIAL_PRODUCTS, CATEGORIES } from "@/lib/mockData";
 import { useCredoresStore } from "./credoresStore";
 import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
 import { getLocalDateStr } from "./utils";
-import { db } from "./firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from "firebase/firestore";
+import { db, auth } from "./firebase";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, runTransaction } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { notifyError, notifyInfo } from "./notifications";
 import { deveBloquearReversaoPedido, type OpcoesReversao } from "./antiRollback";
 import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
 import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./brindeCusto";
+import { identidadesFidelidade, montarDocumentoFidelidade, type SaldoFidelidadePublico } from "./fidelidade";
+import { SETTINGS_CHANGED_EVENT } from "./storeConfig";
+
+let sessaoAutenticada = false;
+let contadorSemeado = false;
 
 if (typeof window !== "undefined") {
-  onSnapshot(collection(db, "pedidos"), (snapshot) => {
-    const rawOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
-    const chronological = [...rawOrders].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-    const withNumbers = chronological.map((o, idx) => ({
-      ...o,
-      orderNumber: o.orderNumber || String(idx + 1).padStart(4, "0"),
-    }));
-    const orders = withNumbers.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    useOrderStore.setState({ orders });
-  });
+  const canceladoresPrivados: Array<() => void> = [];
 
-  onSnapshot(collection(db, "clientes"), (snapshot) => {
-    const customers = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Customer));
-    useCustomerStore.setState({ customers });
-  });
+  const semearContadorPedidos = (orders: Order[]) => {
+    if (contadorSemeado) return;
+    const maior = orders.reduce((max, o) => {
+      const n = parseInt(o.orderNumber || "", 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    if (maior <= 0) return;
+    contadorSemeado = true;
+    runTransaction(db, async (tx) => {
+      const ref = doc(db, "contadores", "pedidos");
+      const snap = await tx.get(ref);
+      const atual = Number(snap.data()?.valor) || 0;
+      if (maior > atual) tx.set(ref, { valor: maior }, { merge: true });
+    }).catch(() => {
+      contadorSemeado = false;
+    });
+  };
 
   const preencherCustosBrindeZero = () => {
     const lista = useExpenseStore.getState().expenses;
@@ -76,11 +86,68 @@ if (typeof window !== "undefined") {
     if (alterou) useExpenseStore.setState({ expenses: [...lista] });
   };
 
-  onSnapshot(collection(db, "despesas"), (snapshot) => {
-    const expenses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
-    useExpenseStore.setState({ expenses });
-    preencherCustosBrindeZero();
-  });
+  let fidelidadeCache: Map<string, SaldoFidelidadePublico> | null = null;
+  let fidelidadeTimer: ReturnType<typeof setTimeout> | null = null;
+  let fidelidadeOcupado = false;
+  let fidelidadeReagendado = false;
+  let pedidosProntos = false;
+  let clientesProntos = false;
+
+  const agendarSincroniaFidelidade = () => {
+    if (!sessaoAutenticada) return;
+    if (fidelidadeTimer) clearTimeout(fidelidadeTimer);
+    fidelidadeTimer = setTimeout(() => {
+      fidelidadeTimer = null;
+      void sincronizarFidelidadePublica();
+    }, 600);
+  };
+
+  const sincronizarFidelidadePublica = async () => {
+    if (!sessaoAutenticada) return;
+    if (!pedidosProntos || !clientesProntos) return;
+    if (fidelidadeOcupado) {
+      fidelidadeReagendado = true;
+      return;
+    }
+    fidelidadeOcupado = true;
+    try {
+      const customers = useCustomerStore.getState().customers;
+      const orders = useOrderStore.getState().orders;
+      const credores = useCredoresStore.getState().credores;
+
+      if (fidelidadeCache === null) {
+        const snapshot = await getDocs(collection(db, "fidelidade"));
+        const inicial = new Map<string, SaldoFidelidadePublico>();
+        snapshot.docs.forEach((d) => {
+          const data = d.data() as Partial<SaldoFidelidadePublico>;
+          inicial.set(d.id, { saldo: Number(data.saldo) || 0, autoTotal: Number(data.autoTotal) || 0 });
+        });
+        fidelidadeCache = inicial;
+      }
+
+      const alvos = identidadesFidelidade(customers, orders, credores);
+      const agora = new Date().toISOString();
+      const escritas: Array<Promise<void>> = [];
+      alvos.forEach((nome, telefone) => {
+        const valor = montarDocumentoFidelidade(telefone, nome, orders, credores, customers);
+        const anterior = fidelidadeCache?.get(telefone);
+        if (anterior && anterior.saldo === valor.saldo && anterior.autoTotal === valor.autoTotal) return;
+        fidelidadeCache?.set(telefone, valor);
+        escritas.push(
+          setDoc(doc(db, "fidelidade", telefone), { ...valor, atualizadoEm: agora }, { merge: true })
+        );
+      });
+      await Promise.all(escritas);
+    } catch {
+      fidelidadeCache = null;
+    } finally {
+      fidelidadeOcupado = false;
+      if (fidelidadeReagendado) {
+        fidelidadeReagendado = false;
+        agendarSincroniaFidelidade();
+      }
+    }
+  };
 
   onSnapshot(collection(db, "produtos"), (snapshot) => {
     const products = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
@@ -90,7 +157,9 @@ if (typeof window !== "undefined") {
       needsCost.forEach((p) => {
         const custo = seedCostById.get(p.id)!;
         p.precoCustoInicial = custo;
-        try { updateDoc(doc(db, "produtos", p.id), { precoCustoInicial: custo }); } catch {}
+        if (sessaoAutenticada) {
+          try { updateDoc(doc(db, "produtos", p.id), { precoCustoInicial: custo }); } catch {}
+        }
       });
       useProductStore.setState({ products });
       preencherCustosBrindeZero();
@@ -104,34 +173,91 @@ if (typeof window !== "undefined") {
     }
   });
 
-  onSnapshot(collection(db, "fichas_tecnicas"), (snapshot) => {
-    const fichas = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FichaTecnica));
-    if (fichas.length > 0) {
-      useFichaTecnicaStore.setState({ fichas });
-      preencherCustosBrindeZero();
-    }
-  });
-
   onSnapshot(collection(db, "categorias"), (snapshot) => {
     const firestoreCats = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Category));
     const state = useProductStore.getState();
     const result = reconcileCategories(firestoreCats, state.categories, state.products);
 
-    result.deletions.forEach((id) => {
-      deleteDoc(doc(db, "categorias", id)).catch(() => {});
-    });
-    result.upserts.forEach((c) => {
-      setDoc(doc(db, "categorias", c.id), sanitizeForFirestore(c), { merge: true }).catch(() => {});
-    });
-    result.changedProducts.forEach((p) => {
-      updateDoc(doc(db, "produtos", p.id), { category_id: p.category_id }).catch(() => {});
-    });
+    if (sessaoAutenticada) {
+      result.deletions.forEach((id) => {
+        deleteDoc(doc(db, "categorias", id)).catch(() => {});
+      });
+      result.upserts.forEach((c) => {
+        setDoc(doc(db, "categorias", c.id), sanitizeForFirestore(c), { merge: true }).catch(() => {});
+      });
+      result.changedProducts.forEach((p) => {
+        updateDoc(doc(db, "produtos", p.id), { category_id: p.category_id }).catch(() => {});
+      });
+    }
 
     const next: { categories: Category[]; products?: Product[] } = { categories: result.categories };
     if (result.changedProducts.length > 0) {
       next.products = result.products;
     }
     useProductStore.setState(next);
+  });
+
+  // Colecoes com dados de clientes, pedidos e financeiro: so existem no
+  // navegador de quem esta autenticado no painel.
+  const assinarColecoesPrivadas = () => {
+    canceladoresPrivados.push(
+      onSnapshot(collection(db, "pedidos"), (snapshot) => {
+        const rawOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+        const chronological = [...rawOrders].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+        const withNumbers = chronological.map((o, idx) => ({
+          ...o,
+          orderNumber: o.orderNumber || String(idx + 1).padStart(4, "0"),
+        }));
+        const orders = withNumbers.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        useOrderStore.setState({ orders });
+        semearContadorPedidos(orders);
+        pedidosProntos = true;
+        agendarSincroniaFidelidade();
+      }),
+
+      onSnapshot(collection(db, "clientes"), (snapshot) => {
+        const customers = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Customer));
+        useCustomerStore.setState({ customers });
+        clientesProntos = true;
+        agendarSincroniaFidelidade();
+      }),
+
+      onSnapshot(collection(db, "despesas"), (snapshot) => {
+        const expenses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
+        useExpenseStore.setState({ expenses });
+        preencherCustosBrindeZero();
+      }),
+
+      onSnapshot(collection(db, "fichas_tecnicas"), (snapshot) => {
+        const fichas = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FichaTecnica));
+        if (fichas.length > 0) {
+          useFichaTecnicaStore.setState({ fichas });
+          preencherCustosBrindeZero();
+        }
+      })
+    );
+    agendarSincroniaFidelidade();
+  };
+
+  useCredoresStore.subscribe(() => agendarSincroniaFidelidade());
+  window.addEventListener(SETTINGS_CHANGED_EVENT, agendarSincroniaFidelidade);
+
+  onAuthStateChanged(auth, (user) => {
+    if (user && !sessaoAutenticada) {
+      sessaoAutenticada = true;
+      assinarColecoesPrivadas();
+    } else if (!user && sessaoAutenticada) {
+      sessaoAutenticada = false;
+      canceladoresPrivados.forEach((cancelar) => cancelar());
+      canceladoresPrivados.length = 0;
+      if (fidelidadeTimer) {
+        clearTimeout(fidelidadeTimer);
+        fidelidadeTimer = null;
+      }
+      fidelidadeCache = null;
+      pedidosProntos = false;
+      clientesProntos = false;
+    }
   });
 }
 
@@ -561,9 +687,27 @@ async function gravarAtualizacaoPedido(
   return true;
 }
 
+// Numeracao sequencial do pedido. O painel (autenticado) semeia o contador com o
+// maior numero existente e o checkout anonnimo apenas incrementa, entao nao e
+// preciso ler a colecao pedidos para criar um pedido.
+async function proximoNumeroPedido(baseLocal: number): Promise<number> {
+  try {
+    return await runTransaction(db, async (tx) => {
+      const ref = doc(db, "contadores", "pedidos");
+      const snap = await tx.get(ref);
+      const atual = Number(snap.data()?.valor) || 0;
+      const proximo = sessaoAutenticada ? Math.max(atual, baseLocal) + 1 : atual + 1;
+      tx.set(ref, { valor: proximo }, { merge: true });
+      return proximo;
+    });
+  } catch {
+    return baseLocal + 1;
+  }
+}
+
 interface OrderState {
   orders: Order[];
-  addOrder: (order: Omit<Order, "id" | "createdAt" | "status"> & { status?: OrderStatus }) => Order;
+  addOrder: (order: Omit<Order, "id" | "createdAt" | "status"> & { status?: OrderStatus }) => Promise<Order>;
   updateStatus: (orderId: string, status: OrderStatus) => Promise<boolean>;
   updateOrder: (orderId: string, updates: Partial<Order>, opcoes?: OpcoesReversao) => Promise<boolean>;
   updateOrderComTransacao: (
@@ -580,10 +724,10 @@ export const useOrderStore = create<OrderState>()(
     (set, get) => ({
       orders: [],
 
-      addOrder: (data) => {
+      addOrder: async (data) => {
         const currentOrders = get().orders;
-        const nextNum = currentOrders.length + 1;
-        const orderNumber = String(nextNum).padStart(4, "0");
+        const numero = await proximoNumeroPedido(currentOrders.length);
+        const orderNumber = String(numero).padStart(4, "0");
         const order: Order = {
           status: "pendente",
           ...data,

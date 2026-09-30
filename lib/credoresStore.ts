@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { useFinanceiroStore, montarTransacao } from './financeiroStore';
 import { getLocalDateStr, paymentLabelOf } from './utils';
 import { db } from './firebase';
+import { quandoAutenticado } from './authSync';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { notifyError } from './notifications';
 import { divergenciaDeReversaoCredor, type OpcoesReversao } from './antiRollback';
@@ -11,10 +12,12 @@ import type { Credor, CompraCredor, CompraItem, BaixaCompra, PagamentoCredor, Fi
 type CredorRemoto = Omit<Credor, "id">;
 
 if (typeof window !== "undefined") {
-  onSnapshot(collection(db, "credores"), (snapshot) => {
-    const credores = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Credor));
-    useCredoresStore.setState({ credores });
-  });
+  quandoAutenticado(() =>
+    onSnapshot(collection(db, "credores"), (snapshot) => {
+      const credores = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Credor));
+      useCredoresStore.setState({ credores });
+    })
+  );
 }
 
 function agoraLocalISO(): string {

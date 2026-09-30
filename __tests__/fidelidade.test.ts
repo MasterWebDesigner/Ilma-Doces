@@ -28,6 +28,9 @@ import {
   computeLoyaltyAutoTotal,
   computeLoyaltyBalance,
   getCustomerOffset,
+  montarDocumentoFidelidade,
+  paraFidelidadePublica,
+  identidadesFidelidade,
 } from "@/lib/fidelidade";
 
 function makeItem(price: number, categoryId = "cat-promo"): CartItem {
@@ -241,5 +244,89 @@ describe("getCustomerOffset", () => {
 
   it("returns 0 when missing", () => {
     expect(getCustomerOffset([], "11999998888")).toBe(0);
+  });
+});
+
+describe("montarDocumentoFidelidade", () => {
+  it("guarda apenas saldo liquido e autoTotal", () => {
+    const orders = [makeOrder({ total: 100 })];
+    const customers = [makeCustomer({ fidelidadeOffset: 30 })];
+    expect(montarDocumentoFidelidade("11999998888", "Maria", orders, [], customers)).toEqual({
+      saldo: 70,
+      autoTotal: 100,
+    });
+  });
+
+  it("saldo resgatado fica zerado", () => {
+    const orders = [makeOrder({ total: 100 })];
+    const customers = [makeCustomer({ fidelidadeOffset: 100 })];
+    expect(montarDocumentoFidelidade("11999998888", "Maria", orders, [], customers)).toEqual({
+      saldo: 0,
+      autoTotal: 100,
+    });
+  });
+});
+
+describe("paraFidelidadePublica", () => {
+  it("reconstrói offset a partir do saldo", () => {
+    expect(paraFidelidadePublica({ saldo: 70, autoTotal: 100 })).toEqual({
+      autoTotal: 100,
+      offset: 30,
+      balance: 70,
+    });
+  });
+
+  it("retorna zeros sem documento", () => {
+    expect(paraFidelidadePublica(null)).toEqual({ autoTotal: 0, offset: 0, balance: 0 });
+    expect(paraFidelidadePublica(undefined)).toEqual({ autoTotal: 0, offset: 0, balance: 0 });
+    expect(paraFidelidadePublica({})).toEqual({ autoTotal: 0, offset: 0, balance: 0 });
+  });
+
+  it("nunca devolve saldo ou offset negativos", () => {
+    expect(paraFidelidadePublica({ saldo: -10, autoTotal: NaN })).toEqual({
+      autoTotal: 0,
+      offset: 0,
+      balance: 0,
+    });
+  });
+
+  it("round trip com montarDocumentoFidelidade preserva o ciclo", () => {
+    const orders = [makeOrder({ total: 100 })];
+    const customers = [makeCustomer({ fidelidadeOffset: 25 })];
+    const doc = montarDocumentoFidelidade("11999998888", "Maria", orders, [], customers);
+    expect(paraFidelidadePublica(doc)).toEqual({ autoTotal: 100, offset: 25, balance: 75 });
+  });
+});
+
+describe("identidadesFidelidade", () => {
+  it("agrupa telefones de clientes, pedidos e credores sem repetir", () => {
+    const mapa = identidadesFidelidade(
+      [makeCustomer()],
+      [makeOrder({ id: "o2", customerPhone: "11888887777", customerName: "Joao" })],
+      [
+        {
+          id: "c1",
+          clienteId: "2",
+          nome: "Ana",
+          whatsapp: "11 7777-6666",
+          compras: [],
+          pagamentos: [],
+        },
+      ]
+    );
+    expect([...mapa.keys()]).toEqual(["11999998888", "11888887777", "1177776666"]);
+  });
+
+  it("ignora telefones incompletos", () => {
+    expect(identidadesFidelidade([makeCustomer({ phone: "123" })], [], []).size).toBe(0);
+  });
+
+  it("o nome do cadastro prevalece sobre o do pedido", () => {
+    const mapa = identidadesFidelidade(
+      [makeCustomer({ name: "Maria" })],
+      [makeOrder({ customerName: "Maria Digitada" })],
+      []
+    );
+    expect(mapa.get("11999998888")).toBe("Maria");
   });
 });

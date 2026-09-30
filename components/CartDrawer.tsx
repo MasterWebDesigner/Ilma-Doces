@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useCartStore, useOrderStore, useCustomerStore, useProductStore, totalItemsCount } from "@/lib/store";
-import { useCredoresStore } from "@/lib/credoresStore";
 import type { Order, PaymentMethod, DeliveryType } from "@/types/database";
 import { formatCurrency, formatItemQty, formatWeightKg } from "@/lib/utils";
 import { openWhatsApp } from "@/lib/whatsapp";
@@ -17,7 +16,8 @@ import {
   getBrindeRegras,
   itemContaParaBrinde,
 } from "@/lib/brinde";
-import { computeLoyaltyBalance, loyaltyProgress } from "@/lib/fidelidade";
+import { loyaltyProgress } from "@/lib/fidelidade";
+import { consultarFidelidadePublica, type FidelidadePublica } from "@/lib/fidelidadePublica";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 
@@ -40,9 +40,7 @@ export default function CartDrawer() {
   const config = useStoreConfig();
   const products = useProductStore((s) => s.products);
   const categories = useProductStore((s) => s.categories);
-  const orders = useOrderStore((s) => s.orders);
   const customers = useCustomerStore((s) => s.customers);
-  const credores = useCredoresStore((s) => s.credores);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
@@ -87,14 +85,33 @@ export default function CartDrawer() {
     [products, categories, config.brindeCategoriaId, brindeAtivo]
   );
   const phoneClean = phoneValue.replace(/\D/g, "");
+  const [baseFidelidade, setBaseFidelidade] = useState<{
+    telefone: string;
+    valor: FidelidadePublica;
+  } | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    if (phoneClean.length < 10) {
+      setBaseFidelidade(null);
+      return;
+    }
+    consultarFidelidadePublica(phoneClean).then((valor) => {
+      if (vivo) setBaseFidelidade({ telefone: phoneClean, valor });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [phoneClean]);
+
   const loyalty = useMemo(() => {
-    if (phoneClean.length < 10) return null;
-    const base = computeLoyaltyBalance(phoneClean, nameValue || undefined, orders, credores, customers);
+    if (!baseFidelidade || baseFidelidade.telefone !== phoneClean) return null;
+    const base = baseFidelidade.valor;
     const forced = redeemedPhones[phoneClean];
     const balance = forced !== undefined ? forced : base.balance;
     const prog = loyaltyProgress(balance, config.valorMinimoBrinde);
     return { ...base, balance, ...prog, name: nameValue };
-  }, [phoneClean, nameValue, orders, credores, customers, redeemedPhones, config.valorMinimoBrinde]);
+  }, [baseFidelidade, phoneClean, redeemedPhones, nameValue, config.valorMinimoBrinde]);
 
   useEffect(() => {
     if (!brindeAtivo && items.some((i) => i.is_brinde)) clearBrinde();
@@ -174,7 +191,7 @@ export default function CartDrawer() {
 
     upsertCustomer(name, phone);
 
-    const order = addOrder({
+    const order = await addOrder({
       customerName: name,
       customerPhone: phone,
       items: [...items],

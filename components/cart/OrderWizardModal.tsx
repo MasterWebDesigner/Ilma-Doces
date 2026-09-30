@@ -143,7 +143,7 @@ export default function OrderWizardModal() {
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay = getFirstDayOfMonth(calYear, calMonth);
 
-  const completeOrder = () => {
+  const completeOrder = async () => {
     if (!isValid()) return;
 
     const orderItems = items.map((cartItem) => ({
@@ -156,7 +156,7 @@ export default function OrderWizardModal() {
 
     const normalizedPhone = higienizarTelefone(form.customerPhone) || "";
 
-    useOrderStore.getState().addOrder({
+    await useOrderStore.getState().addOrder({
       customerName: form.customerName,
       customerPhone: normalizedPhone,
       items: orderItems as any,

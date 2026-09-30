@@ -101,3 +101,45 @@ export function computeLoyaltyBalance(
   const balance = Math.max(0, autoTotal - offset);
   return { autoTotal, offset, balance };
 }
+
+export interface SaldoFidelidadePublico {
+  saldo: number;
+  autoTotal: number;
+}
+
+export function montarDocumentoFidelidade(
+  phoneClean: string,
+  name: string | undefined,
+  orders: Order[],
+  credores: Credor[],
+  customers: Customer[]
+): SaldoFidelidadePublico {
+  const { balance, autoTotal } = computeLoyaltyBalance(phoneClean, name, orders, credores, customers);
+  return { saldo: balance, autoTotal };
+}
+
+export function paraFidelidadePublica(
+  doc: Partial<SaldoFidelidadePublico> | null | undefined
+): { autoTotal: number; offset: number; balance: number } {
+  if (!doc) return { autoTotal: 0, offset: 0, balance: 0 };
+  const autoTotal = Math.max(0, Number(doc.autoTotal) || 0);
+  const balance = Math.max(0, Number(doc.saldo) || 0);
+  return { autoTotal, offset: Math.max(0, autoTotal - balance), balance };
+}
+
+export function identidadesFidelidade(
+  customers: Customer[],
+  orders: Order[],
+  credores: Credor[]
+): Map<string, string | undefined> {
+  const mapa = new Map<string, string | undefined>();
+  const registrar = (raw: string | undefined, nome: string | undefined) => {
+    const telefone = cleanPhone(raw);
+    if (telefone.length < 8 || mapa.has(telefone)) return;
+    mapa.set(telefone, nome);
+  };
+  customers.forEach((c) => registrar(c.phone, c.name));
+  orders.forEach((o) => registrar(o.customerPhone, o.customerName));
+  credores.forEach((cr) => registrar(cr.whatsapp, cr.nome));
+  return mapa;
+}

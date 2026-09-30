@@ -1,24 +1,44 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
-import { readFileSync } from "fs";
+import { getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc } from "firebase/firestore";
+import {
+  getAuth,
+  connectAuthEmulator,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from "firebase/auth";
+import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 const envPath = resolve(process.cwd(), ".env.local");
-const env = Object.fromEntries(
-  readFileSync(envPath, "utf8")
-    .split(/\r?\n/)
-    .filter((l) => l.includes("=") && !l.startsWith("#"))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")];
-    })
-);
+const env = existsSync(envPath)
+  ? Object.fromEntries(
+      readFileSync(envPath, "utf8")
+        .split(/\r?\n/)
+        .filter((l) => l.includes("=") && !l.startsWith("#"))
+        .map((l) => {
+          const i = l.indexOf("=");
+          return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, "")];
+        })
+    )
+  : {};
+
+const emuladorLocal = env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1";
+const SENHA_LOCAL = env.NEXT_PUBLIC_LOCAL_SENHA || "local1234";
+const USUARIO_LOCAL = "ilmadoces370@gmail.com";
+
+if (!emuladorLocal) {
+  console.error(
+    "Este script semeia apenas dados de TESTE no ambiente local.\n" +
+      "Rode com NEXT_PUBLIC_FIREBASE_EMULATOR=1 no .env.local e os emuladores ativos (npm run dev)."
+  );
+  process.exit(1);
+}
 
 const app = !getApps().length
   ? initializeApp({
       apiKey: env.NEXT_PUBLIC_FIREBASE_API_KEY,
       authDomain: env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      projectId: "demo-ilma-doces",
       storageBucket: env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       messagingSenderId: env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       appId: env.NEXT_PUBLIC_FIREBASE_APP_ID,
@@ -26,21 +46,37 @@ const app = !getApps().length
   : getApp();
 
 const db = getFirestore(app);
+const auth = getAuth(app);
+connectFirestoreEmulator(db, "127.0.0.1", 8080);
+connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
 
 const customers = [
-  { name: "Samara", referencia: "Sem Referencia", phone: "(11) 3933-5449" },
-  { name: "Rosemeire", referencia: "Sem Referencia", phone: "(11) 91109-2883" },
-  { name: "Wellington", referencia: "Sodramar", phone: "(11) 91124-1619" },
-  { name: "Ju", referencia: "Sem Referencia", phone: "(11) 91139-7178" },
-  { name: "Marcos", referencia: "Sem Referencia", phone: "(11) 91154-9241" },
-  { name: "Melissa", referencia: "Sodramar", phone: "(11) 91299-6455" },
-  { name: "Tati", referencia: "Sem Referencia", phone: "(11) 91324-3652" },
-  { name: "Roberta Frias", referencia: "Sem Referencia", phone: "(11) 91343-3491" },
-  { name: "Alzira", referencia: "Sem Referencia", phone: "(11) 91361-7520" },
-  { name: "Quitéria Machado", referencia: "Igreja", phone: "(11) 91367-6782" },
+  { name: "Cliente Teste 01", referencia: "Ponto Teste", phone: "(11) 99999-0001" },
+  { name: "Cliente Teste 02", referencia: "Sem Referencia", phone: "(11) 99999-0002" },
+  { name: "Cliente Teste 03", referencia: "Ponto Teste", phone: "(11) 99999-0003" },
+  { name: "Cliente Teste 04", referencia: "Sem Referencia", phone: "(11) 99999-0004" },
+  { name: "Cliente Teste 05", referencia: "Sem Referencia", phone: "(11) 99999-0005" },
+  { name: "Cliente Teste 06", referencia: "Ponto Teste", phone: "(11) 99999-0006" },
+  { name: "Cliente Teste 07", referencia: "Sem Referencia", phone: "(11) 99999-0007" },
+  { name: "Cliente Teste 08", referencia: "Sem Referencia", phone: "(11) 99999-0008" },
+  { name: "Cliente Teste 09", referencia: "Sem Referencia", phone: "(11) 99999-0009" },
+  { name: "Cliente Teste 10", referencia: "Ponto Teste", phone: "(11) 99999-0010" },
 ];
 
+async function entrar() {
+  try {
+    await signInWithEmailAndPassword(auth, USUARIO_LOCAL, SENHA_LOCAL);
+  } catch (err) {
+    if (err?.code === "auth/user-not-found") {
+      await createUserWithEmailAndPassword(auth, USUARIO_LOCAL, SENHA_LOCAL);
+      return;
+    }
+    throw err;
+  }
+}
+
 async function main() {
+  await entrar();
   let ok = 0;
   let skip = 0;
   for (const c of customers) {

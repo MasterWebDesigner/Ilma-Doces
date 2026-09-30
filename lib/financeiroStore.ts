@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { db } from './firebase';
+import { quandoAutenticado } from './authSync';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import type { FinancialTransaction } from '@/types/database';
 
@@ -21,10 +22,12 @@ interface FinanceiroState {
 }
 
 if (typeof window !== "undefined") {
-  onSnapshot(collection(db, "financeiro"), (snapshot) => {
-    const transactions = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FinancialTransaction));
-    useFinanceiroStore.setState({ transactions });
-  });
+  quandoAutenticado(() =>
+    onSnapshot(collection(db, "financeiro"), (snapshot) => {
+      const transactions = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FinancialTransaction));
+      useFinanceiroStore.setState({ transactions });
+    })
+  );
 }
 
 export const useFinanceiroStore = create<FinanceiroState>()(

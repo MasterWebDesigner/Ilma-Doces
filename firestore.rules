@@ -1,9 +1,127 @@
 rules_version = '2';
-// USO LOCAL/EMULADOR SOMENTE — NUNCA rodar firebase deploy com este arquivo.
+
+// Regras de MINIMO PRIVILEGIO — vallem para o emulador local e para producao.
+// NUNCA voltar para `allow read, write: if true`.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function camposClienteAnon() {
+      return ['name', 'phone', 'lastOrderDate', 'referencia', 'status',
+              'fidelidadeOffset', 'fidelidadeEditadoEm', 'fidelidadeResgates',
+              'fidelidadeUltimoResgate'];
+    }
+
+    function clienteAnonSemLeituraIndevida() {
+      return request.resource.data.keys().hasOnly(camposClienteAnon());
+    }
+
+    function pedidoAnonValido() {
+      return request.resource.data.status == 'pendente'
+        && request.resource.data.origem == 'site'
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0
+        && request.resource.data.customerName is string
+        && request.resource.data.customerPhone is string
+        && request.resource.data.items is list
+        && !request.resource.data.keys().hasAny([
+             'valorPagoSinal', 'formaPagamentoSinal', 'isFiado',
+             'estoqueBaixado', 'dataPagamento'
+           ]);
+    }
+
+    // ── Colecoes publicas de LEITURA (catalogo e vitrine) ───────────────
+    match /produtos/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    match /categorias/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    match /marcas/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    // Configuracao da loja e lida pela vitrine; gravada so pelo painel.
+    match /configuracoes/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    // ── Pedidos: checkout anonnimo apenas CRIA (pendente/site) ──────────
+    match /pedidos/{id} {
+      allow create: if autenticado() || pedidoAnonValido();
+      allow read, update, delete: if autenticado();
+    }
+
+    // ── Clientes: checkout grava cadastro; ninguem anonnimo LE pega ─────
+    match /clientes/{id} {
+      allow create: if autenticado() || (
+        clienteAnonSemLeituraIndevida()
+        && (!('status' in request.resource.data) || request.resource.data.status == 'Nova')
+      );
+      allow update: if autenticado() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(camposClienteAnon())
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+            || request.resource.data.status == 'Nova')
+      );
+      allow read, delete: if autenticado();
+    }
+
+    // ── Despesas: o checkout anonnimo so registra o custo do brinde ─────
+    match /despesas/{id} {
+      allow create: if autenticado() || (
+        request.resource.data.categoria == 'Custos de Brindes / Fidelidade'
+        && request.resource.data.valor is number
+        && request.resource.data.valor >= 0
+        && request.resource.data.valor <= 1000
+      );
+      allow read, update, delete: if autenticado();
+    }
+
+    // ── Dados financeiros e de cadastro interno: somente painel ─────────
+    match /financeiro/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /credores/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /fichas_tecnicas/{id} {
+      allow read, write: if autenticado();
+    }
+
+    // ── Contador do numero sequencial do pedido ─────────────────────────
+    // Publico porque o checkout precisa do proximo numero sem ler pedidos.
+    match /contadores/{contadorId} {
+      allow read: if true;
+      allow create: if autenticado()
+        || (request.resource.data.valor is int && request.resource.data.valor == 1);
+      allow update: if autenticado()
+        || (request.resource.data.valor is int
+            && resource.data.valor is int
+            && request.resource.data.valor == resource.data.valor + 1);
+    }
+
+    // ── Fidelidade agregada (apenas saldo) da vitrine ────────────────────
+    // O painel autenticado mantem; o visitante le um telefone especifico
+    // (get) sem nunca conseguir listar todo o acervo de saldos.
+    match /fidelidade/{telefone} {
+      allow get: if true;
+      allow list, write: if autenticado();
+    }
+
+    // Qualquer outra colecao: negado por padrao.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

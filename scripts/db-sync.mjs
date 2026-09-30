@@ -30,6 +30,35 @@ const COLECOES = [
   "pedidos",
 ];
 
+let tokenLocal = "";
+
+function cabecalhoLocal() {
+  return tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : {};
+}
+
+async function entrarLocal() {
+  for (const email of USUARIOS) {
+    const r = await fetch(
+      `${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: SENHA_LOCAL, returnSecureToken: true }),
+      }
+    );
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}));
+      tokenLocal = j.idToken || "";
+      if (tokenLocal) {
+        console.log(`  sessao local autenticada: ${email}`);
+        return true;
+      }
+    }
+  }
+  console.log("  ! sem sessao no emulador: as regras exigem login para ler gravar colecoes restritas.");
+  return false;
+}
+
 function ping(porta) {
   return new Promise((res) => {
     const s = net.connect({ port: porta, host: "127.0.0.1" }, () => {
@@ -63,7 +92,7 @@ async function listarProd(colecao) {
 
 async function listarLocal(colecao) {
   const url = `${EMO}/v1/projects/${PROJETO_LOCAL}/databases/(default)/documents/${colecao}?pageSize=1000`;
-  const r = await fetch(url);
+  const r = await fetch(url, { headers: cabecalhoLocal() });
   if (!r.ok) return [];
   const j = await r.json().catch(() => ({}));
   return (j.documents || []).map((d) => ({
@@ -105,7 +134,7 @@ async function apagarLocal(colecao, ids) {
   for (const id of ids) {
     await fetch(
       `${EMO}/v1/projects/${PROJETO_LOCAL}/databases/(default)/documents/${colecao}/${encodeURIComponent(id)}`,
-      { method: "DELETE" }
+      { method: "DELETE", headers: cabecalhoLocal() }
     );
   }
 }
@@ -116,7 +145,7 @@ async function gravarLocal(colecao, doc) {
     `${EMO}/v1/projects/${PROJETO_LOCAL}/databases/(default)/documents/${colecao}/${encodeURIComponent(id)}`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...cabecalhoLocal() },
       body: JSON.stringify({ fields: doc.fields || {} }),
     }
   );
@@ -156,6 +185,7 @@ async function main() {
   console.log("Direcao unica: nunca escreve em producao. Execucao manual: npm run db:sync.\n");
   console.log("Usuarios do login local:");
   await criarUsuarios();
+  await entrarLocal();
 
   console.log("\nVerificando alteracoes locais de hoje...");
   await avisarAlteradosHoje();

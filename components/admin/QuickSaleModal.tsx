@@ -228,7 +228,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
 
       upsertCustomer(customerName, customerPhone, undefined);
 
-      const newOrder = addOrder({
+      const newOrder = await addOrder({
         customerName,
         customerPhone,
         items: cart,
