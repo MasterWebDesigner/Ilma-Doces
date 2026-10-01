@@ -4,7 +4,7 @@ import { useFinanceiroStore, montarTransacao } from './financeiroStore';
 import { getLocalDateStr, paymentLabelOf } from './utils';
 import { db } from './firebase';
 import { quandoAutenticado } from './authSync';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDoc, runTransaction, deleteField } from 'firebase/firestore';
 import { notifyError } from './notifications';
 import { divergenciaDeReversaoCredor, type OpcoesReversao } from './antiRollback';
 import type { Credor, CompraCredor, CompraItem, BaixaCompra, PagamentoCredor, FinancialTransaction } from '@/types/database';

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useOrderStore, useProductStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { classNames, compararTexto, formatItemQty, paymentLabelOf } from "@/lib/utils";
-import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid } from "@/lib/faturamento";
+import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid, isFiadoPendente, formaPagamentoDoPedido } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -48,6 +48,7 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   pronto: { label: "Pronto", cls: "bg-cyan-500/15 text-cyan-400" },
   saiu_entrega: { label: "Saiu p/ Entrega", cls: "bg-amber-500/15 text-amber-400" },
   pendente: { label: "Pendente", cls: "bg-neutral-500/15 text-neutral-400" },
+  fiado: { label: "Fiado / A Receber", cls: "bg-amber-500/15 text-amber-400 border border-amber-500/30" },
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -198,6 +199,7 @@ export default function AdminVendasPage() {
       const firstItem = o.items[0];
       const catObj = categories.find((c) => c.id === firstItem?.product?.category_id);
       const paidDate = isOrderPaid(o) && o.dataPagamento ? o.dataPagamento : o.createdAt;
+      const fiadoPendente = isFiadoPendente(o);
       return {
         id: o.id,
         date: paidDate,
@@ -209,10 +211,11 @@ export default function AdminVendasPage() {
             : `${formatItemQty(i.quantity, i.product.isCustomWeight)} ${i.product.name}`
         ),
         categoryName: catObj ? catObj.name : "Geral",
-        paymentMethod: paymentLabelOf(o.paymentMethod),
+        paymentMethod: formaPagamentoDoPedido(o),
         total: Number(o.total) || 0,
-        status: o.status,
+        status: fiadoPendente ? "fiado" : o.status,
         paid: isOrderPaid(o),
+        fiadoPendente,
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [ordersPeriodo, categories]);
@@ -388,8 +391,11 @@ export default function AdminVendasPage() {
 
   const statusFunnel = useMemo(() => {
     const map = new Map<string, number>();
-    ordersPeriodo.forEach((o) => map.set(o.status, (map.get(o.status) || 0) + 1));
-    const order = ["pendente", "confirmado", "em_producao", "pronto", "saiu_entrega", "concluido"];
+    ordersPeriodo.forEach((o) => {
+      const key = isFiadoPendente(o) ? "fiado" : o.status;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    const order = ["pendente", "confirmado", "em_producao", "pronto", "saiu_entrega", "concluido", "fiado"];
     return order.filter((s) => map.has(s)).map((s) => ({ status: s, count: map.get(s) || 0, ...STATUS_CONFIG[s] }));
   }, [ordersPeriodo]);
 
@@ -818,7 +824,13 @@ export default function AdminVendasPage() {
                       <td className="px-5 py-3.5 text-xs font-semibold" style={{ color: PAYMENT_COLORS[sale.paymentMethod] || "#a3a3a3" }}>
                         {sale.paymentMethod}
                       </td>
-                      <td className="px-5 py-3.5 text-right text-sm font-bold text-emerald-400">R$ {money(sale.total)}</td>
+                      <td className={classNames(
+                        "px-5 py-3.5 text-right text-sm font-bold",
+                        sale.fiadoPendente ? "text-amber-400" : "text-emerald-400"
+                      )}>
+                        R$ {money(sale.total)}
+                        {sale.fiadoPendente && <span className="ml-1 text-[10px] font-semibold">a receber</span>}
+                      </td>
                       <td className="px-5 py-3.5 text-center">
                         <span className={classNames("rounded-full px-2.5 py-0.5 text-[10px] font-semibold", st.cls)}>{st.label}</span>
                       </td>

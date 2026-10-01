@@ -6,7 +6,7 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
 import { classNames, compararTexto, getLocalDateStr, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
-import { filterPaidOrders, sinalRecebidoDoPedido } from "@/lib/faturamento";
+import { filterPaidOrders, sinalRecebidoDoPedido, isFiadoPendente } from "@/lib/faturamento";
 
 type Periodo = "dia" | "mes" | "ano";
 
@@ -533,7 +533,9 @@ export default function AdminFinanceiro() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800/50">
-                  {paginatedOrders.map((order) => (
+                  {paginatedOrders.map((order) => {
+                    const fiadoPendente = isFiadoPendente(order);
+                    return (
                     <tr key={order.id} className="transition-colors hover:bg-neutral-800/30">
                       <td className="px-6 py-3 text-xs text-neutral-500 font-mono">{order.id.slice(-12)}</td>
                       <td className="px-6 py-3 text-sm text-neutral-300">
@@ -543,24 +545,29 @@ export default function AdminFinanceiro() {
                       <td className="px-6 py-3 text-xs text-neutral-400 max-w-[200px] truncate">
                         {order.items.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")}
                       </td>
-                      <td className="px-6 py-3 text-right text-sm font-bold text-emerald-400">
+                      <td className={classNames(
+                        "px-6 py-3 text-right text-sm font-bold",
+                        fiadoPendente ? "text-amber-400" : "text-emerald-400"
+                      )}>
                         R$ {safeMoney(order.total)}
+                        {fiadoPendente && <span className="ml-1 text-[10px] font-semibold">a receber</span>}
                       </td>
                       <td className="px-6 py-3 text-center">
                         <span className={classNames(
                           "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
-                          order.status === "concluido" ? "bg-emerald-500/15 text-emerald-400"
+                          fiadoPendente ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            : order.status === "concluido" ? "bg-emerald-500/15 text-emerald-400"
                             : order.status === "recusado" ? "bg-red-500/15 text-red-400"
                             : order.status === "cancelado" ? "bg-orange-500/15 text-orange-400"
-                            : order.isFiado ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
                             : order.status === "pendente" ? "bg-amber-500/15 text-amber-400"
                             : order.status === "em_producao" ? "bg-purple-500/15 text-purple-400"
                             : "bg-blue-500/15 text-blue-400"
                         )}>
-                          {order.status === "concluido" ? "Concluido"
+                          {fiadoPendente ? "Fiado / A Receber"
+                            : order.status === "concluido" ? "Concluido"
                             : order.status === "recusado" ? "Recusado"
                             : order.status === "cancelado" ? "Cancelado"
-                            : order.isFiado ? "Fiado / Credor"
+                            : order.isFiado ? "Fiado / Quitado"
                             : order.status === "pendente" ? "Pendente"
                             : order.status === "em_producao" ? "Em Producao"
                             : "Agendado"
@@ -568,7 +575,8 @@ export default function AdminFinanceiro() {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

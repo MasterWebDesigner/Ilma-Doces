@@ -64,9 +64,13 @@ export function localizarTransacaoSinal(
   return candidatas.find((t) => t.pedidoId === order.id) || candidatas[0];
 }
 
+export function pedidoEhFiado(order: Order): boolean {
+  return !!order.isFiado || order.paymentMethod === "fiado";
+}
+
 export function getPaidDate(order: Order): string | null {
   if (order.dataPagamento) return order.dataPagamento.slice(0, 10);
-  if (order.isFiado) return null;
+  if (pedidoEhFiado(order)) return null;
   if (order.status === "concluido" && order.createdAt) return order.createdAt.slice(0, 10);
   return null;
 }
@@ -78,6 +82,16 @@ export function isOrderPaid(order: Order): boolean {
 export function isPaidInPeriod(order: Order, prefix: string): boolean {
   const d = getPaidDate(order);
   return !!d && d.slice(0, prefix.length) === prefix;
+}
+
+export function isFiadoPendente(order: Order): boolean {
+  if (order.status === "recusado" || order.status === "cancelado") return false;
+  return pedidoEhFiado(order) && getPaidDate(order) === null;
+}
+
+export function formaPagamentoDoPedido(order: Order): string {
+  if (isFiadoPendente(order)) return "Fiado";
+  return paymentLabelOf(order.paymentMethod);
 }
 
 export function orderRemaining(order: Order): number {
