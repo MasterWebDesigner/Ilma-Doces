@@ -439,11 +439,7 @@ export default function AdminConfiguracoes() {
             </div>
             <button
               onClick={handleClearCustomers}
-              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
-            >
-              Limpar Clientes
-            </button>
-          </div>
+             
           <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
             <div>
               <p className="text-sm font-semibold text-white">Limpar Todos os Credores</p>
