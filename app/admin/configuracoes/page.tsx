@@ -213,6 +213,11 @@ export default function AdminConfiguracoes() {
             <input type="number" min="1" value={settings.minAdvanceHours} onChange={(e) => setSettings((s) => ({ ...s, minAdvanceHours: parseInt(e.target.value) || 24 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
           </div>
           <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Margem de Preparo para Hoje (min)</label>
+            <input type="number" min="0" step="5" value={settings.margemPreparoMinutos} onChange={(e) => setSettings((s) => ({ ...s, margemPreparoMinutos: Math.max(0, parseInt(e.target.value) || 0) }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+            <p className="mt-1 text-[10px] text-neutral-500">Bloqueia horarios de hoje anteriores ao atual + esta margem.</p>
+          </div>
+          <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horario de Abertura</label>
             <input type="time" value={settings.openingHour} onChange={(e) => setSettings((s) => ({ ...s, openingHour: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
           </div>

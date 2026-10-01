@@ -14,7 +14,8 @@ import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
 import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./brindeCusto";
 import { identidadesFidelidade, montarDocumentoFidelidade, type SaldoFidelidadePublico } from "./fidelidade";
-import { SETTINGS_CHANGED_EVENT } from "./storeConfig";
+import { SETTINGS_CHANGED_EVENT, getStoreConfig } from "./storeConfig";
+import { validarHorarioPedido } from "./horarioMinimo";
 
 let sessaoAutenticada = false;
 let contadorSemeado = false;
@@ -725,6 +726,17 @@ export const useOrderStore = create<OrderState>()(
       orders: [],
 
       addOrder: async (data) => {
+        if (data.origem === "site") {
+          const checagemHorario = validarHorarioPedido({
+            scheduledDate: data.scheduledDate,
+            scheduledTime: data.scheduledTime,
+            margemPreparoMinutos: getStoreConfig().margemPreparoMinutos,
+          });
+          if (!checagemHorario.ok) {
+            notifyError("Horário indisponível", checagemHorario.error);
+            throw new Error(checagemHorario.error);
+          }
+        }
         const currentOrders = get().orders;
         const numero = await proximoNumeroPedido(currentOrders.length);
         const orderNumber = String(numero).padStart(4, "0");

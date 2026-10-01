@@ -20,6 +20,7 @@ import { loyaltyProgress } from "@/lib/fidelidade";
 import { consultarFidelidadePublica, type FidelidadePublica } from "@/lib/fidelidadePublica";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
+import { horariosDisponiveis, horarioMinimoDoDia, validarHorarioPedido, validarHorarioServidor } from "@/lib/horarioMinimo";
 
 const WINE = "#8B1D22";
 
@@ -62,6 +63,7 @@ export default function CartDrawer() {
   const upsertCustomer = useCustomerStore((s) => s.upsertCustomer);
   const resgatarBrinde = useCustomerStore((s) => s.resgatarBrinde);
   const phoneDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [agora, setAgora] = useState(() => new Date());
 
   const subtotal = paidSubtotal(items);
   const contagemItens = totalItemsCount(items);
@@ -71,6 +73,10 @@ export default function CartDrawer() {
   const progress = brindeProgress(brindeSubtotal);
   const temItemElegivel = items.some((i) => itemContaParaBrinde(i, regrasBrinde));
   const horariosRetirada = config.timeSlots.length > 0 ? config.timeSlots : DEFAULT_SETTINGS.timeSlots;
+  const margemPreparo = Math.max(0, config.margemPreparoMinutos);
+  const horariosVisiveis = horariosDisponiveis(horariosRetirada, dateValue, margemPreparo, agora);
+  const dataEhoje = !!dateValue && dateValue === hojeISO();
+  const horarioMinimoHoje = dataEhoje ? horarioMinimoDoDia(dateValue, margemPreparo, agora) : null;
   const categoriasPromoNomes = regrasBrinde.todasCategorias
     ? []
     : categories.filter((c) => regrasBrinde.categoriasPromo.includes(c.id)).map((c) => c.name);
@@ -123,6 +129,11 @@ export default function CartDrawer() {
     };
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => setAgora(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   if (!isOpen) return null;
 
   function resetCheckoutFields() {
@@ -153,6 +164,20 @@ export default function CartDrawer() {
     if (!dateValue) { setValidationError("Informe a data desejada para a retirada"); return; }
     if (dateValue < hojeISO()) { setValidationError("A data desejada não pode ser no passado"); return; }
     if (!timeValue) { setValidationError("Informe o horário da retirada"); return; }
+
+    const checagemLocal = validarHorarioPedido({
+      scheduledDate: dateValue,
+      scheduledTime: timeValue,
+      margemPreparoMinutos: margemPreparo,
+      agora: new Date(),
+    });
+    if (!checagemLocal.ok) { setValidationError(checagemLocal.error); return; }
+
+    const checagemServidor = await validarHorarioServidor(dateValue, timeValue);
+    if (!checagemServidor.ok) {
+      setValidationError(checagemServidor.error || "Horário de retirada indisponível.");
+      return;
+    }
 
     let address: string | undefined;
     if (deliveryType === "entrega") {
@@ -191,20 +216,26 @@ export default function CartDrawer() {
 
     upsertCustomer(name, phone);
 
-    const order = await addOrder({
-      customerName: name,
-      customerPhone: phone,
-      items: [...items],
-      total: totalGeral,
-      deliveryType,
-      address,
-      scheduledDate: dateValue,
-      scheduledTime: timeValue,
-      paymentMethod,
-      trocoPara: trocoNum,
-      origem: "site",
-      status: "pendente",
-    });
+    let order: Order;
+    try {
+      order = await addOrder({
+        customerName: name,
+        customerPhone: phone,
+        items: [...items],
+        total: totalGeral,
+        deliveryType,
+        address,
+        scheduledDate: dateValue,
+        scheduledTime: timeValue,
+        paymentMethod,
+        trocoPara: trocoNum,
+        origem: "site",
+        status: "pendente",
+      });
+    } catch (err) {
+      setValidationError(err instanceof Error ? err.message : "Horário de retirada indisponível.");
+      return;
+    }
 
     useNotificationStore.getState().addNotification({
       title: "Novo Pedido!",
@@ -690,7 +721,13 @@ export default function CartDrawer() {
                   className="input-field"
                   min={hojeISO()}
                   value={dateValue}
-                  onChange={(e) => { setDateValue(e.target.value); setValidationError(""); }}
+                  onChange={(e) => {
+                    const novaData = e.target.value;
+                    setDateValue(novaData);
+                    setValidationError("");
+                    const disponiveis = horariosDisponiveis(horariosRetirada, novaData, margemPreparo, agora);
+                    if (timeValue && !disponiveis.includes(timeValue)) setTimeValue("");
+                  }}
                 />
                 <label className="label-field">Horário da Retirada <span className="text-red-500">*</span></label>
                 <select
@@ -699,10 +736,20 @@ export default function CartDrawer() {
                   onChange={(e) => { setTimeValue(e.target.value); setValidationError(""); }}
                 >
                   <option value="">Selecione o horário</option>
-                  {horariosRetirada.map((h) => (
+                  {horariosVisiveis.map((h) => (
                     <option key={h} value={h}>{h}</option>
                   ))}
                 </select>
+                {dataEhoje && horarioMinimoHoje && horariosVisiveis.length > 0 && (
+                  <p className="text-xs text-neutral-500">
+                    Pedidos para hoje somente a partir de {horarioMinimoHoje} (margem de preparo de {margemPreparo} min).
+                  </p>
+                )}
+                {dateValue && horariosVisiveis.length === 0 && (
+                  <p className="text-xs font-semibold text-red-500">
+                    Nenhum horário disponível para esta data. {dataEhoje ? "Escolha outro dia ou aguarde o próximo horário liberado." : "Edite os horários em Configurações."}
+                  </p>
+                )}
                 <p className="text-xs text-neutral-500">Escolha o dia e o horário em que pretende retirar o pedido.</p>
               </div>
 
