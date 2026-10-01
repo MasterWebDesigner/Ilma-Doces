@@ -1,261 +1,487 @@
 "use client";
 
-import { useState } from "react";
-import { getCategoryEmoji } from "@/lib/mockData";
-import type { Product } from "@/types/database";
-import { formatCurrency, formatItemQty, classNames } from "@/lib/utils";
-import { useCartStore, useProductStore } from "@/lib/store";
+import { useState, useEffect } from "react";
+import {
+  type StoreSettings,
+  type InstagramPost,
+  DEFAULT_SETTINGS,
+  getStoreConfig,
+  saveStoreConfig,
+  makeInstagramPost,
+} from "@/lib/storeConfig";
+import { MensagensWhatsappCard } from "@/components/admin/MensagensWhatsappCard";
 
-export default function CardapioPage() {
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [search, setSearch] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [modalWeight, setModalWeight] = useState(1);
-  const addItem = useCartStore((s) => s.addItem);
-  const products = useProductStore((s) => s.products);
-  const categories = useProductStore((s) => s.categories);
+function loadSettings(): StoreSettings {
+  return getStoreConfig();
+}
 
-  const categoryById = new Map(categories.map((c) => [c.id, c.name]));
-  const visibleCategories = categories.filter((cat) =>
-    products.some((p) => p.category_id === cat.id)
-  );
+export default function AdminConfiguracoes() {
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
+  const [saved, setSaved] = useState(false);
+  const [newTimeSlot, setNewTimeSlot] = useState("");
 
-  function openProduct(product: Product) {
-    setModalWeight(1);
-    setSelectedProduct(product);
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
+
+  function handleSave() {
+    saveStoreConfig(settings);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   }
 
-  const allProducts = products.filter((p) => {
-    const matchCat = activeCategory === "all" || p.category_id === activeCategory;
-    const q = search.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
-    return matchCat && matchSearch;
-  });
+  function addTimeSlot() {
+    if (!newTimeSlot) return;
+    if (settings.timeSlots.includes(newTimeSlot)) return;
+    setSettings((s) => ({ ...s, timeSlots: [...s.timeSlots, newTimeSlot].sort() }));
+    setNewTimeSlot("");
+  }
 
-  const galleryPhotos = products.filter((p) => p.image_url).slice(0, 8);
+  function removeTimeSlot(slot: string) {
+    setSettings((s) => ({ ...s, timeSlots: s.timeSlots.filter((t) => t !== slot) }));
+  }
+
+  function addInstagramPost() {
+    setSettings((s) => ({
+      ...s,
+      instagramPosts: [...(s.instagramPosts || []), makeInstagramPost()],
+    }));
+  }
+
+  function updateInstagramPost(id: string, patch: Partial<InstagramPost>) {
+    setSettings((s) => ({
+      ...s,
+      instagramPosts: (s.instagramPosts || []).map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
+  }
+
+  function removeInstagramPost(id: string) {
+    setSettings((s) => ({
+      ...s,
+      instagramPosts: (s.instagramPosts || []).filter((p) => p.id !== id),
+    }));
+  }
+
+  async function apiRequest(method: string, endpoint: string, body?: any) {
+    const url = `/api${endpoint}`;
+    const options: RequestInit = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || "Erro na requisição");
+    }
+    return res.json();
+  }
+
+  async function handleClearOrders() {
+    if (!confirm("Tem certeza? Todos os pedidos serão removidos do sistema e do banco.")) return;
+    try {
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" });
+      localStorage.removeItem("ilma-orders");
+      alert("Pedidos limpos com sucesso!");
+      window.location.reload();
+    } catch (e: any) {
+      alert("Erro ao limpar pedidos: " + (e.message || e));
+    }
+  }
+
+  async function handleClearCustomers() {
+    if (!confirm("Tem certeza? Todos os clientes serão removidos.")) return;
+    try {
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "clientes" });
+      localStorage.removeItem("ilma-customers");
+      alert("Clientes limpos com sucesso!");
+      window.location.reload();
+    } catch (e: any) {
+      alert("Erro ao limpar clientes: " + (e.message || e));
+    }
+  }
+
+  async function handleClearCredores() {
+    if (!confirm("Tem certeza? Todos os credores e fiados serão removidos.")) return;
+    try {
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "credores" });
+      alert("Credores limpos com sucesso!");
+      window.location.reload();
+    } catch (e: any) {
+      alert("Erro ao limpar credores: " + (e.message || e));
+    }
+  }
+
+  async function handleClearFinanceiro() {
+    if (!confirm("Tem certeza? Todo o histórico financeiro e despesas serão removidos.")) return;
+    try {
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" });
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" });
+      localStorage.removeItem("ilma-financeiro-store");
+      alert("Financeiro limpo com sucesso!");
+      window.location.reload();
+    } catch (e: any) {
+      alert("Erro ao limpar financeiro: " + (e.message || e));
+    }
+  }
+
+  async function handleClearAll() {
+    if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro e Despesas)? Esta ação é irreversível!")) return;
+    try {
+      await Promise.all([
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "clientes" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "credores" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" }),
+      ]);
+      localStorage.clear();
+      alert("Sistema limpo com sucesso!");
+      window.location.reload();
+    } catch (e: any) {
+      alert("Erro ao limpar sistema: " + (e.message || e));
+    }
+  }
 
   return (
-    <main className="bg-white pb-16 pt-20 dark:bg-neutral-950">
-      <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <div className="border-b border-neutral-200 py-10 text-center dark:border-neutral-800">
-          <h1 className="text-4xl font-bold text-neutral-900 dark:text-white">Cardapio</h1>
-          <div className="mx-auto mt-3 h-0.5 w-16 bg-wine-600" />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Configuracoes</h1>
+          <p className="mt-1 text-sm text-neutral-400">Gerencie as configuracoes da loja.</p>
+        </div>
+        <button
+          onClick={handleSave}
+          className="rounded-xl bg-[#8B1D22] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#72171B]"
+        >
+          {saved ? "Salvo!" : "Salvar Alteracoes"}
+        </button>
+      </div>
+
+      {/* Dados da Loja */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+          Dados da Loja
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Nome da Loja</label>
+            <input type="text" value={settings.storeName} onChange={(e) => setSettings((s) => ({ ...s, storeName: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">WhatsApp da Loja</label>
+            <input type="text" value={settings.storePhone} onChange={(e) => setSettings((s) => ({ ...s, storePhone: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="11930657871" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">WhatsApp para Cobranças (opcional)</label>
+            <input type="text" value={settings.whatsappLoja} onChange={(e) => setSettings((s) => ({ ...s, whatsappLoja: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Usa o WhatsApp da Loja quando vazio" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Endereco</label>
+            <input type="text" value={settings.storeAddress} onChange={(e) => setSettings((s) => ({ ...s, storeAddress: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Rua, numero, bairro" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Instagram</label>
+            <input type="text" value={settings.storeInstagram} onChange={(e) => setSettings((s) => ({ ...s, storeInstagram: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="@ilmadoces" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Link Google Maps</label>
+            <input type="text" value={settings.googleMapsLink} onChange={(e) => setSettings((s) => ({ ...s, googleMapsLink: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="https://maps.google.com/..." />
+          </div>
+        </div>
+        <div className="mt-4">
+          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Mensagem de Boas-Vindas</label>
+          <textarea value={settings.welcomeMessage} onChange={(e) => setSettings((s) => ({ ...s, welcomeMessage: e.target.value }))} rows={2} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500 resize-none" placeholder="Mensagem exibida no inicio do cardapio..." />
+        </div>
+      </div>
+
+      {/* Entrega e Horarios */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          Entrega e Horarios
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Taxa de Entrega (R$)</label>
+            <input type="number" step="0.01" min="0" value={settings.deliveryFee} onChange={(e) => setSettings((s) => ({ ...s, deliveryFee: parseFloat(e.target.value) || 0 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Antecedencia Minima (horas)</label>
+            <input type="number" min="1" value={settings.minAdvanceHours} onChange={(e) => setSettings((s) => ({ ...s, minAdvanceHours: parseInt(e.target.value) || 24 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Margem de Preparo para Hoje (min)</label>
+            <input type="number" min="0" step="5" value={settings.margemPreparoMinutos} onChange={(e) => setSettings((s) => ({ ...s, margemPreparoMinutos: Math.max(0, parseInt(e.target.value) || 0) }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+            <p className="mt-1 text-[10px] text-neutral-500">Bloqueia horarios de hoje anteriores ao atual + esta margem.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horario de Abertura</label>
+            <input type="time" value={settings.openingHour} onChange={(e) => setSettings((s) => ({ ...s, openingHour: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horario de Fechamento</label>
+            <input type="time" value={settings.closingHour} onChange={(e) => setSettings((s) => ({ ...s, closingHour: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
         </div>
 
-        <div className="mt-8 flex flex-col items-center gap-5">
-          <div className="whitespace-nowrap overflow-x-auto px-2">
-            <button
-              onClick={() => setActiveCategory("all")}
-              className="text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
-            >
-              Todos
-            </button>
-            {visibleCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className="text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
-              >
-                {cat.name}
-              </button>
+        {/* Time Slots */}
+        <div className="mt-4">
+          <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horarios de Entrega/Retirada</label>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {settings.timeSlots.map((slot) => (
+              <span key={slot} className="flex items-center gap-1.5 rounded-full border border-wine-500/30 bg-wine-500/10 px-3 py-1 text-xs font-semibold text-wine-400">
+                {slot}
+                <button onClick={() => removeTimeSlot(slot)} className="ml-0.5 text-wine-400/60 hover:text-wine-400">✕</button>
+              </span>
             ))}
           </div>
-
-          <input
-            type="text"
-            placeholder="Buscar doce..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full max-w-xs rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm text-neutral-800 outline-none focus:border-wine-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-          />
-        </div>
-
-        {allProducts.length === 0 ? (
-          <div className="py-16 text-center text-neutral-400">
-            <p>Nenhum produto encontrado.</p>
+          <div className="flex gap-2">
+            <input type="time" value={newTimeSlot} onChange={(e) => setNewTimeSlot(e.target.value)} className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-wine-500" />
+            <button onClick={addTimeSlot} className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold">
+              + Adicionar
+            </button>
           </div>
+        </div>
+      </div>
+
+      {/* Pagamento */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+          Pagamento
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Chave PIX</label>
+            <input type="text" value={settings.pixKey} onChange={(e) => setSettings((s) => ({ ...s, pixKey: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="CPF, e-mail, celular ou chave aleatoria" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Chave PIX para Cobranças (opcional)</label>
+            <input type="text" value={settings.chavePix} onChange={(e) => setSettings((s) => ({ ...s, chavePix: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Usa a Chave PIX quando vazio" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Descricao PIX</label>
+            <input type="text" value={settings.pixDescription} onChange={(e) => setSettings((s) => ({ ...s, pixDescription: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Ex: Chave PIX da loja" />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Link de Pagamento (opcional)</label>
+            <input type="url" value={settings.paymentLink} onChange={(e) => setSettings((s) => ({ ...s, paymentLink: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="https://... usado na tag {link_pagamento}" />
+          </div>
+        </div>
+      </div>
+
+      {/* Fidelidade e Brindes */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <span aria-hidden>🎁</span>
+          Fidelidade e Brindes
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Meta de fidelidade (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={settings.valorMinimoBrinde}
+              onChange={(e) => setSettings((s) => ({ ...s, valorMinimoBrinde: parseFloat(e.target.value) || 0 }))}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
+            />
+            <p className="mt-1 text-[10px] text-neutral-500">
+              A cada {Math.max(1, settings.valorMinimoBrinde)} reais acumulados em pedidos concluidos o cliente ganha 1 Brinde.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Programa de fidelidade</label>
+            <button
+              type="button"
+              onClick={() => setSettings((s) => ({ ...s, brindeAtivo: !s.brindeAtivo }))}
+              className={`w-full rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                settings.brindeAtivo
+                  ? "border-emerald-600 bg-emerald-900/30 text-emerald-400"
+                  : "border-neutral-700 bg-neutral-800 text-neutral-500"
+              }`}
+            >
+              {settings.brindeAtivo ? "Ativo" : "Desativado"}
+            </button>
+            <p className="mt-1 text-[10px] text-neutral-500">
+              Acumulo de saldo, brindes disponiveis e resgate no checkout.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Mensagens WhatsApp */}
+      <MensagensWhatsappCard
+        mensagens={settings.mensagensWhatsapp || []}
+        onChange={(mensagens) => setSettings((s) => ({ ...s, mensagensWhatsapp: mensagens }))}
+        onSave={handleSave}
+      />
+
+      {/* Posts do Instagram */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+            <span aria-hidden>📸</span>
+            Posts do Instagram
+          </h2>
+          <button
+          onClick={addInstagramPost}
+          className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"
+          >
+            + Adicionar Post
+          </button>
+        </div>
+        <p className="mb-4 text-xs text-neutral-500">
+          Gerencie os posts exibidos na seção "Siga no Instagram" da landing page (4 a 8 itens ativos recomendados).
+        </p>
+        {(settings.instagramPosts || []).length === 0 ? (
+          <p className="rounded-lg border border-dashed border-neutral-700 px-4 py-8 text-center text-xs text-neutral-500">
+            Nenhum post cadastrado. Clique em "+ Adicionar Post".
+          </p>
         ) : (
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {allProducts.map((product) => {
-              const isEsgotado = product.controlarEstoque && (product.estoque ?? 0) <= 0;
-              return (
-                <div
-                  key={product.id}
-                  className="group overflow-hidden bg-white shadow-sm transition-shadow hover:shadow-md dark:bg-neutral-900 dark:shadow-none dark:ring-1 dark:ring-neutral-800"
-                >
-                  <button onClick={() => openProduct(product)} className="block w-full text-left">
-                    <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-                      {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${isEsgotado ? "opacity-40 grayscale" : ""}`}
-                        />
-                      ) : (
-                        <div className={`flex h-full items-center justify-center text-6xl ${isEsgotado ? "opacity-40 grayscale" : ""}`}>
-                          {getCategoryEmoji(product.category_id, categoryById.get(product.category_id))}
-                        </div>
-                      )}
-                      {isEsgotado && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="rounded bg-red-600/90 px-3 py-1 text-xs font-bold text-white">Esgotado</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="relative">
-                      {product.description && (
-                        <div className="absolute bottom-full left-0 right-0 max-h-0 overflow-hidden bg-wine-700 px-4 pb-0 pt-0 text-xs leading-relaxed text-white/95 opacity-0 transition-all duration-300 group-hover:max-h-40 group-hover:pb-3 group-hover:pt-3 group-hover:opacity-100">
-                          {product.description}
-                        </div>
-                      )}
-                      <div className="flex items-start justify-between gap-3 bg-wine-600 px-4 py-3">
-                        <h3 className="text-sm font-bold leading-snug text-white">{product.name}</h3>
-                        <div className="shrink-0 text-right text-sm font-bold text-white">
-                          {formatCurrency(product.price)}
-                          {product.isCustomWeight && (
-                            <div className="text-xs font-semibold">KG</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+          <div className="space-y-3">
+            {(settings.instagramPosts || []).map((post, index) => (
+              <div key={post.id} className="rounded-xl border border-neutral-800 bg-neutral-950/50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={post.active}
+                      onChange={(e) => updateInstagramPost(post.id, { active: e.target.checked })}
+                      className="h-4 w-4 accent-wine-500"
+                    />
+                    {post.active ? "Visivel na landing" : "Oculto"}
+                    <span className="text-neutral-600">#{index + 1}</span>
+                  </label>
+                  <button
+                    onClick={() => removeInstagramPost(post.id)}
+                    className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-md px-3 py-1 text-xs font-semibold"
+                  >
+                    Remover
                   </button>
-                  <div className="flex justify-end px-3 py-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEsgotado) return;
-                        product.isCustomWeight ? openProduct(product) : addItem(product);
-                      }}
-                      disabled={isEsgotado}
-                      className="rounded-full bg-wine-600 px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {isEsgotado ? "Esgotado" : product.isCustomWeight ? "Escolher peso" : "Adicionar"}
-                    </button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-3">
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Título / Legenda (opcional)</label>
+                    <input
+                      type="text"
+                      value={post.title}
+                      onChange={(e) => updateInstagramPost(post.id, { title: e.target.value })}
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
+                      placeholder="Ex: Bolo de chocolate da casa"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Link do Post / Reel</label>
+                    <input
+                      type="url"
+                      value={post.url}
+                      onChange={(e) => updateInstagramPost(post.id, { url: e.target.value })}
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
+                      placeholder="https://www.instagram.com/p/CODE"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Imagem / Capa</label>
+                    <input
+                      type="url"
+                      value={post.imageUrl}
+                      onChange={(e) => updateInstagramPost(post.id, { imageUrl: e.target.value })}
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
+                      placeholder="https://... ou /imagens/..."
+                    />
                   </div>
                 </div>
-              );
-            })}
+                {post.imageUrl && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="h-16 w-16 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
+                      <img src={post.imageUrl} alt={post.title || "Prévia"} className="h-full w-full object-cover" />
+                    </div>
+                    <p className="text-[10px] text-neutral-500">Prévia da capa do post</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {galleryPhotos.length > 0 && (
-        <div className="mt-14 border-y border-neutral-100 bg-neutral-50 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4">
-            {galleryPhotos.map((p) => (
-              <button
-                key={`g-${p.id}`}
-                onClick={() => openProduct(p)}
-                className="h-28 w-28 shrink-0 overflow-hidden sm:h-32 sm:w-32"
-                title={p.name}
-              >
-                <img
-                  src={p.image_url!}
-                  alt={p.name}
-                  className="h-full w-full object-cover transition-transform hover:scale-105"
-                />
-              </button>
-            ))}
+      {/* Zona de Perigo */}
+      <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-red-400">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+          Zona de Perigo
+        </h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Limpar Todos os Pedidos</p>
+              <p className="text-xs text-neutral-500">Remove todos os pedidos do sistema e banco.</p>
+            </div>
+            <button
+              onClick={handleClearOrders}
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
+            >
+              Limpar Pedidos
+            </button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Limpar Todos os Clientes</p>
+              <p className="text-xs text-neutral-500">Remove todos os clientes cadastrados.</p>
+            </div>
+            <button
+              onClick={handleClearCustomers}
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
+            >
+              Limpar Clientes
+            </button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Limpar Todos os Credores</p>
+              <p className="text-xs text-neutral-500">Remove todos os credores e fiados.</p>
+            </div>
+            <button
+              onClick={handleClearCredores}
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
+            >
+              Limpar Credores
+            </button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Limpar Financeiro e Despesas</p>
+              <p className="text-xs text-neutral-500">Remove todo o histórico financeiro e despesas.</p>
+            </div>
+            <button
+              onClick={handleClearFinanceiro}
+              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
+            >
+              Limpar Caixa
+            </button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-red-500/40 bg-red-500/10 p-4">
+            <div>
+              <p className="text-sm font-bold text-red-400">APAGAR TUDO DO SISTEMA</p>
+              <p className="text-xs text-red-300/80">Zera completamente pedidos, clientes, credores e financeiro.</p>
+            </div>
+            <button
+              onClick={handleClearAll}
+              className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 shadow-lg shadow-red-600/30"
+            >
+              Zerar Sistema
+            </button>
           </div>
         </div>
-      )}
-
-      {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedProduct(null)}>
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
-            <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800">
-              {selectedProduct.image_url ? (
-                <img
-                  src={selectedProduct.image_url}
-                  alt={selectedProduct.name}
-                  className={`h-full w-full object-cover ${selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? "opacity-40 grayscale" : ""}`}
-                />
-              ) : (
-                <div className={`flex h-full items-center justify-center text-7xl ${selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? "opacity-40 grayscale" : ""}`}>
-                  {getCategoryEmoji(selectedProduct.category_id, categoryById.get(selectedProduct.category_id))}
-                </div>
-              )}
-              {selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="rounded bg-red-600/90 px-4 py-1.5 text-sm font-bold text-white">Esgotado</span>
-                </div>
-              )}
-              <button onClick={() => setSelectedProduct(null)} className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-neutral-700 hover:bg-white dark:bg-neutral-800 dark:text-neutral-200">X</button>
-            </div>
-            <div className="p-6">
-              <div className="flex items-start justify-between gap-3">
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{selectedProduct.name}</h2>
-                <div className="shrink-0 text-right">
-                  <span className="text-xl font-bold text-wine-600 dark:text-wine-400">
-                    {formatCurrency(selectedProduct.price)}
-                  </span>
-                  {selectedProduct.isCustomWeight && <span className="ml-1 text-sm font-semibold text-neutral-600 dark:text-neutral-400">/KG</span>}
-                </div>
-              </div>
-              {selectedProduct.description && (
-                <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{selectedProduct.description}</p>
-              )}
-              {selectedProduct.isCustomWeight && (
-                <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">Escolha o Peso (kg)</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="1"
-                      max={selectedProduct.controlarEstoque ? selectedProduct.estoque : undefined}
-                      value={modalWeight}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value.replace(",", "."));
-                        let next = isNaN(v) ? 1 : Math.max(1, Math.round(v * 2) / 2);
-                        if (selectedProduct.controlarEstoque) {
-                          next = Math.min(next, Math.max(1, selectedProduct.estoque ?? 1));
-                        }
-                        setModalWeight(next);
-                      }}
-                      className="w-28 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:border-wine-500 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white"
-                      autoFocus
-                    />
-                    <span className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">kg</span>
-                    <span className="ml-auto text-lg font-bold text-wine-600 dark:text-wine-400">
-                      {formatCurrency(selectedProduct.price * modalWeight)}
-                    </span>
-                  </div>
-                  {selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) > 0 && (
-                    <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                      Disponível: {formatItemQty(selectedProduct.estoque ?? 0, true)}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="mt-5">
-                {selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? (
-                  <span className="block rounded-lg bg-neutral-200 px-5 py-3 text-center text-sm font-semibold text-neutral-500 dark:bg-neutral-800">
-                    Esgotado
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => {
-                      addItem(selectedProduct, selectedProduct.isCustomWeight ? modalWeight : undefined);
-                      setSelectedProduct(null);
-                    }}
-                    className="w-full rounded-lg bg-wine-600 px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
-                  >
-                    {selectedProduct.isCustomWeight
-                      ? `Adicionar ${modalWeight.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg — ${formatCurrency(selectedProduct.price * modalWeight)}`
-                      : "Adicionar ao Carrinho"}
-                  </button>
-                )}
-              </div>
-              {selectedProduct.isCustomWeight && (
-                <p className="mt-4 rounded-lg bg-neutral-50 px-3 py-2.5 text-[11px] leading-relaxed text-neutral-500 italic dark:bg-neutral-800 dark:text-neutral-400">
-                  Por se tratar de um produto 100% artesanal, o peso final do bolo pode sofrer pequenas variações (para mais ou para menos). O valor final exato será confirmado na aprovação do pedido.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
+      </div>
+    </div>
   );
 }
