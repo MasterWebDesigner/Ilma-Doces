@@ -7,8 +7,11 @@ import {
   sumReceitasByDate,
   filterPaidOrders,
   filterUnpaidOrders,
+  isFiadoPendente,
+  saldoPendenteDoPedido,
+  formaPagamentoDoPedido,
 } from "@/lib/faturamento";
-import type { Order, FinancialTransaction } from "@/types/database";
+import type { Order, FinancialTransaction, Credor, CompraCredor } from "@/types/database";
 
 function makeOrder(partial: Partial<Order>): Order {
   return {
@@ -135,5 +138,86 @@ describe("filterPaidOrders / filterUnpaidOrders", () => {
       makeOrder({ id: "b", createdAt: "2026-09-01T12:00:00.000Z", status: "pendente" }),
     ];
     expect(filterUnpaidOrders(lista, "2026-09-01").map((o) => o.id)).toEqual(["b"]);
+  });
+});
+
+function makeCredor(compras: Array<Partial<CompraCredor>>): Credor[] {
+  return [
+    {
+      id: "cr1",
+      clienteId: "cli1",
+      nome: "Maria",
+      whatsapp: "11999999999",
+      compras: compras.map((c, i) => ({
+        id: `comp-${i}`,
+        origem: "pedido",
+        descricao: "Bolo",
+        valor: 100,
+        valorPendente: 100,
+        status: "PENDENTE",
+        data: "2026-09-01",
+        pago: false,
+        ...c,
+      })) as CompraCredor[],
+      pagamentos: [],
+    },
+  ];
+}
+
+describe("saldoPendenteDoPedido / isFiadoPendente", () => {
+  it("usa o saldo real do credor vinculado ao pedido", () => {
+    const o = makeOrder({ id: "ord-1", status: "concluido", isFiado: true, dataPagamento: "2026-09-10" });
+    const credores = makeCredor([{ referenciaId: "ord-1", valor: 100, valorPendente: 60, pago: false }]);
+    expect(saldoPendenteDoPedido(o, credores)).toBe(60);
+    expect(isFiadoPendente(o, credores)).toBe(true);
+  });
+
+  it("nao considera a receber quando o credor esta quitado", () => {
+    const o = makeOrder({ id: "ord-1", status: "concluido", isFiado: true, dataPagamento: "2026-09-10" });
+    const credores = makeCredor([{ referenciaId: "ord-1", valor: 100, valorPendente: 0, pago: true, status: "QUITADO" }]);
+    expect(saldoPendenteDoPedido(o, credores)).toBe(0);
+    expect(isFiadoPendente(o, credores)).toBe(false);
+  });
+
+  it("ignora compras de outros pedidos e compras canceladas", () => {
+    const o = makeOrder({ id: "ord-1", status: "concluido", isFiado: true });
+    const credores = makeCredor([
+      { referenciaId: "ord-OUTRO", valorPendente: 999 },
+      { referenciaId: "ord-1", status: "CANCELADO", valorPendente: 500 },
+    ]);
+    expect(saldoPendenteDoPedido(o, credores)).toBe(0);
+    expect(isFiadoPendente(o, credores)).toBe(false);
+  });
+
+  it("sem credor vinculado cai no restante do pedido (fiado parcial com sinal)", () => {
+    const o = makeOrder({ status: "concluido", isFiado: true, total: 100, valorPagoSinal: 40 });
+    expect(saldoPendenteDoPedido(o, [])).toBe(60);
+    expect(isFiadoPendente(o, [])).toBe(true);
+  });
+
+  it("pedido fiado totalmente quitado sem credor nao fica a receber", () => {
+    const o = makeOrder({ status: "concluido", isFiado: true, total: 100, dataPagamento: "2026-09-20" });
+    expect(isFiadoPendente(o, [])).toBe(false);
+  });
+
+  it("pedidos recusados e cancelados nunca ficam a receber", () => {
+    const credores = makeCredor([{ referenciaId: "ord-1", valorPendente: 80 }]);
+    expect(isFiadoPendente(makeOrder({ id: "ord-1", status: "recusado", isFiado: true }), credores)).toBe(false);
+    expect(isFiadoPendente(makeOrder({ id: "ord-1", status: "cancelado", isFiado: true }), credores)).toBe(false);
+    expect(saldoPendenteDoPedido(makeOrder({ id: "ord-1", status: "cancelado" }), credores)).toBe(0);
+  });
+
+  it("nao fiado com saldo em aberto nao e marcado como fiado pendente", () => {
+    const credores = makeCredor([{ referenciaId: "ord-1", valorPendente: 80 }]);
+    const o = makeOrder({ id: "ord-1", status: "concluido", isFiado: false, paymentMethod: "pix" });
+    expect(isFiadoPendente(o, credores)).toBe(false);
+    expect(saldoPendenteDoPedido(o, credores)).toBe(80);
+  });
+
+  it("formaPagamentoDoPedido reflete fiado pendente e metodo real quando quitado", () => {
+    const aberto = makeOrder({ status: "concluido", isFiado: true, paymentMethod: "pix", total: 100 });
+    expect(formaPagamentoDoPedido(aberto, [])).toBe("Fiado");
+    const quitado = makeOrder({ status: "concluido", isFiado: true, paymentMethod: "pix", total: 100, dataPagamento: "2026-09-20" });
+    expect(formaPagamentoDoPedido(quitado, [])).toBe("PIX");
   });
 });

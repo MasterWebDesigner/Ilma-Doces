@@ -1,4 +1,4 @@
-import type { Order } from "@/types/database";
+import type { Order, Credor, CompraCredor } from "@/types/database";
 import type { CartItem, FinancialTransaction, PaymentMethod } from "@/types/database";
 import { getLocalDateStr, paymentLabelOf } from "./utils";
 
@@ -86,13 +86,41 @@ export function isPaidInPeriod(order: Order, prefix: string): boolean {
   return !!d && d.slice(0, prefix.length) === prefix;
 }
 
-export function isFiadoPendente(order: Order): boolean {
-  if (order.status === "recusado" || order.status === "cancelado") return false;
-  return pedidoEhFiado(order) && getPaidDate(order) === null;
+export function comprasVinculadasAoPedido(order: Order, credores?: Credor[] | null): CompraCredor[] {
+  if (!credores || credores.length === 0) return [];
+  return credores
+    .flatMap((credor) => credor.compras || [])
+    .filter((compra) => compra.referenciaId === order.id);
 }
 
-export function formaPagamentoDoPedido(order: Order): string {
-  if (isFiadoPendente(order)) return "Fiado";
+export function saldoPendenteDoPedido(order: Order, credores?: Credor[] | null): number {
+  if (order.status === "recusado" || order.status === "cancelado") return 0;
+
+  const vinculadas = comprasVinculadasAoPedido(order, credores);
+  if (vinculadas.length > 0) {
+    return Math.max(
+      0,
+      vinculadas.reduce((acc, compra) => {
+        if (compra.status === "CANCELADO") return acc;
+        const bruto =
+          compra.valorPendente !== undefined && compra.valorPendente !== null
+            ? Number(compra.valorPendente)
+            : Number(compra.valor);
+        return acc + (isNaN(bruto) ? 0 : bruto);
+      }, 0)
+    );
+  }
+
+  return orderRemaining(order);
+}
+
+export function isFiadoPendente(order: Order, credores?: Credor[] | null): boolean {
+  if (order.status === "recusado" || order.status === "cancelado") return false;
+  return pedidoEhFiado(order) && saldoPendenteDoPedido(order, credores) > 0;
+}
+
+export function formaPagamentoDoPedido(order: Order, credores?: Credor[] | null): string {
+  if (isFiadoPendente(order, credores)) return "Fiado";
   return paymentLabelOf(order.paymentMethod);
 }
 

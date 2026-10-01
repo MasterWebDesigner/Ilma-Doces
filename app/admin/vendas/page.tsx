@@ -3,8 +3,9 @@
 import { useState, useMemo } from "react";
 import { useOrderStore, useProductStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
+import { useCredoresStore } from "@/lib/credoresStore";
 import { classNames, compararTexto, formatItemQty, paymentLabelOf } from "@/lib/utils";
-import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid, isFiadoPendente, formaPagamentoDoPedido } from "@/lib/faturamento";
+import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid, isFiadoPendente, formaPagamentoDoPedido, saldoPendenteDoPedido } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -76,6 +77,7 @@ export default function AdminVendasPage() {
   const categories = useProductStore((s) => s.categories);
   const customers = useCustomerStore((s) => s.customers);
   const transactions = useFinanceiroStore((s) => s.transactions);
+  const credores = useCredoresStore((s) => s.credores);
 
   const [busca, setBusca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState("Todas");
@@ -199,7 +201,9 @@ export default function AdminVendasPage() {
       const firstItem = o.items[0];
       const catObj = categories.find((c) => c.id === firstItem?.product?.category_id);
       const paidDate = isOrderPaid(o) && o.dataPagamento ? o.dataPagamento : o.createdAt;
-      const fiadoPendente = isFiadoPendente(o);
+      const fiadoPendente = isFiadoPendente(o, credores);
+      const concluidoNaoQuitado = o.status === "concluido" && !fiadoPendente && saldoPendenteDoPedido(o, credores) > 0;
+      const aReceber = fiadoPendente || concluidoNaoQuitado;
       return {
         id: o.id,
         date: paidDate,
@@ -211,14 +215,15 @@ export default function AdminVendasPage() {
             : `${formatItemQty(i.quantity, i.product.isCustomWeight)} ${i.product.name}`
         ),
         categoryName: catObj ? catObj.name : "Geral",
-        paymentMethod: formaPagamentoDoPedido(o),
+        paymentMethod: formaPagamentoDoPedido(o, credores),
         total: Number(o.total) || 0,
-        status: fiadoPendente ? "fiado" : o.status,
+        status: fiadoPendente ? "fiado" : concluidoNaoQuitado ? "pendente" : o.status,
         paid: isOrderPaid(o),
         fiadoPendente,
+        aReceber,
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [ordersPeriodo, categories]);
+  }, [ordersPeriodo, categories, credores]);
 
   const filteredSales = useMemo(() => {
     return salesRows.filter((s) => {
@@ -392,12 +397,14 @@ export default function AdminVendasPage() {
   const statusFunnel = useMemo(() => {
     const map = new Map<string, number>();
     ordersPeriodo.forEach((o) => {
-      const key = isFiadoPendente(o) ? "fiado" : o.status;
+      const fiadoP = isFiadoPendente(o, credores);
+      const naoQuitado = o.status === "concluido" && !fiadoP && saldoPendenteDoPedido(o, credores) > 0;
+      const key = fiadoP ? "fiado" : naoQuitado ? "pendente" : o.status;
       map.set(key, (map.get(key) || 0) + 1);
     });
     const order = ["pendente", "confirmado", "em_producao", "pronto", "saiu_entrega", "concluido", "fiado"];
     return order.filter((s) => map.has(s)).map((s) => ({ status: s, count: map.get(s) || 0, ...STATUS_CONFIG[s] }));
-  }, [ordersPeriodo]);
+  }, [ordersPeriodo, credores]);
 
   const peakHours = useMemo(() => {
     const map = new Map<number, { count: number; total: number }>();
@@ -826,10 +833,10 @@ export default function AdminVendasPage() {
                       </td>
                       <td className={classNames(
                         "px-5 py-3.5 text-right text-sm font-bold",
-                        sale.fiadoPendente ? "text-amber-400" : "text-emerald-400"
+                        sale.aReceber ? "text-amber-400" : "text-emerald-400"
                       )}>
                         R$ {money(sale.total)}
-                        {sale.fiadoPendente && <span className="ml-1 text-[10px] font-semibold">a receber</span>}
+                        {sale.aReceber && <span className="ml-1 text-[10px] font-semibold">a receber</span>}
                       </td>
                       <td className="px-5 py-3.5 text-center">
                         <span className={classNames("rounded-full px-2.5 py-0.5 text-[10px] font-semibold", st.cls)}>{st.label}</span>
