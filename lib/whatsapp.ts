@@ -2,6 +2,7 @@ import type { CartItem, CompraItem, Order } from "@/types/database";
 import { getStoreConfig, type StoreSettings } from "./storeConfig";
 import { formatItemQty } from "./utils";
 import { itemLineTotal, paidSubtotal } from "./brinde";
+import { exigeSinalPedido, valorSinalPedido } from "./faturamento";
 import {
   resolverTexto,
   type GatilhoMensagem,
@@ -67,6 +68,7 @@ function varsVazias(): VariaveisMensagem {
     observacoes: "",
     chave_pix: "",
     link_pagamento: "",
+    entrada_50: "",
     loja: "",
     whatsapp_loja: "",
   };
@@ -127,6 +129,7 @@ function varsPedido(order: Order, cfg: StoreSettings): VariaveisMensagem {
     tipo_entrega: order.deliveryType === "entrega" ? "Entrega" : "Retirada",
     tipo_destino: order.deliveryType === "entrega" ? "entrega" : "retirada na loja",
     forma_pagamento: formatPayment(order.paymentMethod),
+    entrada_50: exigeSinalPedido(order.items || []) ? formatarValorBR(valorSinalPedido(order.total)) : "",
   };
 }
 
@@ -153,6 +156,7 @@ export function openWhatsApp(items: CartItem[], checkout: CheckoutData): void {
   const subtotal = paidSubtotal(items);
   const fee = checkout.deliveryFee || 0;
   const total = subtotal + fee;
+  const entradaExigida = exigeSinalPedido(items);
 
   const vars: VariaveisMensagem = {
     ...varsVazias(),
@@ -169,6 +173,7 @@ export function openWhatsApp(items: CartItem[], checkout: CheckoutData): void {
     taxa_entrega: fee > 0 ? formatarValorBR(fee) : "",
     valor_total: formatarValorBR(total),
     forma_pagamento: formatPayment(checkout.paymentMethod),
+    entrada_50: entradaExigida ? formatarValorBR(valorSinalPedido(total)) : "",
     troco:
       checkout.paymentMethod === "dinheiro" && checkout.trocoPara && checkout.trocoPara > 0
         ? formatarValorBR(checkout.trocoPara)

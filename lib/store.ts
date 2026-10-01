@@ -16,6 +16,7 @@ import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./
 import { identidadesFidelidade, montarDocumentoFidelidade, type SaldoFidelidadePublico } from "./fidelidade";
 import { SETTINGS_CHANGED_EVENT, getStoreConfig } from "./storeConfig";
 import { validarHorarioPedido } from "./horarioMinimo";
+import { exigeSinalPedido, valorSinalPedido, localizarTransacaoSinal } from "./faturamento";
 
 let sessaoAutenticada = false;
 let contadorSemeado = false;
@@ -657,6 +658,19 @@ export const useCartStore = create<CartState>((set) => ({
 }));
 
 // ──────────────── ORDER STORE ────────────────
+export const CAMPOS_SINAL_ESTORNADO: Partial<Order> = {
+  sinalPago: false,
+  valorSinalPago: 0,
+  valorPagoSinal: 0,
+};
+
+export function estornarTransacaoSinal(order: Order): void {
+  const tx = localizarTransacaoSinal(useFinanceiroStore.getState().transactions, order);
+  if (!tx) return;
+  useFinanceiroStore.getState().deleteTransaction(tx.id);
+  useFinanceiroStore.getState().removerTransacaoLocal(tx.id);
+}
+
 async function gravarAtualizacaoPedido(
   orderId: string,
   updates: Partial<Order>,
@@ -740,9 +754,12 @@ export const useOrderStore = create<OrderState>()(
         const currentOrders = get().orders;
         const numero = await proximoNumeroPedido(currentOrders.length);
         const orderNumber = String(numero).padStart(4, "0");
+        const sinalExigido = data.sinalExigido ?? exigeSinalPedido(data.items || []);
         const order: Order = {
           status: "pendente",
           ...data,
+          sinalExigido,
+          valorSinal: data.valorSinal ?? (sinalExigido ? valorSinalPedido(data.total) : undefined),
           id: "ord-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
           orderNumber,
           createdAt: new Date().toISOString(),

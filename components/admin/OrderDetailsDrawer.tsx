@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useOrderStore } from "@/lib/store";
+import { useOrderStore, estornarTransacaoSinal, CAMPOS_SINAL_ESTORNADO } from "@/lib/store";
 import { confirmOrderWhatsApp, enviarMensagemStatus } from "@/lib/whatsapp";
 import { useNotificationStore, playNotificationSound, notifyError } from "@/lib/notifications";
 import type { GatilhoMensagem } from "@/lib/mensagensWhatsapp";
 import { classNames, formatCurrency, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
+import { detalheSinalPedido } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
 import type { Order, OrderStatus } from "@/types/database";
 
@@ -74,9 +75,20 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
   const status = STATUS_CONFIG[order.status];
   const ehEntrega = order.deliveryType === "entrega";
   const terminado = STATUS_TERMINAIS.includes(order.status);
-  const sinalPago = Number(order.valorPagoSinal) || 0;
-  const restante = Math.max(0, order.total - sinalPago);
-  const podeRegistrarSinal = !sinalPago && !terminado;
+  const detalheSinal = detalheSinalPedido(order);
+  const entradaRecebida = detalheSinal.recebido;
+  const restante = Math.max(0, order.total - entradaRecebida);
+  const podeRegistrarSinal = !detalheSinal.pago && !terminado;
+
+  function estornarEntrada() {
+    const ok = window.confirm(
+      `Estornar a entrada de ${formatCurrency(entradaRecebida)}? O lançamento será removido do Faturamento e a entrada voltará para Pendente.`
+    );
+    if (!ok) return;
+    void updateOrder(order.id, CAMPOS_SINAL_ESTORNADO).then((salvo) => {
+      if (salvo) estornarTransacaoSinal(order);
+    });
+  }
   const mostrarPesoReal = order.status === "pendente" && order.items.some((i) => i.product.isCustomWeight);
 
   function disparar(gatilho: GatilhoMensagem) {
@@ -415,20 +427,70 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
               <dd className="font-semibold text-slate-900 dark:text-white">{order.isFiado ? "Fiado / A Pagar" : paymentLabelOf(order.paymentMethod)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-slate-600 dark:text-neutral-400">Sinal pago</dt>
-              <dd className="font-semibold text-slate-900 dark:text-amber-400">
-                {sinalPago > 0
-                  ? `${formatCurrency(sinalPago)}${order.formaPagamentoSinal ? ` (${paymentLabelOf(order.formaPagamentoSinal)})` : ""}`
-                  : "—"}
+              <dt className="text-slate-600 dark:text-neutral-400">Sinal Exigido</dt>
+              <dd className="font-semibold text-slate-900 dark:text-white">
+                {detalheSinal.exigido ? `Sim (${formatCurrency(detalheSinal.valor)})` : "Não"}
               </dd>
             </div>
+            {detalheSinal.exigido && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-slate-600 dark:text-neutral-400">Status da Entrada</dt>
+                <dd className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      detalheSinal.pago ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+                    }`}
+                  >
+                    {detalheSinal.pago ? "Pago" : "Pendente"}
+                  </span>
+                  {detalheSinal.pago ? (
+                    <button
+                      onClick={estornarEntrada}
+                      className="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-semibold text-neutral-400 transition-colors hover:border-red-500/40 hover:text-red-400"
+                      title="Estornar a entrada e remover do Faturamento"
+                    >
+                      Estornar
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onRegistrarSinal}
+                      className="rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-semibold text-neutral-400 transition-colors hover:border-amber-500/40 hover:text-amber-400"
+                      title="Registrar recebimento da entrada (valor editável)"
+                    >
+                      Marcar Pago
+                    </button>
+                  )}
+                </dd>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-slate-600 dark:text-neutral-400">Valor restante</dt>
-              <dd className="font-semibold text-slate-900 dark:text-white">{formatCurrency(restante)}</dd>
+              <dt className="text-sm font-bold text-slate-900 dark:text-white">Total do Pedido</dt>
+              <dd className="text-base font-bold text-slate-900 dark:text-white">{formatCurrency(order.total)}</dd>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-neutral-800 pt-2">
-              <dt className="text-sm font-bold text-slate-900 dark:text-white">Total</dt>
-              <dd className="text-base font-bold text-slate-900 dark:text-emerald-400">{formatCurrency(order.total)}</dd>
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-slate-600 dark:text-neutral-400">
+                Entrada Recebida
+                {entradaRecebida > 0 && <span className="ml-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">Pago</span>}
+              </dt>
+              <dd className="text-right">
+                <span className="font-semibold text-slate-900 dark:text-amber-400">
+                  {entradaRecebida > 0
+                    ? `${formatCurrency(entradaRecebida)}${order.formaPagamentoSinal ? ` (${paymentLabelOf(order.formaPagamentoSinal)})` : ""}`
+                    : "—"}
+                </span>
+                {entradaRecebida > 0 && (
+                  <span className="block text-[10px] text-slate-500 dark:text-neutral-500">Adicionada ao faturamento de hoje</span>
+                )}
+              </dd>
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-slate-600 dark:text-neutral-400">Valor Restante a Receber</dt>
+              <dd className="text-right">
+                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(restante)}</span>
+                {restante > 0 && !terminado && (
+                  <span className="block text-[10px] text-slate-500 dark:text-neutral-500">Previsto até a finalização</span>
+                )}
+              </dd>
             </div>
           </dl>
         </div>

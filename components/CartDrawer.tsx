@@ -21,6 +21,8 @@ import { consultarFidelidadePublica, type FidelidadePublica } from "@/lib/fideli
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 import { horariosDisponiveis, horarioMinimoDoDia, validarHorarioPedido, validarHorarioServidor } from "@/lib/horarioMinimo";
+import { exigeSinalPedido, valorSinalPedido, detalheSinalPedido } from "@/lib/faturamento";
+import { urlWaMe } from "@/lib/whatsapp";
 
 const WINE = "#8B1D22";
 
@@ -86,6 +88,11 @@ export default function CartDrawer() {
     .reduce((s, i) => s + (i.product.price || 0), 0);
   const deliveryFee = deliveryType === "entrega" ? config.deliveryFee : 0;
   const totalGeral = subtotal + deliveryFee;
+  const pedidoExigeSinal = exigeSinalPedido(items);
+  const valorEntrada = pedidoExigeSinal ? valorSinalPedido(totalGeral) : 0;
+  const valorRestante = Math.max(0, totalGeral - valorEntrada);
+  const detalheSinalConfirmado = confirmedOrder ? detalheSinalPedido(confirmedOrder) : null;
+  const contatoLoja = config.whatsappLoja || config.storePhone;
   const flavors = useMemo(
     () => availableBrindeFlavors(products, categories),
     [products, categories, config.brindeCategoriaId, brindeAtivo]
@@ -877,6 +884,29 @@ export default function CartDrawer() {
                 )}
               </div>
 
+              {/* Sinal de 50% */}
+              {pedidoExigeSinal && (
+                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
+                  <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                    ⚠️ Atenção: Este pedido exige 50% de entrada ({formatCurrency(valorEntrada)}) para confirmação da encomenda. O valor restante será pago na entrega/retirada.
+                  </p>
+                  <dl className="mt-3 space-y-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+                    <div className="flex justify-between">
+                      <dt>Valor Total:</dt>
+                      <dd className="font-bold">{formatCurrency(totalGeral)}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt>Valor de Entrada (50%):</dt>
+                      <dd className="font-bold">{formatCurrency(valorEntrada)}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt>Valor Restante no Final:</dt>
+                      <dd className="font-bold">{formatCurrency(valorRestante)}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
               {/* Resumo Financeiro */}
               <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider" style={{ color: WINE }}>
@@ -922,6 +952,30 @@ export default function CartDrawer() {
                 </p>
                 <p className="mt-2 text-xs text-emerald-500">Protocolo: {confirmedOrder.orderNumber || confirmedOrder.id.slice(-8)}</p>
               </div>
+
+              {detalheSinalConfirmado?.exigido && (
+                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
+                  <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                    Pedido recebido! Para iniciar a produção, realize o pagamento da entrada de 50% ({formatCurrency(detalheSinalConfirmado.valor)}). A Ilma entrará em contato para alinhar os detalhes e enviar a chave Pix, ou você pode{" "}
+                    {contatoLoja.replace(/\D/g, "") ? (
+                      <a
+                        href={urlWaMe(contatoLoja, "")}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-amber-900 dark:hover:text-amber-200"
+                      >
+                        chamar no WhatsApp
+                      </a>
+                    ) : (
+                      "chamar no WhatsApp"
+                    )}
+                    .
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    Status do pedido: Pendente — entrada {detalheSinalConfirmado.pago ? "paga" : "aguardando pagamento"}.
+                  </p>
+                </div>
+              )}
 
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: WINE }}>

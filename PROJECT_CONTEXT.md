@@ -45,6 +45,10 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 - `createdAt`: string (ISO)
 - `valorPagoSinal`: number (opcional)
 - `formaPagamentoSinal`: string (opcional)
+- `sinalExigido`: boolean (opcional — regra de 50% de entrada; derivada dos itens se ausente: exige se houver item que não é brinde nem do cardápio rápido)
+- `valorSinal`: number (opcional — 50% do total arredondado em centavos)
+- `sinalPago`: boolean (opcional — status manual da entrada no painel)
+- `valorSinalPago`: number (opcional — valor efetivamente recebido da entrada, espelhado em `valorPagoSinal` para os cálculos legados; ver `sinalRecebidoDoPedido` em `lib/faturamento.ts`)
 - `isFiado`: boolean (opcional)
 - `dataPagamento`: string (YYYY-MM-DD, opcional — data em que o valor foi recebido; faturamento/gráficos usam essa data, não `createdAt`)
 
@@ -106,6 +110,7 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 - `descricao`: string
 - `data`: string (YYYY-MM-DD)
 - `createdAt`: string (ISO)
+- `pedidoId`: string (opcional — vincula o lançamento ao pedido; usado para localizar/estornar o lançamento do sinal via `localizarTransacaoSinal` em `lib/faturamento.ts`)
 
 ---
 

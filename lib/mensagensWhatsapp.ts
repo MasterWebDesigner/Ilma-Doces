@@ -48,7 +48,7 @@ export const GATILHOS: GatilhoInfo[] = [
     grupo: "Fluxo do Pedido",
     titulo: "Novo Pedido (Recebido)",
     descricao: "Resumo do pedido aberto no WhatsApp da loja quando o cliente finaliza a compra no site (aguardando confirmação).",
-    tags: ["{telefone_cliente}", "{tipo_entrega}", "{data_pedido}", "{endereco}", "{observacoes}", "{subtotal}", "{taxa_entrega}", "{forma_pagamento}", "{troco}", "{loja}"],
+    tags: ["{telefone_cliente}", "{tipo_entrega}", "{data_pedido}", "{endereco}", "{observacoes}", "{subtotal}", "{taxa_entrega}", "{forma_pagamento}", "{troco}", "{entrada_50}", "{loja}"],
   },
   {
     gatilho: "confirmacao",
@@ -165,6 +165,7 @@ const PADROES: Record<GatilhoMensagem, string> = {
 
 *💳 Pagamento:* {forma_pagamento}
 *💵 Troco para:* {troco}
+*⚠️ Entrada de 50%:* {entrada_50}
 
 Aguardamos confirmação!`,
 

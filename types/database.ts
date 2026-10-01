@@ -57,6 +57,10 @@ export interface Order {
   trocoPara?: number;
   valorPagoSinal?: number;
   formaPagamentoSinal?: PaymentMethod;
+  sinalExigido?: boolean;
+  valorSinal?: number;
+  sinalPago?: boolean;
+  valorSinalPago?: number;
   isFiado?: boolean;
   estoqueBaixado?: boolean;
   dataPagamento?: string;
@@ -184,4 +188,5 @@ export interface FinancialTransaction {
   descricao: string;
   data: string;
   createdAt: string;
+  pedidoId?: string;
 }

@@ -6,7 +6,7 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
 import { classNames, compararTexto, getLocalDateStr, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
-import { filterPaidOrders } from "@/lib/faturamento";
+import { filterPaidOrders, sinalRecebidoDoPedido } from "@/lib/faturamento";
 
 type Periodo = "dia" | "mes" | "ano";
 
@@ -129,8 +129,7 @@ export default function AdminFinanceiro() {
 
   const pendentes = ordersFiltrados.filter((o) => o.status !== "concluido" && !o.isFiado && o.status !== "recusado" && o.status !== "cancelado");
   const valorPrevisto = pendentes.reduce((s, o) => {
-    const sinalPago = Number(o.valorPagoSinal) || 0;
-    return s + Math.max(0, (Number(o.total) || 0) - sinalPago);
+    return s + Math.max(0, (Number(o.total) || 0) - sinalRecebidoDoPedido(o));
   }, 0);
 
   const porPagamento = useMemo(() => {

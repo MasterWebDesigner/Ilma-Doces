@@ -1,39 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { useCustomerStore, useOrderStore, useProductStore } from "@/lib/store";
+import { useCustomerStore, useOrderStore, useProductStore, CAMPOS_SINAL_ESTORNADO, estornarTransacaoSinal } from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe, enviarMensagemStatus, mensagemAtiva } from "@/lib/whatsapp";
 import { compararTexto, formatCurrency, formatItemQty, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
+import { montarTransacaoSinal, valorSinalPedido, detalheSinalPedido, sinalRecebidoDoPedido } from "@/lib/faturamento";
 import type { CartItem, CompraItem, Order, PaymentMethod } from "@/types/database";
 
 export function RegistrarSinalModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const { updateOrderComTransacao } = useOrderStore();
-  const [valorSinal, setValorSinal] = useState(Math.round((order.total / 2) * 100) / 100);
+  const [valorSinal, setValorSinal] = useState(valorSinalPedido(order.total));
   const [formaPagamentoSinal, setFormaPagamentoSinal] = useState<PaymentMethod>("pix");
   const [salvando, setSalvando] = useState(false);
 
   async function handleSalvarSinal() {
+    const valor = Math.round((Number(valorSinal) || 0) * 100) / 100;
+    if (valor <= 0) {
+      alert("Informe um valor de entrada maior que zero.");
+      return;
+    }
     setSalvando(true);
     try {
       const ok = await updateOrderComTransacao(
         order.id,
         {
           status: "em_producao",
-          valorPagoSinal: valorSinal,
+          valorPagoSinal: valor,
+          valorSinalPago: valor,
           formaPagamentoSinal,
+          sinalPago: true,
         },
-        valorSinal > 0
-          ? {
-              tipo: 'RECEITA',
-              categoria: 'Sinal de Encomenda',
-              valor: valorSinal,
-              formaPagamento: paymentLabelOf(formaPagamentoSinal),
-              descricao: `Sinal de Produção (Pedido #${order.orderNumber || order.id.slice(-6)}) — ${order.customerName}`,
-              data: getLocalDateStr(),
-            }
-          : null
+        montarTransacaoSinal(order, valor, formaPagamentoSinal)
       );
       if (!ok) return;
 
@@ -72,7 +71,7 @@ export function RegistrarSinalModal({ order, onClose }: { order: Order; onClose:
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-neutral-400 mb-1">Valor do Sinal (R$)</label>
+            <label className="block text-xs font-semibold text-neutral-400 mb-1">Valor Recebido da Entrada (R$)</label>
             <input
               type="number"
               step="0.01"
@@ -82,7 +81,7 @@ export function RegistrarSinalModal({ order, onClose }: { order: Order; onClose:
               onChange={(e) => setValorSinal(parseFloat(e.target.value) || 0)}
               className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm font-bold text-amber-400 focus:outline-none"
             />
-            <p className="text-[10px] text-neutral-500 mt-1">Sugerido: 50% ({formatCurrency(order.total / 2)})</p>
+            <p className="text-[10px] text-neutral-500 mt-1">Padrão 50% ({formatCurrency(valorSinalPedido(order.total))}) — edite se o valor recebido for diferente.</p>
           </div>
 
           <div>
@@ -390,7 +389,7 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
     return getLocalDateStr(d);
   });
 
-  const sinalJaPago = order.valorPagoSinal || 0;
+  const sinalJaPago = sinalRecebidoDoPedido(order);
   const saldoRestante = Math.max(0, total - sinalJaPago);
 
   function handleItemTotalPriceChange(idx: number, totalPrice: number) {
@@ -704,16 +703,17 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
 }
 
 export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; tipo: "recusar" | "cancelar"; onClose: () => void }) {
-  const updateStatus = useOrderStore((s) => s.updateStatus);
+  const updateOrder = useOrderStore((s) => s.updateOrder);
   const [motivo, setMotivo] = useState("");
   const isRecusa = tipo === "recusar";
+  const detalheSinal = detalheSinalPedido(order);
   const numeroPedido = order.orderNumber || order.id.slice(-6);
   const itensLista = order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ");
   const preview = isRecusa
     ? montarRecusaPedido({ customerName: order.customerName, numeroPedido, items: order.items, motivo })
     : montarCancelamentoPedido({ customerName: order.customerName, numeroPedido, items: order.items });
 
-  function handleConfirmar() {
+  async function handleConfirmar() {
     if (mensagemAtiva(isRecusa ? "recusa" : "cancelamento")) {
       const digitos = (order.customerPhone || "").replace(/\D/g, "");
       const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
@@ -723,7 +723,14 @@ export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; ti
         alert("Número de WhatsApp inválido — o pedido foi atualizado sem envio da mensagem.");
       }
     }
-    updateStatus(order.id, isRecusa ? "recusado" : "cancelado");
+    const ok = await updateOrder(order.id, {
+      status: isRecusa ? "recusado" : "cancelado",
+      ...(detalheSinal.pago ? CAMPOS_SINAL_ESTORNADO : {}),
+    });
+    if (!ok) return;
+    if (detalheSinal.pago) {
+      estornarTransacaoSinal(order);
+    }
     onClose();
   }
 
@@ -763,6 +770,11 @@ export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; ti
           ) : (
             <p className="text-xs text-orange-400">
               O cliente será avisado do cancelamento e poderá pedir estorno ou reagendamento por aqui.
+            </p>
+          )}
+          {detalheSinal.pago && detalheSinal.recebido > 0 && (
+            <p className="text-xs text-red-400">
+              A entrada já recebida ({formatCurrency(detalheSinal.recebido)}) será estornada do Faturamento.
             </p>
           )}
         </div>
