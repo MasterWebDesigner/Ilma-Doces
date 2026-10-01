@@ -73,6 +73,12 @@ function horaCelula(o: Order): string {
   return h ? `${h.slice(0, 2)}:00` : HORA_PADRAO;
 }
 
+function isPedidoCardapioRapido(o: Order): boolean {
+  const vendaveis = (o.items || []).filter((i) => !i.is_brinde);
+  if (vendaveis.length === 0) return false;
+  return vendaveis.every((i) => i.product.cardapioRapido === true);
+}
+
 export default function AdminAgendamentos() {
   const orders = useOrderStore((s) => s.orders);
 
@@ -84,6 +90,7 @@ export default function AdminAgendamentos() {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [mostrarVagos, setMostrarVagos] = useState(false);
+  const [ocultarVendaRapida, setOcultarVendaRapida] = useState(true);
   const [drawerOrderId, setDrawerOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [finalizeOrder, setFinalizeOrder] = useState<Order | null>(null);
@@ -103,7 +110,10 @@ export default function AdminAgendamentos() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const scheduledOrders = orders.filter((o) => o.scheduledDate);
+  const agendamentos = orders.filter((o) => o.scheduledDate);
+  const scheduledOrders = ocultarVendaRapida
+    ? agendamentos.filter((o) => !isPedidoCardapioRapido(o))
+    : agendamentos;
 
   function getOrdersForDate(date: Date): Order[] {
     const dateStr = formatDate(date);
@@ -171,20 +181,45 @@ export default function AdminAgendamentos() {
     <div className="space-y-0">
       {/* ═══════ TOP BAR: View Switcher + Calendar Button ═══════ */}
       <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-950 px-6 py-4">
-        <div className="flex gap-1 rounded-lg border border-neutral-700 bg-neutral-900 p-1">
-          {(["dia", "grade", "lista"] as ViewMode[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`rounded-md px-5 py-2 text-xs font-bold transition-all ${
-                viewMode === mode
-                  ? "bg-[#8B1D22] text-white shadow-sm"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-lg border border-neutral-700 bg-neutral-900 p-1">
+            {(["dia", "grade", "lista"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`rounded-md px-5 py-2 text-xs font-bold transition-all ${
+                  viewMode === mode
+                    ? "bg-[#8B1D22] text-white shadow-sm"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
+                }`}
+              >
+                {mode === "dia" ? "Dia" : mode === "grade" ? "Grade" : "Lista"}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOcultarVendaRapida((v) => !v)}
+            aria-pressed={ocultarVendaRapida}
+            title={ocultarVendaRapida ? "Pedidos do Cardápio Rápido estão ocultos. Clique para exibir." : "Pedidos do Cardápio Rápido estão visíveis. Clique para ocultar."}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+              ocultarVendaRapida
+                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+                : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+            }`}
+          >
+            <span
+              className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${
+                ocultarVendaRapida
+                  ? "border-emerald-500 bg-emerald-500 text-neutral-950"
+                  : "border-neutral-500 bg-neutral-800 text-transparent"
               }`}
             >
-              {mode === "dia" ? "Dia" : mode === "grade" ? "Grade" : "Lista"}
-            </button>
-          ))}
+              ✓
+            </span>
+            Ocultar Cardápio Rápido
+          </button>
         </div>
 
         <div className="relative" ref={calendarRef}>
@@ -398,7 +433,7 @@ export default function AdminAgendamentos() {
           : diaSlots.filter((t) => comHorario.some((o) => normalizarHora(o.scheduledTime) === t));
 
         if (todayOrders.length === 0 && !mostrarVagos) {
-          const totalNoDia = scheduledOrders.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
+          const totalNoDia = agendamentos.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
           return (
             <div className="mx-6 mb-6 rounded-xl border border-neutral-800 bg-neutral-900 px-6 py-14 text-center">
               <svg className="mx-auto h-8 w-8 text-neutral-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -550,7 +585,7 @@ export default function AdminAgendamentos() {
           });
 
         if (listaFiltrada.length === 0) {
-          const totalNoDia = scheduledOrders.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
+          const totalNoDia = agendamentos.filter((o) => o.scheduledDate === formatDate(selectedDate)).length;
           return (
             <div className="mx-6 mb-6 rounded-xl border border-neutral-800 bg-neutral-900 px-6 py-14 text-center">
               <svg className="mx-auto h-8 w-8 text-neutral-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
