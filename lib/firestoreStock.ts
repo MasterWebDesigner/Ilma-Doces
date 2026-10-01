@@ -81,8 +81,8 @@ export async function migrarDoLocalStorageParaFirestore(): Promise<{
   batchesMig: number;
 }> {
   let itensMig = 0;
-  let brandsMig = 0;
-  let batchesMig = 0;
+  const brandsMig = 0;
+  const batchesMig = 0;
 
   // Migração de itens de estoque
   const stockRef = collection(db, STOCK_COLLECTION);
