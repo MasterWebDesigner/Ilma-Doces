@@ -2,8 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
@@ -25,26 +26,9 @@ function slugify(name: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
 }
 
-async function verificarToken(token: string): Promise<{ uid: string } | null> {
+async function objetoExiste(nome: string): Promise<boolean> {
   try {
-    const resp = await fetch(`${supabaseUrl}/rest/v1/users?select=id`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    // Note: Supabase auth verification is simpler - we just check if the token is valid
-    // The actual user verification can be done via Supabase Auth directly
-    const data = await resp.json().catch(() => null);
-    return resp.ok ? { uid: data?.[0]?.id?.toString() || null } : null;
-  } catch {
-    return null;
-  }
-}
-
-async function objetoExiste(nome: string, token: string): Promise<boolean> {
-  try {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
       .from("storage")
       .select("name")
       .eq("name", nome)
@@ -56,29 +40,19 @@ async function objetoExiste(nome: string, token: string): Promise<boolean> {
 }
 
 async function uploadParaSupabase(nome: string, file: File): Promise<{ data: any; error: any }> {
-  return supabase.storage.from("produtos").upload(nome, file, {
+  return supabaseAdmin.storage.from("produtos").upload(nome, file, {
     cacheControl: "max-age=3600",
     upsert: false,
   });
 }
 
 async function getPublicUrlSupabase(nome: string): Promise<string> {
-  const { data } = supabase.storage.from("produtos").getPublicUrl(nome);
+  const { data } = supabaseAdmin.storage.from("produtos").getPublicUrl(nome);
   return data.publicUrl;
 }
 
 export async function POST(req: Request) {
   try {
-    const autorizacao = req.headers.get("authorization") || "";
-    const token = autorizacao.replace(/^Bearer\s+/i, "").trim();
-    if (!token) {
-      return NextResponse.json({ error: "Sessão necessária para enviar imagens." }, { status: 401 });
-    }
-    const usuario = await verificarToken(token);
-    if (!usuario) {
-      return NextResponse.json({ error: "Sessão inválida. Entre novamente no painel." }, { status: 401 });
-    }
-
     const formData = await req.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -100,7 +74,7 @@ export async function POST(req: Request) {
     const base = slugify(file.name.replace(/\.[a-z0-9]+$/i, "")) || "Imagem";
     let nome = `${base}${ext}`;
     let contador = 2;
-    while (await objetoExiste(nome, token)) {
+    while (await objetoExiste(nome)) {
       nome = `${base}-${contador}${ext}`;
       contador += 1;
       if (contador > 500) break;
