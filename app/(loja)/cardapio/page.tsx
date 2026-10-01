@@ -438,14 +438,12 @@ export default function AdminConfiguracoes() {
               <p className="text-xs text-neutral-500">Remove todos os clientes cadastrados.</p>
             </div>
             <button
-              onClick={handleClearCustomers}
-             
-          <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-            <div>
-              <p className="text-sm font-semibold text-white">Limpar Todos os Credores</p>
-              <p className="text-xs text-neutral-500">Remove todos os credores e fiados.</p>
-            </div>
-            <button
+  onClick={handleClearCustomers}
+>
+  <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+  {/* ... */}
+  </div>
+</button>
               onClick={handleClearCredores}
               className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-xs font-semibold"
             >
