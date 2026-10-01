@@ -17,10 +17,25 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-const chaves = globalThis as typeof globalThis & { __ilmaEmuladoresConectados?: boolean };
+const chaves = globalThis as typeof globalThis & {
+  __ilmaFirestoreEmulador?: WeakSet<object>;
+  __ilmaAuthEmulador?: WeakSet<object>;
+};
 
-if (emuladorLocal && !chaves.__ilmaEmuladoresConectados) {
-  chaves.__ilmaEmuladoresConectados = true;
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+if (emuladorLocal) {
+  const firestores = chaves.__ilmaFirestoreEmulador ?? (chaves.__ilmaFirestoreEmulador = new WeakSet());
+  if (!firestores.has(db)) {
+    firestores.add(db);
+    try {
+      connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    } catch {}
+  }
+
+  const auths = chaves.__ilmaAuthEmulador ?? (chaves.__ilmaAuthEmulador = new WeakSet());
+  if (!auths.has(auth)) {
+    auths.add(auth);
+    try {
+      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    } catch {}
+  }
 }
