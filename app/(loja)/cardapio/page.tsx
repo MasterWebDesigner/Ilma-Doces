@@ -43,15 +43,10 @@ export default function CardapioPage() {
         </div>
 
         <div className="mt-8 flex flex-col items-center gap-5">
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <div className="whitespace-nowrap overflow-x-auto px-2">
             <button
               onClick={() => setActiveCategory("all")}
-              className={classNames(
-                "text-sm font-semibold uppercase tracking-wide transition-colors",
-                activeCategory === "all"
-                  ? "text-wine-600 underline underline-offset-4 dark:text-wine-400"
-                  : "text-neutral-800 hover:text-wine-600 dark:text-neutral-300 dark:hover:text-wine-400"
-              )}
+              className="text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
             >
               Todos
             </button>
@@ -59,12 +54,7 @@ export default function CardapioPage() {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={classNames(
-                  "text-sm font-semibold uppercase tracking-wide transition-colors",
-                  activeCategory === cat.id
-                    ? "text-wine-600 underline underline-offset-4 dark:text-wine-400"
-                    : "text-neutral-800 hover:text-wine-600 dark:text-neutral-300 dark:hover:text-wine-400"
-                )}
+                className="text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
               >
                 {cat.name}
               </button>

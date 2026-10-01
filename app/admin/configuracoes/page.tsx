@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import {
   type StoreSettings,
   type InstagramPost,
@@ -64,83 +62,88 @@ export default function AdminConfiguracoes() {
     }));
   }
 
+  async function apiRequest(method: string, endpoint: string, body?: any) {
+    const url = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api${endpoint}`;
+    const options: RequestInit = {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || "Erro na requisição");
+    }
+    return res.json();
+  }
+
   async function handleClearOrders() {
     if (!confirm("Tem certeza? Todos os pedidos serão removidos do sistema e do banco.")) return;
     try {
-      const snap = await getDocs(collection(db, "pedidos"));
-      await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id))));
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" });
       localStorage.removeItem("ilma-orders");
       alert("Pedidos limpos com sucesso!");
       window.location.reload();
-    } catch (e) {
-      alert("Erro ao limpar pedidos: " + e);
+    } catch (e: any) {
+      alert("Erro ao limpar pedidos: " + (e.message || e));
     }
   }
 
   async function handleClearCustomers() {
     if (!confirm("Tem certeza? Todos os clientes serão removidos.")) return;
     try {
-      const snap = await getDocs(collection(db, "clientes"));
-      await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, "clientes", d.id))));
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "clientes" });
       localStorage.removeItem("ilma-customers");
       alert("Clientes limpos com sucesso!");
       window.location.reload();
-    } catch (e) {
-      alert("Erro ao limpar clientes: " + e);
+    } catch (e: any) {
+      alert("Erro ao limpar clientes: " + (e.message || e));
     }
   }
 
   async function handleClearCredores() {
     if (!confirm("Tem certeza? Todos os credores e fiados serão removidos.")) return;
     try {
-      const snap = await getDocs(collection(db, "credores"));
-      await Promise.all(snap.docs.map((d) => deleteDoc(doc(db, "credores", d.id))));
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "credores" });
       alert("Credores limpos com sucesso!");
       window.location.reload();
-    } catch (e) {
-      alert("Erro ao limpar credores: " + e);
+    } catch (e: any) {
+      alert("Erro ao limpar credores: " + (e.message || e));
     }
   }
 
   async function handleClearFinanceiro() {
     if (!confirm("Tem certeza? Todo o histórico financeiro e despesas serão removidos.")) return;
     try {
-      const snapFin = await getDocs(collection(db, "financeiro"));
-      const snapDesp = await getDocs(collection(db, "despesas"));
-      await Promise.all([
-        ...snapFin.docs.map((d) => deleteDoc(doc(db, "financeiro", d.id))),
-        ...snapDesp.docs.map((d) => deleteDoc(doc(db, "despesas", d.id))),
-      ]);
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" });
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" });
       localStorage.removeItem("ilma-financeiro-store");
       alert("Financeiro limpo com sucesso!");
       window.location.reload();
-    } catch (e) {
-      alert("Erro ao limpar financeiro: " + e);
+    } catch (e: any) {
+      alert("Erro ao limpar financeiro: " + (e.message || e));
     }
   }
 
   async function handleClearAll() {
     if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro e Despesas)? Esta ação é irreversível!")) return;
     try {
-      const [snapPed, snapCli, snapCred, snapFin, snapDesp] = await Promise.all([
-        getDocs(collection(db, "pedidos")),
-        getDocs(collection(db, "clientes")),
-        getDocs(collection(db, "credores")),
-        getDocs(collection(db, "financeiro")),
-        getDocs(collection(db, "despesas")),
-      ]);
       await Promise.all([
-        ...snapPed.docs.map((d) => deleteDoc(doc(db, "pedidos", d.id))),
-        ...snapCli.docs.map((d) => deleteDoc(doc(db, "clientes", d.id))),
-        ...snapCred.docs.map((d) => deleteDoc(doc(db, "credores", d.id))),
-        ...snapFin.docs.map((d) => deleteDoc(doc(db, "financeiro", d.id))),
-        ...snapDesp.docs.map((d) => deleteDoc(doc(db, "despesas", d.id))),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "clientes" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "credores" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" }),
       ]);
       localStorage.clear();
       alert("Sistema limpo com sucesso!");
       window.location.reload();
-    } catch (e) {
-      alert("Erro ao limpar sistema: " + e);
+    } catch (e: any) {
+      alert("Erro ao limpar sistema: " + (e.message || e));
     }
   }
 
@@ -336,11 +339,11 @@ export default function AdminConfiguracoes() {
           </button>
         </div>
         <p className="mb-4 text-xs text-neutral-500">
-          Gerencie os posts exibidos na seção &quot;Siga no Instagram&quot; da landing page (4 a 8 itens ativos recomendados).
+          Gerencie os posts exibidos na seção "Siga no Instagram" da landing page (4 a 8 itens ativos recomendados).
         </p>
         {(settings.instagramPosts || []).length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-700 px-4 py-8 text-center text-xs text-neutral-500">
-            Nenhum post cadastrado. Clique em &quot;+ Adicionar Post&quot;.
+            Nenhum post cadastrado. Clique em "+ Adicionar Post".
           </p>
         ) : (
           <div className="space-y-3">
@@ -354,7 +357,7 @@ export default function AdminConfiguracoes() {
                       onChange={(e) => updateInstagramPost(post.id, { active: e.target.checked })}
                       className="h-4 w-4 accent-wine-500"
                     />
-                    {post.active ? "Visível na landing" : "Oculto"}
+                    {post.active ? "Visivel na landing" : "Oculto"}
                     <span className="text-neutral-600">#{index + 1}</span>
                   </label>
                   <button
