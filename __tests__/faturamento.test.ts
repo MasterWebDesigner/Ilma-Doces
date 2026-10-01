@@ -221,3 +221,66 @@ describe("saldoPendenteDoPedido / isFiadoPendente", () => {
     expect(formaPagamentoDoPedido(quitado, [])).toBe("PIX");
   });
 });
+
+describe("regra de fronteira do dia (America/Sao_Paulo)", () => {
+  const pedidoNoite = (id: string, createdAt: string): Order =>
+    makeOrder({ id, createdAt, status: "pendente" });
+
+  it("pedido criado as 23:59:59.999 BRT permanece no Dia A", () => {
+    const lista = [
+      pedidoNoite("a-fim", "2026-10-02T02:59:59.999Z"),
+      pedidoNoite("a-ini", "2026-10-02T03:00:00.000Z"),
+    ];
+    expect(filterUnpaidOrders(lista, "2026-10-01").map((o) => o.id)).toEqual(["a-fim"]);
+    expect(filterUnpaidOrders(lista, "2026-10-02").map((o) => o.id)).toEqual(["a-ini"]);
+  });
+
+  it("gravacao as 21:00 BRT nao é empurrada para o dia seguinte", () => {
+    const lista = [pedidoNoite("noite", "2026-10-02T00:00:00.000Z")];
+    expect(filterUnpaidOrders(lista, "2026-10-01").map((o) => o.id)).toEqual(["noite"]);
+    expect(filterUnpaidOrders(lista, "2026-10-02").map((o) => o.id)).toEqual([]);
+  });
+
+  it("Faturamento Previsto nao salta de mes na virada noturna", () => {
+    const lista = [pedidoNoite("out", "2026-11-01T02:59:59.999Z")];
+    expect(filterUnpaidOrders(lista, "2026-10").map((o) => o.id)).toEqual(["out"]);
+    expect(filterUnpaidOrders(lista, "2026-11").map((o) => o.id)).toEqual([]);
+  });
+
+  it("Faturamento Previsto nao salta de ano na virada noturna", () => {
+    const lista = [pedidoNoite("ano", "2027-01-01T02:59:59.999Z")];
+    expect(filterUnpaidOrders(lista, "2026").map((o) => o.id)).toEqual(["ano"]);
+    expect(filterUnpaidOrders(lista, "2027").map((o) => o.id)).toEqual([]);
+  });
+
+  it("getPaidDate usa a data local do Brasil para concluidos sem dataPagamento", () => {
+    const fimDoDia = makeOrder({
+      status: "concluido",
+      isFiado: false,
+      createdAt: "2026-10-02T02:59:59.999Z",
+    });
+    expect(getPaidDate(fimDoDia)).toBe("2026-10-01");
+    expect(filterPaidOrders([fimDoDia], "2026-10-01")).toHaveLength(1);
+    expect(filterPaidOrders([fimDoDia], "2026-10-02")).toHaveLength(0);
+  });
+
+  it("pedido cancelado ou recusado fica fora mesmo na fronteira", () => {
+    const lista = [
+      makeOrder({ id: "x", createdAt: "2026-10-02T02:59:59.999Z", status: "cancelado" }),
+      makeOrder({ id: "r", createdAt: "2026-10-02T02:59:59.999Z", status: "recusado" }),
+    ];
+    expect(filterUnpaidOrders(lista, "2026-10-01")).toHaveLength(0);
+  });
+
+  it("pedidos pagos com dataPagamento local continuam no dia local", () => {
+    const o = makeOrder({
+      id: "pago",
+      status: "concluido",
+      isFiado: false,
+      createdAt: "2026-10-02T02:59:59.999Z",
+      dataPagamento: "2026-10-01",
+    });
+    expect(getPaidDate(o)).toBe("2026-10-01");
+    expect(filterPaidOrders([o], "2026-10-01")).toHaveLength(1);
+  });
+});

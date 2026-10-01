@@ -29,21 +29,52 @@ export function paymentLabelOf(raw: string | null | undefined): PaymentLabel {
   return "Outros";
 }
 
-/** Retorna a data de hoje em formato "YYYY-MM-DD" no horário LOCAL (não UTC). */
-export function getLocalDateStr(date?: Date): string {
-  const d = date || new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+/** Fuso horário explícito do negócio. America/Sao_Paulo é UTC-3 e não tem DST desde 2019. */
+export const FUSO_BRASIL = "America/Sao_Paulo";
+
+const formatadorDataBrasil = new Intl.DateTimeFormat("en-US", {
+  timeZone: FUSO_BRASIL,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function partesDataBrasil(d: Date): { ano: string; mes: string; dia: string } | null {
+  if (Number.isNaN(d.getTime())) return null;
+  const partes = formatadorDataBrasil.formatToParts(d);
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value || "";
+  return { ano: valor("year"), mes: valor("month"), dia: valor("day") };
 }
 
-/** Retorna "YYYY-MM" no horário LOCAL. */
+/**
+ * Retorna a data "YYYY-MM-DD" no fuso explícito America/Sao_Paulo.
+ * Nunca usa o UTC puro de `toISOString()`: um instante das 23:59:59.999 BRT
+ * permanece no mesmo dia local, e as 00:00:00.000 BRT pertencem ao dia seguinte.
+ */
+export function getLocalDateStr(date?: Date): string {
+  const partes = partesDataBrasil(date || new Date());
+  if (!partes) return "";
+  return `${partes.ano}-${partes.mes}-${partes.dia}`;
+}
+
+/** Retorna "YYYY-MM" no fuso explícito America/Sao_Paulo. */
 export function getLocalMonthStr(date?: Date): string {
-  const d = date || new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  const partes = partesDataBrasil(date || new Date());
+  if (!partes) return "";
+  return `${partes.ano}-${partes.mes}`;
+}
+
+/**
+ * Converte um instante ISO gravado em UTC (ex.: `createdAt` vindo de
+ * `toISOString()`) para a data local "YYYY-MM-DD" de America/Sao_Paulo.
+ * É o único caminho correto para comparar `createdAt` com chaves de período.
+ * Retorna "" para valor ausente ou inválido.
+ */
+export function getLocalDateStrFromISO(iso?: string | null): string {
+  if (!iso) return "";
+  const entrada = iso.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(entrada)) return entrada;
+  return getLocalDateStr(new Date(entrada));
 }
 
 /** Gera ID seguro para transações/despesas usando horário local. */

@@ -5,7 +5,7 @@ import { useOrderStore, useExpenseStore, useProductStore, useCustomerStore, EXPE
 import { useCredoresStore } from "@/lib/credoresStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
-import { classNames, compararTexto, getLocalDateStr, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
+import { classNames, compararTexto, getLocalDateStr, getLocalDateStrFromISO, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, sinalRecebidoDoPedido, isFiadoPendente, saldoPendenteDoPedido } from "@/lib/faturamento";
 
 type Periodo = "dia" | "mes" | "ano";
@@ -80,9 +80,9 @@ export default function AdminFinanceiro() {
   const todayStr = getLocalDateStr(now);
   const mesAtualStr = `${anoAtual}-${String(mesAtual + 1).padStart(2, "0")}`;
 
-  const ordersMes = useMemo(() => orders.filter((o) => o.createdAt.slice(0, 7) === mesAtualStr), [orders, mesAtualStr]);
-  const ordersHoje = useMemo(() => orders.filter((o) => o.createdAt.slice(0, 10) === todayStr), [orders, todayStr]);
-  const ordersAno = useMemo(() => orders.filter((o) => o.createdAt.slice(0, 4) === String(anoAtual)), [orders, anoAtual]);
+  const ordersMes = useMemo(() => orders.filter((o) => getLocalDateStrFromISO(o.createdAt).slice(0, 7) === mesAtualStr), [orders, mesAtualStr]);
+  const ordersHoje = useMemo(() => orders.filter((o) => getLocalDateStrFromISO(o.createdAt) === todayStr), [orders, todayStr]);
+  const ordersAno = useMemo(() => orders.filter((o) => getLocalDateStrFromISO(o.createdAt).slice(0, 4) === String(anoAtual)), [orders, anoAtual]);
 
   const getOrdersFiltrados = () => {
     if (periodo === "dia") return ordersHoje;

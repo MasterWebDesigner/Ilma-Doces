@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useOrderStore } from "@/lib/store";
 import { formatarTelefone } from "@/lib/phone";
+import { getLocalDateStr } from "@/lib/utils";
 import type { Order, OrderStatus } from "@/types/database";
 import { OrderDetailsDrawer, STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 import { EditOrderModal, EncerrarPedidoModal, FinalizeOrderModal, RegistrarSinalModal } from "@/components/admin/OrderModals";
@@ -27,10 +28,7 @@ function parseDate(dateStr: string): Date | null {
 }
 
 function formatDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return getLocalDateStr(d);
 }
 
 function isSameDay(d1: Date, d2: Date): boolean {

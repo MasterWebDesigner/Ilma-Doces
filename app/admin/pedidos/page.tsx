@@ -7,7 +7,7 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import type { CompraItem } from "@/types/database";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
-import { compararTexto, formatCurrency, getLocalDateStr, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, getLocalDateStrFromISO, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import type { Order, PaymentMethod, CartItem } from "@/types/database";
@@ -132,7 +132,7 @@ export default function AdminPedidos() {
   const pedidosPaginados = filtered.slice((pagePedidosSafe - 1) * PEDIDOS_PAGE_SIZE, pagePedidosSafe * PEDIDOS_PAGE_SIZE);
 
   const today = getLocalDateStr();
-  const todayOrders = orders.filter((o) => o.createdAt.slice(0, 10) === today);
+  const todayOrders = orders.filter((o) => getLocalDateStrFromISO(o.createdAt) === today);
   const todayRevenue = sumReceitasByDate(transactions, today);
   const todayPrevisto = filterUnpaidOrders(orders, today).reduce((s, o) => s + orderRemaining(o), 0);
   const pendentes = orders.filter((o) => o.status === "pendente").length;

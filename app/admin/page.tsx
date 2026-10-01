@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useOrderStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
-import { getLocalDateStr } from "@/lib/utils";
+import { getLocalDateStr, getLocalDateStrFromISO } from "@/lib/utils";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import QuickSaleModal from "@/components/admin/QuickSaleModal";
 import { STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const [quickSaleOpen, setQuickSaleOpen] = useState(false);
 
   const today = getLocalDateStr();
-  const todayOrders = orders.filter((o) => o.createdAt.slice(0, 10) === today);
+  const todayOrders = orders.filter((o) => getLocalDateStrFromISO(o.createdAt) === today);
   const completed = todayOrders.filter((o) => o.status === "concluido").length;
   const pending = todayOrders.filter((o) => o.status !== "concluido" && o.status !== "recusado" && o.status !== "cancelado").length;
   const todayRevenue = sumReceitasByDate(transactions, today);

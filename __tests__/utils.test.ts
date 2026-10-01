@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compararTexto, formatCurrency, getLocalDateStr, getLocalMonthStr, generateId, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, getLocalDateStrFromISO, getLocalMonthStr, generateId, paymentLabelOf } from "@/lib/utils";
 
 describe("formatCurrency", () => {
   it("formats BRL currency correctly", () => {
@@ -20,8 +20,7 @@ describe("getLocalDateStr", () => {
   });
 
   it("returns correct date for specific input", () => {
-    const date = new Date(2026, 0, 15); // January 15, 2026
-    const result = getLocalDateStr(date);
+    const result = getLocalDateStr(new Date("2026-01-15T12:00:00.000Z"));
     expect(result).toBe("2026-01-15");
   });
 });
@@ -30,6 +29,53 @@ describe("getLocalMonthStr", () => {
   it("returns YYYY-MM format", () => {
     const result = getLocalMonthStr();
     expect(result).toMatch(/^\d{4}-\d{2}$/);
+  });
+});
+
+describe("regra de fronteira do dia (America/Sao_Paulo)", () => {
+  it("23:59:59.999 BRT permanece estritamente no Dia A", () => {
+    expect(getLocalDateStrFromISO("2026-10-02T02:59:59.999Z")).toBe("2026-10-01");
+  });
+
+  it("00:00:00.000 BRT pertence estritamente ao Dia B", () => {
+    expect(getLocalDateStrFromISO("2026-10-02T03:00:00.000Z")).toBe("2026-10-02");
+  });
+
+  it("gravacao as 21:00 BRT nao é empurrada para o dia seguinte", () => {
+    expect(getLocalDateStrFromISO("2026-10-02T00:00:00.000Z")).toBe("2026-10-01");
+  });
+
+  it("cobre o dia local completo de 03:00Z ate 02:59:59.999Z seguinte", () => {
+    expect(getLocalDateStrFromISO("2026-10-01T03:00:00.000Z")).toBe("2026-10-01");
+    expect(getLocalDateStrFromISO("2026-10-02T02:59:59.999Z")).toBe("2026-10-01");
+    expect(getLocalDateStrFromISO("2026-10-02T03:00:00.000Z")).toBe("2026-10-02");
+  });
+
+  it("gravacao noturna nao ultrapassa a virada de mes", () => {
+    expect(getLocalDateStrFromISO("2026-11-01T02:59:59.999Z")).toBe("2026-10-31");
+    expect(getLocalMonthStr(new Date("2026-11-01T02:59:59.999Z"))).toBe("2026-10");
+  });
+
+  it("gravacao noturna nao ultrapassa a virada de ano", () => {
+    expect(getLocalDateStrFromISO("2027-01-01T02:59:59.999Z")).toBe("2026-12-31");
+    expect(getLocalMonthStr(new Date("2027-01-01T02:59:59.999Z"))).toBe("2026-12");
+  });
+
+  it("retorna a propria string quando ja e uma data local YYYY-MM-DD", () => {
+    expect(getLocalDateStrFromISO("2026-10-01")).toBe("2026-10-01");
+  });
+
+  it("retorna vazio para valor ausente ou invalido", () => {
+    expect(getLocalDateStrFromISO(null)).toBe("");
+    expect(getLocalDateStrFromISO(undefined)).toBe("");
+    expect(getLocalDateStrFromISO("")).toBe("");
+    expect(getLocalDateStrFromISO("nao-e-uma-data")).toBe("");
+  });
+
+  it("nunca devolve a data UTC pura do toISOString", () => {
+    const instanteUtcDoDiaSeguinte = "2026-10-02T00:30:00.000Z";
+    expect(instanteUtcDoDiaSeguinte.slice(0, 10)).toBe("2026-10-02");
+    expect(getLocalDateStrFromISO(instanteUtcDoDiaSeguinte)).toBe("2026-10-01");
   });
 });
 

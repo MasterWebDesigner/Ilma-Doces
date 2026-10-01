@@ -1,6 +1,6 @@
 import type { Order, Credor, CompraCredor } from "@/types/database";
 import type { CartItem, FinancialTransaction, PaymentMethod } from "@/types/database";
-import { getLocalDateStr, paymentLabelOf } from "./utils";
+import { getLocalDateStr, getLocalDateStrFromISO, paymentLabelOf } from "./utils";
 
 export const PERCENTUAL_SINAL = 0.5;
 
@@ -159,7 +159,7 @@ export function filterUnpaidOrders(
   return orders.filter((o) => {
     if (o.status === "recusado" || o.status === "cancelado") return false;
     if (isOrderPaid(o)) return false;
-    const created = (o.createdAt || "").slice(0, prefix.length);
+    const created = getLocalDateStrFromISO(o.createdAt).slice(0, prefix.length);
     return created === prefix;
   });
 }

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useOrderStore, useProductStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { useCredoresStore } from "@/lib/credoresStore";
-import { classNames, compararTexto, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { classNames, compararTexto, formatItemQty, getLocalDateStrFromISO, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid, isFiadoPendente, formaPagamentoDoPedido, saldoPendenteDoPedido } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
 
@@ -188,7 +188,7 @@ export default function AdminVendasPage() {
 
   const anosDisponiveis = useMemo(() => {
     const set = new Set<number>();
-    orders.forEach((o) => { if (o.createdAt) set.add(Number(o.createdAt.slice(0, 4))); });
+    orders.forEach((o) => { if (o.createdAt) set.add(Number(getLocalDateStrFromISO(o.createdAt).slice(0, 4))); });
     set.add(new Date().getFullYear());
     set.add(anoAtual);
     return Array.from(set).sort((a, b) => b - a);

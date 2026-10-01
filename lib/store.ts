@@ -4,7 +4,7 @@ import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, F
 import { PRODUCTS as INITIAL_PRODUCTS, CATEGORIES } from "@/lib/mockData";
 import { useCredoresStore } from "./credoresStore";
 import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
-import { getLocalDateStr } from "./utils";
+import { getLocalDateStr, getLocalDateStrFromISO } from "./utils";
 import { db, auth } from "./firebase";
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, runTransaction } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -853,7 +853,7 @@ export const useOrderStore = create<OrderState>()(
 
       getTodayOrders: () => {
         const today = getLocalDateStr();
-        return get().orders.filter((o) => o.createdAt.slice(0, 10) === today);
+        return get().orders.filter((o) => getLocalDateStrFromISO(o.createdAt) === today);
       },
     }),
     {
