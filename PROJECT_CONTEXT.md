@@ -14,14 +14,14 @@ Este documento descreve a arquitetura atual, rotas do App Router, estrutura de d
 - **`/admin`** (`app/admin/page.tsx`): Dashboard principal com KPIs do dia, produção, atalho para **Venda Rápida (Balcão)**.
 - **`/admin/pedidos`** (`app/admin/pedidos/page.tsx`): Gestão de pedidos, status, registro de sinal, criação de pedido manual e numeração sequencial (`#0001`, `#0002`...).
 - **`/admin/agendamentos`** (`app/admin/agendamentos/page.tsx`): Calendário e visualização de agendamentos por data.
-- **`/admin/clientes`** (`app/admin/clientes/page.tsx`): Gestão de clientes, histórico unificado de pedidos e fiados, seção **Fidelidade** (meta global editável, trava do botão Resgatar até 100%, modal de sabor com baixa de estoque e despesa automática).
+- **`/admin/clientes`** (`app/admin/clientes/page.tsx`): Gestão de clientes, histórico unificado de pedidos e fiados, seção **Fidelidade** (acumulado só dos itens das categorias permitidas dos pedidos concluídos, brindes disponíveis = `floor(saldo/meta)`, meta global editável, modal de resgate com baixa de estoque e despesa automática, edição manual de saldo com histórico de eventos e botão "Zerar saldo").
 - **`/admin/produtos`** (`app/admin/produtos/page.tsx`): Gestão de itens do cardápio, upload/URLs de fotos, gerenciar marcas e gerenciar categorias.
 - **`/admin/estoque`** (`app/admin/estoque/page.tsx`): Controle de lotes de insumos com Preço Médio Ponderado (PEPS).
 - **`/admin/financeiro`** (`app/admin/financeiro/page.tsx`): Módulo financeiro, receitas, despesas e fluxo de caixa.
 - **`/admin/credores`** (`app/admin/credores/page.tsx`): Gestão de credores e fiados, abates parciais, reabertura de dívidas (estorno) e cobrança via WhatsApp.
 - **`/admin/precificacao`** (`app/admin/precificacao/page.tsx`): Fichas técnicas e precificação de produtos.
 - **`/admin/vendas`** (`app/admin/vendas/page.tsx`): Histórico de vendas, relatórios mensais, **Top 5 Produtos Mais Vendidos** e **Distribuição de Vendas por Categoria (fechamento exato em 100.0%)**.
-- **`/admin/configuracoes`** (`app/admin/configuracoes/page.tsx`): Configurações gerais da loja, dados de contato e seção **Mensagens WhatsApp** (templates editáveis por gatilho — `components/admin/MensagensWhatsappCard.tsx` — com tags dinâmicas, ativar/pausar, restaurar padrão e prévia; persistidos em `configuracoes/loja` via `lib/storeConfig.ts` e aplicados pelos helpers de `lib/whatsapp.ts`).
+- **`/admin/configuracoes`** (`app/admin/configuracoes/page.tsx`): Configurações gerais da loja, dados de contato, seção **Fidelidade e Brindes** (meta em R$ + ativar/desativar programa) e seção **Mensagens WhatsApp** (templates editáveis por gatilho — `components/admin/MensagensWhatsappCard.tsx` — com tags dinâmicas, ativar/pausar, restaurar padrão e prévia; persistidos em `configuracoes/loja` via `lib/storeConfig.ts` e aplicados pelos helpers de `lib/whatsapp.ts`).
 
 ---
 
@@ -60,7 +60,8 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 - `totalSpent`: number
 - `lastOrderDate`: string
 - `status`: `"Ativa" | "Nova"`
-- `fidelidadeOffset?`, `fidelidadeEditadoEm?`, `fidelidadeResgates?`, `fidelidadeUltimoResgate?`: campos de fidelidade (saldo derivado = total concluído − offset; meta global = `valorMinimoBrinde` em `storeConfig`)
+- `fidelidadeOffset?`, `fidelidadeEditadoEm?`, `fidelidadeResgates?`, `fidelidadeUltimoResgate?`: campos de fidelidade (saldo derivado = soma dos itens das categorias permitidas dos pedidos concluídos − offset; filtro vem de `brindeTodasCategorias`/`brindeCategoriasPromo` via `subtotalParaBrinde`; meta global = `valorMinimoBrinde` em `storeConfig`, default R$ 100; brindes disponíveis = `brindesDisponiveis(saldo, meta)` em `lib/fidelidade.ts`; **cada resgate desconta 1 meta** via `saldoAposResgate(saldo, meta)` — só zerar o total pelo botão "Zerar saldo")
+- `fidelidadeHistorico?`: array de `FidelidadeEvento` (`data` ISO, `tipo` `"resgate" | "ajuste" | "reset"`, `saldo`, `brindes` — máx. 50 eventos) gravado por `resgatarBrinde`/`setFidelidadeOffset` em `lib/store.ts`; lido só pelo painel (`clientes` exige sessão)
 
 ### `produtos`
 - `id`: string
@@ -119,6 +120,6 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 - **`QuickSaleModal`** (`components/admin/QuickSaleModal.tsx`): Modal de Venda Rápida / Balcão para inserção simultânea de múltiplos produtos, seletor de cliente opcional (para fidelidade), cálculo de troco em dinheiro e baixa imediata no estoque e financeiro.
 - **`LaunchDespesaModal`** (`components/admin/LaunchDespesaModal.tsx`): Modal para lançamento de despesas financeiras.
 - **`OrderWizardModal`** (`components/cart/OrderWizardModal.tsx`): Assistente passo a passo para finalização de encomendas na loja.
-- **`CartDrawer`** (`components/CartDrawer.tsx`): Gaveta lateral do carrinho de compras.
+- **`CartDrawer`** (`components/CartDrawer.tsx`): Gaveta lateral do carrinho de compras; no checkout exibe acumulado de fidelidade, brindes disponíveis e checkbox "Resgatar Brinde Disponível (desconta 1 brinde do saldo)" com seletor de sabor e desfazer (restaura o offset salvo).
 - **Modais de Gestão de Marcas e Categorias**: Gerenciamento em tempo real de marcas e categorias diretamente na tela de produtos.
 - **Sidebar & Header**: Navegação responsiva do painel administrativo.

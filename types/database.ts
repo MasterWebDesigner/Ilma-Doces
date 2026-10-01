@@ -66,6 +66,13 @@ export interface Order {
   dataPagamento?: string;
 }
 
+export interface FidelidadeEvento {
+  data: string;
+  tipo: "resgate" | "ajuste" | "reset";
+  saldo: number;
+  brindes: number;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -79,6 +86,7 @@ export interface Customer {
   fidelidadeEditadoEm?: string;
   fidelidadeResgates?: number;
   fidelidadeUltimoResgate?: string;
+  fidelidadeHistorico?: FidelidadeEvento[];
 }
 
 // ──────────────── EXPENSE ────────────────

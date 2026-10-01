@@ -31,6 +31,8 @@ import {
   montarDocumentoFidelidade,
   paraFidelidadePublica,
   identidadesFidelidade,
+  brindesDisponiveis,
+  saldoAposResgate,
 } from "@/lib/fidelidade";
 
 function makeItem(price: number, categoryId = "cat-promo"): CartItem {
@@ -113,6 +115,57 @@ describe("loyaltyProgressLabel", () => {
   });
 });
 
+describe("brindesDisponiveis", () => {
+  it("calcula brindes disponiveis por meta", () => {
+    expect(brindesDisponiveis(0, 100)).toBe(0);
+    expect(brindesDisponiveis(99, 100)).toBe(0);
+    expect(brindesDisponiveis(100, 100)).toBe(1);
+    expect(brindesDisponiveis(250, 100)).toBe(2);
+    expect(brindesDisponiveis(300, 100)).toBe(3);
+  });
+
+  it("usa a meta padrao quando nao informada", () => {
+    expect(brindesDisponiveis(160)).toBe(2);
+  });
+
+  it("exemplo do produto: 322,50 com meta 100 = 3 brindes", () => {
+    expect(brindesDisponiveis(322.5, 100)).toBe(3);
+  });
+
+  it("retorna 0 com meta invalida ou saldo negativo", () => {
+    expect(brindesDisponiveis(500, 0)).toBe(0);
+    expect(brindesDisponiveis(-10, 100)).toBe(0);
+  });
+});
+
+describe("saldoAposResgate", () => {
+  it("desconta apenas 1 meta do saldo (resgate parcial)", () => {
+    expect(saldoAposResgate(322.5, 100)).toBe(222.5);
+    expect(saldoAposResgate(300, 100)).toBe(200);
+    expect(saldoAposResgate(105, 100)).toBe(5);
+    expect(saldoAposResgate(100, 100)).toBe(0);
+  });
+
+  it("nunca fica negativo e zera com meta invalida", () => {
+    expect(saldoAposResgate(50, 100)).toBe(0);
+    expect(saldoAposResgate(500, 0)).toBe(0);
+    expect(saldoAposResgate(-10, 100)).toBe(0);
+  });
+
+  it("cenario Dan: 3 brindes, resgatar 1, sobram 2", () => {
+    const meta = 100;
+    const saldo = 322.5;
+    expect(brindesDisponiveis(saldo, meta)).toBe(3);
+    const restante = saldoAposResgate(saldo, meta);
+    expect(restante).toBe(222.5);
+    expect(brindesDisponiveis(restante, meta)).toBe(2);
+    const restante2 = saldoAposResgate(restante, meta);
+    expect(brindesDisponiveis(restante2, meta)).toBe(1);
+    expect(saldoAposResgate(restante2, meta)).toBe(22.5);
+    expect(brindesDisponiveis(22.5, meta)).toBe(0);
+  });
+});
+
 describe("computeLoyaltyAutoTotal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -158,7 +211,7 @@ describe("computeLoyaltyAutoTotal", () => {
     expect(computeLoyaltyAutoTotal("11999998888", undefined, [], credores)).toBe(40);
   });
 
-  it("ignora categorias fora da promo quando categorias especificas estao ativas", () => {
+  it("pedido misto soma apenas os itens da categoria permitida", () => {
     estado.config = {
       ...estado.config,
       brindeTodasCategorias: false,
@@ -173,7 +226,7 @@ describe("computeLoyaltyAutoTotal", () => {
     expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(50);
   });
 
-  it("pedido so de bolo nao da brinde quando categorias especificas estao ativas", () => {
+  it("pedido so de bolo nao acumula quando so a categoria de gelinhos vale", () => {
     estado.config = {
       ...estado.config,
       brindeTodasCategorias: false,
@@ -183,6 +236,16 @@ describe("computeLoyaltyAutoTotal", () => {
       makeOrder({ total: 200, items: [makeItem(200, "cat-bolo")] }),
     ];
     expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(0);
+  });
+
+  it("com todas as categorias o total inteiro do pedido acumula", () => {
+    const orders = [
+      makeOrder({
+        total: 120,
+        items: [makeItem(70, "cat-bolo"), makeItem(50, "cat-gelados")],
+      }),
+    ];
+    expect(computeLoyaltyAutoTotal("11999998888", "Maria", orders, [])).toBe(120);
   });
 
   it("itens de brinde nao contam no acumulado", () => {
@@ -212,7 +275,7 @@ describe("computeLoyaltyBalance closed cycle", () => {
     expect(balance).toBe(80);
   });
 
-  it("after redeem offset=autoTotal balance resets to 0", () => {
+  it("offset total zera o saldo (zerar manual)", () => {
     const orders = [makeOrder({ total: 100 })];
     const customers = [makeCustomer({ fidelidadeOffset: 100 })];
     const { balance } = computeLoyaltyBalance("11999998888", "Maria", orders, [], customers);
@@ -257,7 +320,7 @@ describe("montarDocumentoFidelidade", () => {
     });
   });
 
-  it("saldo resgatado fica zerado", () => {
+  it("saldo totalmente zerado fica 0", () => {
     const orders = [makeOrder({ total: 100 })];
     const customers = [makeCustomer({ fidelidadeOffset: 100 })];
     expect(montarDocumentoFidelidade("11999998888", "Maria", orders, [], customers)).toEqual({

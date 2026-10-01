@@ -273,6 +273,47 @@ export default function AdminConfiguracoes() {
         </div>
       </div>
 
+      {/* Fidelidade e Brindes */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <span aria-hidden>🎁</span>
+          Fidelidade e Brindes
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Meta de fidelidade (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={settings.valorMinimoBrinde}
+              onChange={(e) => setSettings((s) => ({ ...s, valorMinimoBrinde: parseFloat(e.target.value) || 0 }))}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500"
+            />
+            <p className="mt-1 text-[10px] text-neutral-500">
+              A cada {Math.max(1, settings.valorMinimoBrinde)} reais acumulados em pedidos concluidos o cliente ganha 1 Brinde.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Programa de fidelidade</label>
+            <button
+              type="button"
+              onClick={() => setSettings((s) => ({ ...s, brindeAtivo: !s.brindeAtivo }))}
+              className={`w-full rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                settings.brindeAtivo
+                  ? "border-emerald-600 bg-emerald-900/30 text-emerald-400"
+                  : "border-neutral-700 bg-neutral-800 text-neutral-500"
+              }`}
+            >
+              {settings.brindeAtivo ? "Ativo" : "Desativado"}
+            </button>
+            <p className="mt-1 text-[10px] text-neutral-500">
+              Acumulo de saldo, brindes disponiveis e resgate no checkout.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Mensagens WhatsApp */}
       <MensagensWhatsappCard
         mensagens={settings.mensagensWhatsapp || []}

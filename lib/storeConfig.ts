@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   welcomeMessage: "Ola! Bem-vindo(a) a Ilma Doces!",
   googleMapsLink: "",
   brindeAtivo: true,
-  valorMinimoBrinde: 80,
+  valorMinimoBrinde: 100,
   brindeCategoriaId: "",
   brindeTodasCategorias: true,
   brindeCategoriasPromo: [],
@@ -92,10 +92,12 @@ export const SETTINGS_CHANGED_EVENT = "ilma-store-settings-changed";
 
 function comPadroes(raw: Partial<StoreSettings>): StoreSettings {
   const margemBruta = Number(raw.margemPreparoMinutos);
+  const metaBruta = Number(raw.valorMinimoBrinde);
   return {
     ...DEFAULT_SETTINGS,
     ...raw,
     paymentLink: typeof raw.paymentLink === "string" ? raw.paymentLink : "",
+    valorMinimoBrinde: Number.isFinite(metaBruta) && metaBruta >= 0 ? metaBruta : DEFAULT_SETTINGS.valorMinimoBrinde,
     margemPreparoMinutos: Number.isFinite(margemBruta)
       ? Math.max(0, margemBruta)
       : DEFAULT_SETTINGS.margemPreparoMinutos,

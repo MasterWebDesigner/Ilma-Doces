@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category, FinancialTransaction } from "@/types/database";
+import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category, FinancialTransaction, FidelidadeEvento } from "@/types/database";
 import { PRODUCTS as INITIAL_PRODUCTS, CATEGORIES } from "@/lib/mockData";
 import { useCredoresStore } from "./credoresStore";
 import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
@@ -13,7 +13,7 @@ import { deveBloquearReversaoPedido, type OpcoesReversao } from "./antiRollback"
 import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
 import { montarDespesaBrinde, custoDoBrinde, CATEGORIA_DESPESA_BRINDE } from "./brindeCusto";
-import { identidadesFidelidade, montarDocumentoFidelidade, type SaldoFidelidadePublico } from "./fidelidade";
+import { identidadesFidelidade, montarDocumentoFidelidade, brindesDisponiveis, saldoAposResgate, type SaldoFidelidadePublico } from "./fidelidade";
 import { SETTINGS_CHANGED_EVENT, getStoreConfig } from "./storeConfig";
 import { validarHorarioPedido } from "./horarioMinimo";
 import { exigeSinalPedido, valorSinalPedido, localizarTransacaoSinal } from "./faturamento";
@@ -874,11 +874,20 @@ export const useOrderStore = create<OrderState>()(
 );
 
 // ──────────────── CUSTOMER STORE ────────────────
+function eventoFidelidade(tipo: FidelidadeEvento["tipo"], saldo: number, brindes?: number): FidelidadeEvento {
+  return {
+    data: new Date().toISOString(),
+    tipo,
+    saldo: Math.max(0, Number(saldo) || 0),
+    brindes: brindes ?? brindesDisponiveis(saldo, getStoreConfig().valorMinimoBrinde),
+  };
+}
+
 interface CustomerState {
   customers: Customer[];
   upsertCustomer: (name: string, phone: string, referencia?: string) => void;
   getCustomerByPhone: (phone: string) => Customer | undefined;
-  setFidelidadeOffset: (phone: string, offset: number) => void;
+  setFidelidadeOffset: (phone: string, offset: number, saldoResultante?: number) => void;
   resgatarBrinde: (phone: string, autoTotal: number, name?: string) => void;
 }
 
@@ -907,7 +916,7 @@ export const useCustomerStore = create<CustomerState>()(
         return get().customers.find((c) => c.phone === normalized);
       },
 
-      setFidelidadeOffset: (phone, offset) => {
+      setFidelidadeOffset: (phone, offset, saldoResultante) => {
         const normalized = phone ? phone.replace(/\D/g, "") : "";
         if (!normalized) return;
         const safeOffset = Math.max(0, offset);
@@ -921,6 +930,12 @@ export const useCustomerStore = create<CustomerState>()(
           payload.name = existing.name;
           payload.phone = normalized;
         }
+        let historico: FidelidadeEvento[] | undefined;
+        if (saldoResultante !== undefined) {
+          const evento = eventoFidelidade(saldoResultante > 0 ? "ajuste" : "reset", saldoResultante);
+          historico = [...(existing?.fidelidadeHistorico || []), evento].slice(-50);
+          payload.fidelidadeHistorico = historico;
+        }
         try {
           setDoc(doc(db, "clientes", normalized), sanitizeForFirestore(payload), { merge: true });
           set((s) => {
@@ -931,6 +946,7 @@ export const useCustomerStore = create<CustomerState>()(
                 ...next[idx],
                 fidelidadeOffset: safeOffset,
                 fidelidadeEditadoEm: now,
+                ...(historico ? { fidelidadeHistorico: historico } : {}),
               };
               return { customers: next };
             }
@@ -947,6 +963,7 @@ export const useCustomerStore = create<CustomerState>()(
                   status: "Nova",
                   fidelidadeOffset: safeOffset,
                   fidelidadeEditadoEm: now,
+                  ...(historico ? { fidelidadeHistorico: historico } : {}),
                 },
               ],
             };
@@ -963,13 +980,24 @@ export const useCustomerStore = create<CustomerState>()(
         const now = new Date().toISOString();
         const existing = get().customers.find((c) => (c.phone || "").replace(/\D/g, "") === normalized);
         const prevResgates = Number(existing?.fidelidadeResgates) || 0;
+        const auto = Math.max(0, Number(autoTotal) || 0);
+        const offsetAtual = Number(existing?.fidelidadeOffset) || 0;
+        const balance = Math.max(0, auto - offsetAtual);
+        const meta = getStoreConfig().valorMinimoBrinde;
+        const saldoRestante = saldoAposResgate(balance, meta);
+        const novoOffset = Math.max(0, auto - saldoRestante);
         const payload: Record<string, unknown> = {
-          fidelidadeOffset: Math.max(0, autoTotal),
+          fidelidadeOffset: novoOffset,
           fidelidadeEditadoEm: now,
           fidelidadeResgates: prevResgates + 1,
           fidelidadeUltimoResgate: now,
           phone: normalized,
         };
+        const historico = [
+          ...(existing?.fidelidadeHistorico || []),
+          eventoFidelidade("resgate", saldoRestante),
+        ].slice(-50);
+        payload.fidelidadeHistorico = historico;
         if (name || existing?.name) payload.name = name || existing!.name;
         try {
           setDoc(doc(db, "clientes", normalized), sanitizeForFirestore(payload), { merge: true });
@@ -980,10 +1008,11 @@ export const useCustomerStore = create<CustomerState>()(
               next[idx] = {
                 ...next[idx],
                 name: (payload.name as string) || next[idx].name,
-                fidelidadeOffset: Math.max(0, autoTotal),
+                fidelidadeOffset: novoOffset,
                 fidelidadeEditadoEm: now,
                 fidelidadeResgates: prevResgates + 1,
                 fidelidadeUltimoResgate: now,
+                fidelidadeHistorico: historico,
               };
               return { customers: next };
             }
@@ -998,10 +1027,11 @@ export const useCustomerStore = create<CustomerState>()(
                   totalSpent: 0,
                   lastOrderDate: now,
                   status: "Nova",
-                  fidelidadeOffset: Math.max(0, autoTotal),
+                  fidelidadeOffset: novoOffset,
                   fidelidadeEditadoEm: now,
                   fidelidadeResgates: 1,
                   fidelidadeUltimoResgate: now,
+                  fidelidadeHistorico: historico,
                 },
               ],
             };

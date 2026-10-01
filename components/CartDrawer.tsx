@@ -16,7 +16,7 @@ import {
   getBrindeRegras,
   itemContaParaBrinde,
 } from "@/lib/brinde";
-import { loyaltyProgress } from "@/lib/fidelidade";
+import { loyaltyProgress, brindesDisponiveis, saldoAposResgate } from "@/lib/fidelidade";
 import { consultarFidelidadePublica, type FidelidadePublica } from "@/lib/fidelidadePublica";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
@@ -64,6 +64,8 @@ export default function CartDrawer() {
   const addOrder = useOrderStore((s) => s.addOrder);
   const upsertCustomer = useCustomerStore((s) => s.upsertCustomer);
   const resgatarBrinde = useCustomerStore((s) => s.resgatarBrinde);
+  const setFidelidadeOffset = useCustomerStore((s) => s.setFidelidadeOffset);
+  const [offsetAnteriorResgate, setOffsetAnteriorResgate] = useState<number | null>(null);
   const phoneDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [agora, setAgora] = useState(() => new Date());
 
@@ -123,7 +125,13 @@ export default function CartDrawer() {
     const forced = redeemedPhones[phoneClean];
     const balance = forced !== undefined ? forced : base.balance;
     const prog = loyaltyProgress(balance, config.valorMinimoBrinde);
-    return { ...base, balance, ...prog, name: nameValue };
+    return {
+      ...base,
+      balance,
+      ...prog,
+      name: nameValue,
+      brindes: brindesDisponiveis(balance, config.valorMinimoBrinde),
+    };
   }, [baseFidelidade, phoneClean, redeemedPhones, nameValue, config.valorMinimoBrinde]);
 
   useEffect(() => {
@@ -158,6 +166,7 @@ export default function CartDrawer() {
     setAddrDistrict("");
     setAddrComplement("");
     setRedeemedPhones({});
+    setOffsetAnteriorResgate(null);
   }
 
   async function handleConfirm() {
@@ -266,6 +275,7 @@ export default function CartDrawer() {
 
     setConfirmedOrder(order);
     setRedeemedPhones({});
+    setOffsetAnteriorResgate(null);
     clearCart();
   }
 
@@ -300,8 +310,41 @@ export default function CartDrawer() {
     if (!flavor || !loyalty) return;
     setBrinde(flavor);
     setFlavorOpen(false);
-    resgatarBrinde(phoneClean, loyalty.autoTotal, nameValue || undefined);
-    setRedeemedPhones((prev) => ({ ...prev, [phoneClean]: 0 }));
+    if (loyalty.eligible && redeemedPhones[phoneClean] === undefined) {
+      setOffsetAnteriorResgate(Math.max(0, loyalty.autoTotal - loyalty.balance));
+      resgatarBrinde(phoneClean, loyalty.autoTotal, nameValue || undefined);
+      const restante = saldoAposResgate(loyalty.balance, config.valorMinimoBrinde);
+      setRedeemedPhones((prev) => ({ ...prev, [phoneClean]: restante }));
+    }
+  }
+
+  function desfazerResgate() {
+    if (brindeItem) clearBrinde();
+    if (offsetAnteriorResgate !== null && phoneClean) {
+      const autoTotal = baseFidelidade?.valor.autoTotal ?? loyalty?.autoTotal ?? 0;
+      const saldoRestaurado = Math.max(0, autoTotal - offsetAnteriorResgate);
+      setFidelidadeOffset(phoneClean, offsetAnteriorResgate, saldoRestaurado);
+      setBaseFidelidade((prev) =>
+        prev && prev.telefone === phoneClean
+          ? {
+              ...prev,
+              valor: {
+                ...prev.valor,
+                offset: offsetAnteriorResgate,
+                balance: saldoRestaurado,
+              },
+            }
+          : prev
+      );
+    }
+    setOffsetAnteriorResgate(null);
+    setRedeemedPhones((prev) => {
+      if (!(phoneClean in prev)) return prev;
+      const next = { ...prev };
+      delete next[phoneClean];
+      return next;
+    });
+    setFlavorOpen(false);
   }
 
   const formatDate = (dateStr: string) => {
@@ -650,10 +693,22 @@ export default function CartDrawer() {
                         : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900"
                     }`}
                   >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        Acumulado: {formatCurrency(loyalty.balance)}
+                      </span>
+                      <span
+                        className="text-xs font-bold"
+                        style={{ color: loyalty.eligible ? "#059669" : WINE }}
+                      >
+                        {loyalty.brindes} Brinde{loyalty.brindes === 1 ? "" : "s"} disponível
+                        {loyalty.brindes === 1 ? "" : "s"}
+                      </span>
+                    </div>
                     <p className={`text-xs font-semibold ${loyalty.eligible ? "text-emerald-700 dark:text-emerald-400" : "text-neutral-700 dark:text-neutral-300"}`}>
                       {loyalty.eligible
-                        ? "Parabéns! Você tem 1 Gelinho disponível para resgatar! 🎉"
-                        : `Fidelidade: falta ${formatCurrency(loyalty.remaining)} para 1 Gelinho grátis!`}
+                        ? `Você tem ${loyalty.brindes} Brinde${loyalty.brindes === 1 ? "" : "s"} disponível${loyalty.brindes === 1 ? "" : "s"} para resgatar! 🎉`
+                        : `Fidelidade: falta ${formatCurrency(loyalty.remaining)} para mais 1 Brinde grátis!`}
                     </p>
                     <div className={`h-2 w-full overflow-hidden rounded-full ${loyalty.eligible ? "bg-emerald-100 dark:bg-emerald-950" : "bg-neutral-200 dark:bg-neutral-800"}`}>
                       <div
@@ -672,17 +727,30 @@ export default function CartDrawer() {
                       </span>
                     </div>
 
-                    {loyalty.eligible && !brindeItem && (
-                      <button
-                        type="button"
-                        onClick={handleRedeemLoyalty}
-                        className="w-full rounded-lg border-2 border-dashed border-emerald-400 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-neutral-900 dark:hover:bg-emerald-950"
-                      >
-                        {flavorOpen ? "Fechar seletor" : "🎁 Resgatar Gelinho Nesta Compra"}
-                      </button>
-                    )}
+                    <label
+                      className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${
+                        !brindeItem && loyalty.brindes < 1
+                          ? "cursor-not-allowed border-neutral-200 bg-white/60 opacity-70 dark:border-neutral-700 dark:bg-neutral-900/60"
+                          : "border-emerald-300 bg-white dark:border-emerald-800 dark:bg-neutral-900"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!brindeItem}
+                        disabled={!brindeItem && loyalty.brindes < 1}
+                        onChange={(e) => {
+                          if (e.target.checked) handleRedeemLoyalty();
+                          else desfazerResgate();
+                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#8B1D22]"
+                      />
+                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        Resgatar Brinde Disponível{" "}
+                        <span className="font-normal opacity-70">(desconta 1 brinde do saldo)</span>
+                      </span>
+                    </label>
 
-                    {loyalty.eligible && flavorOpen && (
+                    {flavorOpen && (
                       <div className="max-h-40 space-y-1 overflow-y-auto">
                         {flavors.length === 0 && (
                           <p className="text-[11px] text-neutral-500">Nenhum item do brinde em estoque no momento.</p>
@@ -701,7 +769,7 @@ export default function CartDrawer() {
                       </div>
                     )}
 
-                    {loyalty.eligible && brindeItem && (
+                    {brindeItem && (
                       <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-white px-3 py-2 dark:border-emerald-900 dark:bg-neutral-900">
                         <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                           🎁 {brindeItem.product.name}

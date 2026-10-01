@@ -12,7 +12,7 @@ service cloud.firestore {
     function camposClienteAnon() {
       return ['name', 'phone', 'lastOrderDate', 'referencia', 'status',
               'fidelidadeOffset', 'fidelidadeEditadoEm', 'fidelidadeResgates',
-              'fidelidadeUltimoResgate'];
+              'fidelidadeUltimoResgate', 'fidelidadeHistorico'];
     }
 
     function clienteAnonSemLeituraIndevida() {

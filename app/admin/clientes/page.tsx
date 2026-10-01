@@ -6,7 +6,8 @@ import { montarDespesaBrinde } from "@/lib/brindeCusto";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { formatCurrency, getLocalDateStr } from "@/lib/utils";
 import { useStoreConfig, saveStoreConfig } from "@/lib/storeConfig";
-import { computeLoyaltyBalance, loyaltyProgress, loyaltyProgressLabel } from "@/lib/fidelidade";
+import { computeLoyaltyBalance, loyaltyProgress, loyaltyProgressLabel, brindesDisponiveis, saldoAposResgate } from "@/lib/fidelidade";
+import type { FidelidadeEvento } from "@/types/database";
 import { availableBrindeFlavors } from "@/lib/brinde";
 import { formatarTelefone, mascaraTelefone, higienizarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
 
@@ -19,6 +20,29 @@ const STATUS_LABEL: Record<string, string> = {
   recusado: "Recusado",
   cancelado: "Cancelado",
 };
+
+type AlvoFidelidade = {
+  phone: string;
+  phoneClean: string;
+  name: string;
+  balance: number;
+  autoTotal: number;
+  brindes: number;
+  historico?: FidelidadeEvento[];
+};
+
+const HISTORICO_TIPO_LABEL: Record<FidelidadeEvento["tipo"], string> = {
+  resgate: "Resgate",
+  ajuste: "Ajuste manual",
+  reset: "Saldo zerado",
+};
+
+function formatarEventoFidelidade(ev: FidelidadeEvento) {
+  const d = new Date(ev.data);
+  const data = Number.isNaN(d.getTime()) ? ev.data : d.toLocaleDateString("pt-BR");
+  const hora = Number.isNaN(d.getTime()) ? "" : ` às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${data}${hora} — ${HISTORICO_TIPO_LABEL[ev.tipo]} — Saldo ${formatCurrency(ev.saldo)} (${ev.brindes} Brinde${ev.brindes === 1 ? "" : "s"})`;
+}
 
 export default function AdminClientes() {
   const customers = useCustomerStore((s) => s.customers);
@@ -42,14 +66,14 @@ export default function AdminClientes() {
   const [form, setForm] = useState({ name: "", phone: "", referencia: "" });
   const [phoneError, setPhoneError] = useState("");
   const [historyCustomer, setHistoryCustomer] = useState<string | null>(null);
-  const [fidelidadeEdit, setFidelidadeEdit] = useState<{ phone: string; phoneClean: string; name: string; balance: number; autoTotal: number } | null>(null);
+  const [fidelidadeEdit, setFidelidadeEdit] = useState<AlvoFidelidade | null>(null);
   const [fidelidadeForm, setFidelidadeForm] = useState("");
   const [showFidelidade, setShowFidelidade] = useState(true);
   const [metaForm, setMetaForm] = useState("");
-  const [resgateTarget, setResgateTarget] = useState<{ phone: string; phoneClean: string; name: string; balance: number; autoTotal: number } | null>(null);
+  const [resgateTarget, setResgateTarget] = useState<AlvoFidelidade | null>(null);
   const [resgateSabor, setResgateSabor] = useState("");
 
-  const valorMinimoBrinde = storeConfig.valorMinimoBrinde || 80;
+  const valorMinimoBrinde = storeConfig.valorMinimoBrinde || 100;
   const saboresDisponiveis = useMemo(() => availableBrindeFlavors(products, categories), [products, categories]);
 
   useEffect(() => {
@@ -183,6 +207,7 @@ export default function AdminClientes() {
           customers
         );
         const prog = loyaltyProgress(balance, valorMinimoBrinde);
+        const cliente = customers.find((k) => (k.phone || "").replace(/\D/g, "") === phoneClean);
         return {
           id: c.id,
           name: c.name,
@@ -191,6 +216,9 @@ export default function AdminClientes() {
           autoTotal,
           balance,
           ...prog,
+          brindes: brindesDisponiveis(balance, valorMinimoBrinde),
+          resgates: Number(cliente?.fidelidadeResgates) || 0,
+          historico: cliente?.fidelidadeHistorico || [],
           label: loyaltyProgressLabel(balance, valorMinimoBrinde),
         };
       })
@@ -286,7 +314,7 @@ export default function AdminClientes() {
     setEditId(null);
   }
 
-  function openFidelidadeEdit(c: { phone: string; phoneClean: string; name: string; balance: number; autoTotal: number }) {
+  function openFidelidadeEdit(c: AlvoFidelidade) {
     setFidelidadeEdit(c);
     setFidelidadeForm(String(c.balance.toFixed(2).replace(".", ",")));
   }
@@ -296,7 +324,18 @@ export default function AdminClientes() {
     const raw = fidelidadeForm.replace(/\./g, "").replace(",", ".").trim();
     const desired = parseFloat(raw);
     if (Number.isNaN(desired) || desired < 0) return;
-    setFidelidadeOffset(fidelidadeEdit.phone, Math.max(0, fidelidadeEdit.autoTotal - desired));
+    setFidelidadeOffset(
+      fidelidadeEdit.phone,
+      Math.max(0, fidelidadeEdit.autoTotal - desired),
+      desired
+    );
+    setFidelidadeEdit(null);
+    setFidelidadeForm("");
+  }
+
+  function handleZerarFidelidade() {
+    if (!fidelidadeEdit) return;
+    setFidelidadeOffset(fidelidadeEdit.phone, Math.max(0, fidelidadeEdit.autoTotal), 0);
     setFidelidadeEdit(null);
     setFidelidadeForm("");
   }
@@ -321,7 +360,7 @@ export default function AdminClientes() {
     saveStoreConfig({ ...storeConfig, brindeTodasCategorias: false, brindeCategoriasPromo: next });
   }
 
-  function handleResgatarGelinho(c: { phone: string; phoneClean: string; name: string; balance: number; autoTotal: number; eligible: boolean }) {
+  function handleResgatarGelinho(c: AlvoFidelidade & { eligible: boolean }) {
     if (!brindeAtivo || !c.eligible) return;
     setResgateTarget(c);
     setResgateSabor("");
@@ -401,7 +440,7 @@ export default function AdminClientes() {
               </h2>
               <p className="mt-1 text-xs text-neutral-500">
                 Clientes com saldo acumulado. Meta para 1 Gelinho: {formatCurrency(valorMinimoBrinde)}.
-                Ao resgatar, use <span className="font-semibold text-neutral-300">Resgatar Gelinho</span> — o saldo volta a R$ 0,00 e o ciclo recomeça.
+                Ao resgatar, use <span className="font-semibold text-neutral-300">Resgatar Gelinho</span> — cada resgate desconta 1 Brinde (a meta de {formatCurrency(valorMinimoBrinde)}) do saldo e o valor restante continua acumulando.
               </p>
               {!brindeAtivo && (
                 <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300">
@@ -535,8 +574,13 @@ export default function AdminClientes() {
                           )}
                         </td>
                         <td className="phone-mask px-4 py-3 text-xs text-neutral-400">{formatarTelefone(row.phone || row.phoneClean)}</td>
-                        <td className="px-4 py-3 text-right text-sm font-bold text-[#8B1D22] dark:text-red-500">
-                          {row.label}
+                        <td className="px-4 py-3 text-right">
+                          <span className="text-sm font-bold text-[#8B1D22] dark:text-red-500">
+                            {row.label}
+                          </span>
+                          <p className={`mt-0.5 text-[11px] font-semibold ${row.brindes > 0 ? "text-emerald-500" : "text-neutral-500"}`}>
+                            {row.brindes} Brinde{row.brindes === 1 ? "" : "s"} disponível{row.brindes === 1 ? "" : "s"}
+                          </p>
                         </td>
                         <td className="px-4 py-3 min-w-[160px]">
                           <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
@@ -678,7 +722,9 @@ export default function AdminClientes() {
           <div className="w-full max-w-md rounded-xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-white">Resgatar Gelinho</h2>
             <p className="mt-1 text-sm text-neutral-400">
-              {resgateTarget.name} — saldo {formatCurrency(resgateTarget.balance)} sera zerado (0%). Escolha o sabor:
+              {resgateTarget.name} — {resgateTarget.brindes} Brinde{resgateTarget.brindes === 1 ? "" : "s"} disponível
+              {resgateTarget.brindes === 1 ? "" : "s"}; sera descontado 1 Brinde (meta {formatCurrency(valorMinimoBrinde)}), restando{" "}
+              {formatCurrency(saldoAposResgate(resgateTarget.balance, valorMinimoBrinde))} no saldo. Escolha o sabor:
             </p>
             {saboresDisponiveis.length === 0 ? (
               <div className="mt-4 rounded-lg border border-dashed border-neutral-700 py-6 text-center text-sm text-neutral-500">
@@ -728,11 +774,25 @@ export default function AdminClientes() {
 
       {fidelidadeEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setFidelidadeEdit(null)}>
-          <div className="w-full max-w-sm rounded-xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-white">Editar saldo de fidelidade</h2>
             <p className="mt-1 text-sm text-neutral-400">
               {fidelidadeEdit.name} — defina o saldo atual (meta: {formatCurrency(valorMinimoBrinde)}). O valor sera ajustado sobre o total ja acumulado.
             </p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-neutral-500">Acumulado</p>
+                <p className="text-sm font-bold text-white">{formatCurrency(fidelidadeEdit.autoTotal)}</p>
+              </div>
+              <div className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-neutral-500">Saldo</p>
+                <p className="text-sm font-bold text-white">{formatCurrency(fidelidadeEdit.balance)}</p>
+              </div>
+              <div className="rounded-lg border border-emerald-700/40 bg-emerald-900/30 px-3 py-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-emerald-500">Brindes</p>
+                <p className="text-sm font-bold text-emerald-400">{fidelidadeEdit.brindes}</p>
+              </div>
+            </div>
             <div className="mt-5">
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-500">Saldo (R$)</label>
               <input
@@ -744,19 +804,44 @@ export default function AdminClientes() {
                 autoFocus
               />
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-5">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Historico de eventos</p>
+              {fidelidadeEdit.historico && fidelidadeEdit.historico.length > 0 ? (
+                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-800/60 p-2">
+                  {[...fidelidadeEdit.historico].reverse().map((ev, i) => (
+                    <p key={`${ev.data}-${i}`} className="text-[11px] text-neutral-400">
+                      {formatarEventoFidelidade(ev)}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-neutral-700 py-3 text-center text-[11px] text-neutral-500">
+                  Nenhum evento registrado ainda.
+                </p>
+              )}
+            </div>
+            <div className="mt-6 flex items-center justify-between gap-3">
               <button
-                onClick={() => setFidelidadeEdit(null)}
-                className="rounded-lg border border-neutral-700 px-4 py-2.5 text-sm font-medium text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white"
+                onClick={handleZerarFidelidade}
+                title="Zera o saldo acumulado do cliente"
+                className="rounded-lg border border-red-800/60 px-3 py-2.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-900/30"
               >
-                Cancelar
+                Zerar saldo
               </button>
-              <button
-                onClick={handleFidelidadeSave}
-                className="rounded-lg bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#721519] dark:bg-red-800 dark:hover:bg-red-700"
-              >
-                Salvar
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setFidelidadeEdit(null)}
+                  className="rounded-lg border border-neutral-700 px-4 py-2.5 text-sm font-medium text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleFidelidadeSave}
+                  className="rounded-lg bg-[#8B1D22] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#721519] dark:bg-red-800 dark:hover:bg-red-700"
+                >
+                  Salvar
+                </button>
+              </div>
             </div>
           </div>
         </div>

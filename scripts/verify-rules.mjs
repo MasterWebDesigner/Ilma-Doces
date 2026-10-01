@@ -131,6 +131,24 @@ await devePermitir("cria cadastro de cliente no checkout", () =>
 await devePermitir("atualiza nome do proprio cliente", () =>
   setDoc(doc(db, "clientes", "11999990001"), { name: "Cliente Teste Editado" }, { merge: true })
 );
+await devePermitir("resgate de brinde do checkout grava historico", () =>
+  setDoc(
+    doc(db, "clientes", "11999990001"),
+    {
+      fidelidadeOffset: 120,
+      fidelidadeEditadoEm: new Date().toISOString(),
+      fidelidadeResgates: 1,
+      fidelidadeUltimoResgate: new Date().toISOString(),
+      fidelidadeHistorico: [
+        { data: new Date().toISOString(), tipo: "resgate", saldo: 120, brindes: 1 },
+      ],
+    },
+    { merge: true }
+  )
+);
+await deveNegar("grava historico em campo fora da lista anonima", () =>
+  setDoc(doc(db, "clientes", "11999990001"), { fidelidadeHistoricoInvalido: [] }, { merge: true })
+);
 await deveNegar("altera totalSpent do cliente", () =>
   setDoc(doc(db, "clientes", "11999990001"), { totalSpent: 99999 }, { merge: true })
 );

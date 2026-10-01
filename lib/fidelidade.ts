@@ -8,6 +8,18 @@ export interface LoyaltyProgress {
   remaining: number;
 }
 
+export function brindesDisponiveis(balance: number, meta?: number): number {
+  const goal = meta ?? getValorMinimoBrinde();
+  if (goal <= 0) return 0;
+  return Math.floor(Math.max(0, balance) / goal);
+}
+
+export function saldoAposResgate(balance: number, meta?: number): number {
+  const goal = meta ?? getValorMinimoBrinde();
+  if (goal <= 0) return 0;
+  return Math.max(0, (Number(balance) || 0) - goal);
+}
+
 export function loyaltyProgress(balance: number, meta?: number): LoyaltyProgress {
   const goal = meta ?? getValorMinimoBrinde();
   const active = isBrindeAtivo();
