@@ -263,7 +263,7 @@ export default function AdminAgendamentos() {
               <div className="mt-3 flex justify-center">
                 <button
                   onClick={goToToday}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#8B1D22] transition-colors hover:bg-[#8B1D22]/10"
+                  className="rounded-lg px-1.5 py-1.5 text-xs font-semibold text-[#8B1D22] transition-colors hover:bg-[#8B1D22]/10"
                 >
                   Ir para Hoje
                 </button>
@@ -320,7 +320,7 @@ export default function AdminAgendamentos() {
 
           <button
             onClick={goToToday}
-            className="flex-shrink-0 rounded-lg border border-[#8B1D22] bg-[#8B1D22] px-3 py-1.5 text-[10px] font-bold text-white transition-colors hover:bg-[#721519]"
+            className="flex-shrink-0 rounded-lg border border-[#8B1D22] bg-[#8B1D22] px-1.5 py-1.5 text-[10px] font-bold text-white transition-colors hover:bg-[#721519]"
           >
             Hoje
           </button>
@@ -345,7 +345,7 @@ export default function AdminAgendamentos() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-all ${
+              className={`rounded-md px-1.5 py-1.5 text-[11px] font-bold transition-all ${
                 statusFilter === s
                   ? "bg-[#8B1D22] text-white shadow-sm"
                   : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200/60"
@@ -422,7 +422,7 @@ export default function AdminAgendamentos() {
                 <button
                   key={order.id}
                   onClick={() => setDrawerOrderId(order.id)}
-                  className="rounded-full border border-neutral-700 bg-neutral-800/50 px-3 py-1 text-xs font-semibold text-neutral-300 transition-colors hover:border-amber-500/40 hover:text-white"
+                  className="rounded-full border border-neutral-700 bg-neutral-800/50 px-1.5 py-1 text-xs font-semibold text-neutral-300 transition-colors hover:border-amber-500/40 hover:text-white"
                 >
                   {order.customerName}
                 </button>
@@ -435,7 +435,7 @@ export default function AdminAgendamentos() {
                 const slotOrders = comHorario.filter((o) => normalizarHora(o.scheduledTime) === time);
                 return (
                   <div key={time} className="flex min-h-[52px]">
-                    <div className="flex w-20 flex-shrink-0 items-start justify-end border-r border-neutral-800 px-3 pt-2.5">
+                    <div className="flex w-20 flex-shrink-0 items-start justify-end border-r border-neutral-800 px-1.5 pt-2.5">
                       <span className="text-xs font-semibold text-neutral-600">{time}</span>
                     </div>
                     <div className="flex-1 px-4 py-2">
@@ -512,7 +512,7 @@ export default function AdminAgendamentos() {
                                       <button
                                         key={order.id}
                                         onClick={() => setDrawerOrderId(order.id)}
-                                        className={`mb-0.5 w-full cursor-pointer rounded-lg border border-neutral-200/50 p-2 text-left text-[10px] transition-colors hover:brightness-110 ${STATUS_CONFIG[order.status].color}`}
+                                        className={`mb-0.5 w-full cursor-pointer rounded-md border border-neutral-200/50 flex items-center justify-center py-0.5 min-h-[22px] text-xs font-medium text-left transition-colors hover:brightness-110 ${STATUS_CONFIG[order.status].color}`}
                                       >
                                         {order.customerName}
                                       </button>
