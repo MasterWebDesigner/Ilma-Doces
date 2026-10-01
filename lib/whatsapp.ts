@@ -1,7 +1,12 @@
-import type { CartItem, CompraItem } from "@/types/database";
-import { getStoreConfig } from "./storeConfig";
+import type { CartItem, CompraItem, Order } from "@/types/database";
+import { getStoreConfig, type StoreSettings } from "./storeConfig";
 import { formatItemQty } from "./utils";
 import { itemLineTotal, paidSubtotal } from "./brinde";
+import {
+  resolverTexto,
+  type GatilhoMensagem,
+  type VariaveisMensagem,
+} from "./mensagensWhatsapp";
 
 interface CheckoutData {
   customerName: string;
@@ -33,71 +38,145 @@ function formatDateBR(dateStr: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function formatarValorBR(valor: number): string {
+  return `R$ ${valor.toFixed(2).replace(".", ",")}`;
+}
+
+function varsVazias(): VariaveisMensagem {
+  return {
+    nome_cliente: "",
+    numero_pedido: "",
+    valor_total: "",
+    itens_pedido: "",
+    horario_agendamento: "",
+    data_pedido: "",
+    data_agendamento: "",
+    data_compra: "",
+    data_combinada: "",
+    dias_atraso: "",
+    rotulo_dias: "",
+    motivo: "",
+    endereco: "",
+    tipo_entrega: "",
+    tipo_destino: "",
+    telefone_cliente: "",
+    forma_pagamento: "",
+    subtotal: "",
+    taxa_entrega: "",
+    troco: "",
+    observacoes: "",
+    chave_pix: "",
+    link_pagamento: "",
+    loja: "",
+    whatsapp_loja: "",
+  };
+}
+
+function varsBase(cfg: StoreSettings): VariaveisMensagem {
+  return {
+    loja: cfg.storeName || "",
+    whatsapp_loja: cfg.whatsappLoja || cfg.storePhone || "",
+    chave_pix: cfg.chavePix || cfg.pixKey || "",
+    link_pagamento: cfg.paymentLink || "",
+  };
+}
+
+function itensNumerados(items: CartItem[]): string {
+  return items
+    .map((item, i) => {
+      if (item.is_brinde) {
+        return `${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — *BRINDE FIDELIDADE (R$ 0,00)*`;
+      }
+      return `${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`;
+    })
+    .join("\n");
+}
+
+function blocItensLoja(items: CartItem[]): string {
+  return items
+    .map((item, i) => {
+      if (item.is_brinde) {
+        const original = item.product.price.toFixed(2).replace(".", ",");
+        return `${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${original} → *GRÁTIS (R$ 0,00)* — BRINDE FIDELIDADE`;
+      }
+      const price = itemLineTotal(item).toFixed(2).replace(".", ",");
+      const linha = `${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${price}`;
+      return item.notes ? `${linha}\n   ↳ *obs:* ${item.notes}` : linha;
+    })
+    .join("\n");
+}
+
+export function mensagemAtiva(gatilho: GatilhoMensagem, cfg?: StoreSettings): boolean {
+  const config = cfg || getStoreConfig();
+  const tpl = config.mensagensWhatsapp?.find((m) => m.gatilho === gatilho);
+  return tpl ? tpl.ativo !== false : true;
+}
+
+function varsPedido(order: Order, cfg: StoreSettings): VariaveisMensagem {
+  return {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: order.customerName,
+    numero_pedido: order.orderNumber || order.id.slice(-6),
+    valor_total: formatarValorBR(order.total),
+    itens_pedido: itensNumerados(order.items),
+    horario_agendamento: order.scheduledTime || "",
+    data_pedido: order.scheduledDate ? formatDateBR(order.scheduledDate) : "",
+    data_agendamento: order.scheduledDate ? formatDateBR(order.scheduledDate) : "",
+    endereco: order.deliveryType === "entrega" && order.address ? order.address : "",
+    tipo_entrega: order.deliveryType === "entrega" ? "Entrega" : "Retirada",
+    tipo_destino: order.deliveryType === "entrega" ? "entrega" : "retirada na loja",
+    forma_pagamento: formatPayment(order.paymentMethod),
+  };
+}
+
+export type ResultadoEnvio = "enviado" | "desativado" | "sem_telefone";
+
+export function enviarMensagemStatus(order: Order, gatilho: GatilhoMensagem): ResultadoEnvio {
+  const cfg = getStoreConfig();
+  if (!mensagemAtiva(gatilho, cfg)) return "desativado";
+  const digitos = (order.customerPhone || "").replace(/\D/g, "");
+  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+  if (numero.length < 12) return "sem_telefone";
+  const texto = resolverTexto(cfg.mensagensWhatsapp, gatilho, varsPedido(order, cfg));
+  window.open(urlWaMe(order.customerPhone, texto), "_blank");
+  return "enviado";
+}
+
 export function openWhatsApp(items: CartItem[], checkout: CheckoutData): void {
+  const cfg = getStoreConfig();
+  if (!mensagemAtiva("novo_pedido", cfg)) return;
   const phone = checkout.storePhone
     ? `55${checkout.storePhone.replace(/\D/g, "")}`
-    : `55${getStoreConfig().storePhone.replace(/\D/g, "")}`;
-  const lines: string[] = [];
-
-  lines.push("*🍽️ Novo Pedido — Ilma Doces*");
-  lines.push("");
-
-  lines.push(`*👤 Cliente:* ${checkout.customerName}`);
-  lines.push(`*📱 WhatsApp:* ${checkout.customerPhone}`);
-  lines.push("");
-
-  lines.push(`*📦 Tipo:* ${checkout.deliveryType === "entrega" ? "Entrega" : "Retirada"}`);
-
-  if (checkout.scheduledDate) {
-    lines.push(`*📅 Data:* ${formatDateBR(checkout.scheduledDate)}`);
-  }
-  if (checkout.scheduledTime) {
-    lines.push(`*⏰ Horário:* ${checkout.scheduledTime}`);
-  }
-  if (checkout.deliveryType === "entrega" && checkout.address) {
-    lines.push(`*📍 Endereço:* ${checkout.address}`);
-  }
-  lines.push("");
-
-  lines.push("*🍰 Itens do Pedido:*");
-  items.forEach((item, i) => {
-    if (item.is_brinde) {
-      const original = item.product.price.toFixed(2).replace(".", ",");
-      lines.push(`${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${original} → *GRÁTIS (R$ 0,00)* — BRINDE FIDELIDADE`);
-      return;
-    }
-    const price = itemLineTotal(item).toFixed(2).replace(".", ",");
-    lines.push(`${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${price}`);
-    if (item.notes) {
-      lines.push(`   ↳ *obs:* ${item.notes}`);
-    }
-  });
-  lines.push("");
-
-  if (checkout.generalNotes) {
-    lines.push(`*📝 Observações Gerais:* ${checkout.generalNotes}`);
-    lines.push("");
-  }
+    : `55${cfg.storePhone.replace(/\D/g, "")}`;
 
   const subtotal = paidSubtotal(items);
   const fee = checkout.deliveryFee || 0;
   const total = subtotal + fee;
 
-  lines.push(`*💰 Subtotal:* R$ ${subtotal.toFixed(2).replace(".", ",")}`);
-  if (fee > 0) {
-    lines.push(`*🚚 Taxa de Entrega:* R$ ${fee.toFixed(2).replace(".", ",")}`);
-  }
-  lines.push(`*💵 *Total:* R$ ${total.toFixed(2).replace(".", ",")}`);
-  lines.push("");
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: checkout.customerName,
+    telefone_cliente: checkout.customerPhone,
+    tipo_entrega: checkout.deliveryType === "entrega" ? "Entrega" : "Retirada",
+    data_pedido: checkout.scheduledDate ? formatDateBR(checkout.scheduledDate) : "",
+    horario_agendamento: checkout.scheduledTime || "",
+    endereco: checkout.deliveryType === "entrega" && checkout.address ? checkout.address : "",
+    itens_pedido: blocItensLoja(items),
+    observacoes: checkout.generalNotes || "",
+    subtotal: formatarValorBR(subtotal),
+    taxa_entrega: fee > 0 ? formatarValorBR(fee) : "",
+    valor_total: formatarValorBR(total),
+    forma_pagamento: formatPayment(checkout.paymentMethod),
+    troco:
+      checkout.paymentMethod === "dinheiro" && checkout.trocoPara && checkout.trocoPara > 0
+        ? formatarValorBR(checkout.trocoPara)
+        : "",
+  };
 
-  lines.push(`*💳 Pagamento:* ${formatPayment(checkout.paymentMethod)}`);
-  if (checkout.paymentMethod === "dinheiro" && checkout.trocoPara && checkout.trocoPara > 0) {
-    lines.push(`*💵 Troco para:* R$ ${checkout.trocoPara.toFixed(2).replace(".", ",")}`);
-  }
-  lines.push("");
-  lines.push("Aguardamos confirmação!");
-
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  const texto = resolverTexto(cfg.mensagensWhatsapp, "novo_pedido", vars);
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(texto)}`, "_blank");
 }
 
 export function confirmOrderWhatsApp(order: {
@@ -109,54 +188,33 @@ export function confirmOrderWhatsApp(order: {
   address?: string;
   items: CartItem[];
   total: number;
+  orderNumber?: string;
 }): void {
+  const cfg = getStoreConfig();
+  if (!mensagemAtiva("confirmacao", cfg)) return;
   const phone = `55${order.customerPhone.replace(/\D/g, "")}`;
-  const lines: string[] = [];
 
-  lines.push(`*✅ Pedido Confirmado — Ilma Doces*`);
-  lines.push("");
-  lines.push(`Ola ${order.customerName}!`);
-  lines.push("");
-  lines.push("Seu pedido foi *aceito e confirmado* pela Ilma Doces! 🎉");
-  lines.push("");
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: order.customerName,
+    numero_pedido: order.orderNumber || "",
+    data_pedido: order.scheduledDate ? formatDateBR(order.scheduledDate) : "",
+    horario_agendamento: order.scheduledTime || "",
+    endereco: order.deliveryType === "entrega" && order.address ? order.address : "",
+    itens_pedido: itensNumerados(order.items),
+    valor_total: formatarValorBR(order.total),
+    telefone_cliente: order.customerPhone,
+  };
 
-  if (order.scheduledDate) {
-    lines.push(`*📅 Data:* ${formatDateBR(order.scheduledDate)}`);
-  }
-  if (order.scheduledTime) {
-    lines.push(`*⏰ Horario:* ${order.scheduledTime}`);
-  }
-  if (order.deliveryType === "entrega" && order.address) {
-    lines.push(`*📍 Endereco:* ${order.address}`);
-  }
-  lines.push("");
-
-  lines.push("*🍰 Itens:*");
-  order.items.forEach((item, i) => {
-    if (item.is_brinde) {
-      lines.push(`${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — *BRINDE FIDELIDADE (R$ 0,00)*`);
-      return;
-    }
-    lines.push(`${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`);
-  });
-  lines.push("");
-
-  lines.push(`*💰 Total:* R$ ${order.total.toFixed(2).replace(".", ",")}`);
-  lines.push("");
-  lines.push("Estamos preparando seu pedido com carinho! 💛");
-  lines.push("Qualquer duvida, estamos a disposicao.");
-
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  const texto = resolverTexto(cfg.mensagensWhatsapp, "confirmacao", vars);
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(texto)}`, "_blank");
 }
 
 export function urlWaMe(telefone: string, texto: string): string {
   const digitos = (telefone || "").replace(/\D/g, "");
   const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
   return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
-}
-
-function formatarValorBR(valor: number): string {
-  return `R$ ${valor.toFixed(2).replace(".", ",")}`;
 }
 
 function formatarItemCobranca(item: CompraItem): string {
@@ -182,34 +240,37 @@ interface CobrancaDados {
   whatsappLoja?: string;
 }
 
-function rodapeCobranca(whatsappLoja?: string): string[] {
-  return [
-    "---",
-    "🤖 Esta é uma mensagem automática de cobrança, favor não responder a este envio.",
-    `📞 Em caso de dúvidas, entre em contato diretamente com a Ilma Doces pelo telefone: ${whatsappLoja || ""}.`,
-  ];
-}
-
 export function montarCobrancaVencimento(d: CobrancaDados): string {
-  return [
-    `Olá, ${d.nome}! Tudo bem? Passando para lembrar do seu pedido do dia ${formatDateBR(d.dataCompra)}:`,
-    `🛒 Itens: ${listaItensCobranca(d.itens, d.descricaoFallback)}`,
-    `💰 Valor: ${formatarValorBR(d.valor)}`,
-    `Hoje é a data combinada para o pagamento! Segue a nossa chave PIX: ${d.chavePix || ""}. Qualquer dúvida estou por aqui, muito obrigada!`,
-    ...rodapeCobranca(d.whatsappLoja),
-  ].join("\n");
+  const cfg = getStoreConfig();
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: d.nome,
+    data_compra: formatDateBR(d.dataCompra),
+    itens_pedido: listaItensCobranca(d.itens, d.descricaoFallback),
+    valor_total: formatarValorBR(d.valor),
+    chave_pix: d.chavePix || "",
+    whatsapp_loja: d.whatsappLoja || "",
+  };
+  return resolverTexto(cfg.mensagensWhatsapp, "cobranca_vencimento", vars);
 }
 
 export function montarCobrancaAtraso(d: CobrancaDados & { diasAtraso: number }): string {
+  const cfg = getStoreConfig();
   const rotulo = d.diasAtraso === 1 ? "dia" : "dias";
-  return [
-    `Olá, ${d.nome}! Tudo bem? Notamos que o pagamento do seu pedido está em aberto:`,
-    `🛒 Itens: ${listaItensCobranca(d.itens, d.descricaoFallback)}`,
-    `💰 Valor: ${formatarValorBR(d.valor)}`,
-    `📅 Data combinada: ${formatDateBR(d.dataPrometida || d.dataCompra)} (${d.diasAtraso} ${rotulo} em atraso)`,
-    `Consegue dar uma olhadinha para a gente? Segue a chave PIX para quitação: ${d.chavePix || ""}.`,
-    ...rodapeCobranca(d.whatsappLoja),
-  ].join("\n");
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: d.nome,
+    data_combinada: formatDateBR(d.dataPrometida || d.dataCompra),
+    dias_atraso: d.diasAtraso,
+    rotulo_dias: rotulo,
+    itens_pedido: listaItensCobranca(d.itens, d.descricaoFallback),
+    valor_total: formatarValorBR(d.valor),
+    chave_pix: d.chavePix || "",
+    whatsapp_loja: d.whatsappLoja || "",
+  };
+  return resolverTexto(cfg.mensagensWhatsapp, "cobranca_atraso", vars);
 }
 
 export function montarAgradecimentoPagamento(d: {
@@ -218,10 +279,15 @@ export function montarAgradecimentoPagamento(d: {
   itens?: CompraItem[];
   descricaoFallback?: string;
 }): string {
-  return [
-    `Olá, ${d.nome}! Recebemos o seu pagamento de ${formatarValorBR(d.valor)} referente ao pedido (${listaItensCobranca(d.itens, d.descricaoFallback)}).`,
-    `Muito obrigado pela preferência e pela parceria de sempre! Tenha um ótimo dia! 🧁✨`,
-  ].join("\n");
+  const cfg = getStoreConfig();
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: d.nome,
+    valor_total: formatarValorBR(d.valor),
+    itens_pedido: listaItensCobranca(d.itens, d.descricaoFallback),
+  };
+  return resolverTexto(cfg.mensagensWhatsapp, "agradecimento_pagamento", vars);
 }
 
 function listaSimplesItens(items: CartItem[]): string {
@@ -236,8 +302,17 @@ export function montarRecusaPedido(d: {
   items: CartItem[];
   motivo?: string;
 }): string {
+  const cfg = getStoreConfig();
   const motivo = (d.motivo || "").trim();
-  return `Olá, ${d.customerName}! Infelizmente não conseguiremos atender ao seu pedido nº ${d.numeroPedido} referente a: ${listaSimplesItens(d.items)}.${motivo ? ` Motivo: ${motivo}.` : ""} Agradecemos a compreensão e ficamos à disposição!`;
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: d.customerName,
+    numero_pedido: d.numeroPedido,
+    itens_pedido: listaSimplesItens(d.items),
+    motivo: motivo ? ` Motivo: ${motivo}.` : "",
+  };
+  return resolverTexto(cfg.mensagensWhatsapp, "recusa", vars);
 }
 
 export function montarCancelamentoPedido(d: {
@@ -245,5 +320,13 @@ export function montarCancelamentoPedido(d: {
   numeroPedido: string;
   items: CartItem[];
 }): string {
-  return `Olá, ${d.customerName}! Seu pedido nº ${d.numeroPedido} (${listaSimplesItens(d.items)}) foi cancelado. Se tiver alguma dúvida ou precisar de ajuda com o estorno/reagendamento, entre em contato conosco por aqui.`;
+  const cfg = getStoreConfig();
+  const vars: VariaveisMensagem = {
+    ...varsVazias(),
+    ...varsBase(cfg),
+    nome_cliente: d.customerName,
+    numero_pedido: d.numeroPedido,
+    itens_pedido: listaSimplesItens(d.items),
+  };
+  return resolverTexto(cfg.mensagensWhatsapp, "cancelamento", vars);
 }

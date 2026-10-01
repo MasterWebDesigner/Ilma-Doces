@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import {
+  type MensagemTemplate,
+  DEFAULT_MENSAGENS,
+  normalizarMensagensWhatsapp,
+} from "./mensagensWhatsapp";
 
 export interface InstagramPost {
   id: string;
@@ -34,6 +39,8 @@ export interface StoreSettings {
   brindeTodasCategorias: boolean;
   brindeCategoriasPromo: string[];
   instagramPosts: InstagramPost[];
+  paymentLink: string;
+  mensagensWhatsapp: MensagemTemplate[];
 }
 
 export function makeInstagramPost(partial?: Partial<InstagramPost>): InstagramPost {
@@ -74,10 +81,21 @@ export const DEFAULT_SETTINGS: StoreSettings = {
     makeInstagramPost({ title: "Torta salgada artesanal", imageUrl: "/imagens/TortaDeFrango.webp", active: true }),
     makeInstagramPost({ title: "Gelinhos gourmet da semana", imageUrl: "/imagens/Maionese.webp", active: true }),
   ],
+  paymentLink: "",
+  mensagensWhatsapp: DEFAULT_MENSAGENS,
 };
 
 const STORAGE_KEY = "ilma-store-settings";
 export const SETTINGS_CHANGED_EVENT = "ilma-store-settings-changed";
+
+function comPadroes(raw: Partial<StoreSettings>): StoreSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...raw,
+    paymentLink: typeof raw.paymentLink === "string" ? raw.paymentLink : "",
+    mensagensWhatsapp: normalizarMensagensWhatsapp(raw.mensagensWhatsapp),
+  };
+}
 
 if (typeof window !== "undefined") {
   onSnapshot(
@@ -85,9 +103,9 @@ if (typeof window !== "undefined") {
     (snap) => {
       if (!snap.exists()) return;
       try {
-        const remote = { ...DEFAULT_SETTINGS, ...(snap.data() as Partial<StoreSettings>) };
+        const remote = comPadroes(snap.data() as Partial<StoreSettings>);
         const raw = localStorage.getItem(STORAGE_KEY);
-        const local = { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
+        const local = comPadroes(raw ? JSON.parse(raw) : {});
         if (JSON.stringify(local) === JSON.stringify(remote)) return;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
         window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
@@ -101,7 +119,7 @@ export function getStoreConfig(): StoreSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) return comPadroes(JSON.parse(raw));
   } catch {}
   return DEFAULT_SETTINGS;
 }
@@ -117,6 +135,8 @@ export function saveStoreConfig(settings: StoreSettings): void {
     instagramPosts: Array.isArray(settings.instagramPosts)
       ? settings.instagramPosts
       : DEFAULT_SETTINGS.instagramPosts,
+    paymentLink: typeof settings.paymentLink === "string" ? settings.paymentLink : "",
+    mensagensWhatsapp: normalizarMensagensWhatsapp(settings.mensagensWhatsapp),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
@@ -129,7 +149,7 @@ export async function loadStoreConfigFromDb(): Promise<StoreSettings | null> {
   try {
     const snap = await getDoc(doc(db, "configuracoes", "loja"));
     if (snap.exists()) {
-      return { ...DEFAULT_SETTINGS, ...(snap.data() as Partial<StoreSettings>) };
+      return comPadroes(snap.data() as Partial<StoreSettings>);
     }
   } catch {}
   return null;
@@ -147,7 +167,7 @@ export function useStoreConfig(): StoreSettings {
 
     loadStoreConfigFromDb().then((dbSettings) => {
       if (dbSettings) {
-        const merged = { ...DEFAULT_SETTINGS, ...dbSettings };
+        const merged = comPadroes(dbSettings);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         setSettings(merged);
         window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));

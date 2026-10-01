@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useCustomerStore, useOrderStore, useProductStore } from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
-import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
+import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe, enviarMensagemStatus, mensagemAtiva } from "@/lib/whatsapp";
 import { compararTexto, formatCurrency, formatItemQty, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import type { CartItem, CompraItem, Order, PaymentMethod } from "@/types/database";
@@ -45,6 +45,7 @@ export function RegistrarSinalModal({ order, onClose }: { order: Order; onClose:
         scheduledTime: order.scheduledTime,
         items: order.items,
         total: order.total,
+        orderNumber: order.orderNumber || order.id.slice(-6),
       });
 
       onClose();
@@ -434,6 +435,7 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
           dataPagamento: dataEntrada,
         });
         if (!ok) return;
+        enviarMensagemStatus(order, "concluido");
         onClose();
         return;
       }
@@ -504,6 +506,7 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
           transacao
         );
         if (!ok) return;
+        enviarMensagemStatus(order, "concluido");
       }
 
       onClose();
@@ -711,12 +714,14 @@ export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; ti
     : montarCancelamentoPedido({ customerName: order.customerName, numeroPedido, items: order.items });
 
   function handleConfirmar() {
-    const digitos = (order.customerPhone || "").replace(/\D/g, "");
-    const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
-    if (numero.length >= 12) {
-      window.open(urlWaMe(order.customerPhone, preview), "_blank");
-    } else {
-      alert("Número de WhatsApp inválido — o pedido foi atualizado sem envio da mensagem.");
+    if (mensagemAtiva(isRecusa ? "recusa" : "cancelamento")) {
+      const digitos = (order.customerPhone || "").replace(/\D/g, "");
+      const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+      if (numero.length >= 12) {
+        window.open(urlWaMe(order.customerPhone, preview), "_blank");
+      } else {
+        alert("Número de WhatsApp inválido — o pedido foi atualizado sem envio da mensagem.");
+      }
     }
     updateStatus(order.id, isRecusa ? "recusado" : "cancelado");
     onClose();

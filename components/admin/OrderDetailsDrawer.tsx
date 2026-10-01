@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useOrderStore } from "@/lib/store";
-import { confirmOrderWhatsApp } from "@/lib/whatsapp";
-import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
+import { confirmOrderWhatsApp, enviarMensagemStatus } from "@/lib/whatsapp";
+import { useNotificationStore, playNotificationSound, notifyError } from "@/lib/notifications";
+import type { GatilhoMensagem } from "@/lib/mensagensWhatsapp";
 import { classNames, formatCurrency, formatItemQty, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import { formatarTelefone } from "@/lib/phone";
@@ -78,6 +79,13 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
   const podeRegistrarSinal = !sinalPago && !terminado;
   const mostrarPesoReal = order.status === "pendente" && order.items.some((i) => i.product.isCustomWeight);
 
+  function disparar(gatilho: GatilhoMensagem) {
+    const resultado = enviarMensagemStatus(order, gatilho);
+    if (resultado === "sem_telefone") {
+      notifyError("WhatsApp", "Telefone do cliente inválido — a mensagem não foi enviada.");
+    }
+  }
+
   function aceitarPedido() {
     confirmOrderWhatsApp({
       customerName: order.customerName,
@@ -87,6 +95,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
       scheduledTime: order.scheduledTime,
       items: order.items,
       total: order.total,
+      orderNumber: order.orderNumber || order.id.slice(-6),
     });
     void updateStatus(order.id, "confirmado");
   }
@@ -96,16 +105,33 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
       case "pendente":
         return { label: "Aceitar Pedido", classe: "bg-blue-600 hover:bg-blue-700", exec: aceitarPedido };
       case "confirmado":
-        return { label: "Iniciar Produção", classe: "bg-blue-600 hover:bg-blue-700", exec: () => void updateStatus(order.id, "em_producao") };
+        return {
+          label: "Iniciar Produção",
+          classe: "bg-blue-600 hover:bg-blue-700",
+          exec: () => {
+            disparar("em_producao");
+            void updateStatus(order.id, "em_producao");
+          },
+        };
       case "em_producao":
         return {
           label: ehEntrega ? "Pronto p/ Entrega" : "Pronto p/ Retirada",
           classe: "bg-blue-600 hover:bg-blue-700",
-          exec: () => void updateStatus(order.id, "pronto"),
+          exec: () => {
+            disparar("pronto");
+            void updateStatus(order.id, "pronto");
+          },
         };
       case "pronto":
         return ehEntrega
-          ? { label: "Saiu p/ Entrega", classe: "bg-blue-600 hover:bg-blue-700", exec: () => void updateStatus(order.id, "saiu_entrega") }
+          ? {
+              label: "Saiu p/ Entrega",
+              classe: "bg-blue-600 hover:bg-blue-700",
+              exec: () => {
+                disparar("saiu_entrega");
+                void updateStatus(order.id, "saiu_entrega");
+              },
+            }
           : { label: "Concluir Pedido", classe: "bg-blue-600 hover:bg-blue-700", exec: onFinalizar };
       case "saiu_entrega":
         return { label: "Concluir Pedido", classe: "bg-blue-600 hover:bg-blue-700", exec: onFinalizar };
@@ -140,6 +166,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
       scheduledTime: order.scheduledTime,
       items: newItems,
       total: newTotal,
+      orderNumber: order.orderNumber || order.id.slice(-6),
     });
 
     useNotificationStore.getState().addNotification({
@@ -217,6 +244,14 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
                 className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:border-emerald-500/30 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
               >
                 Finalizar Pedido
+              </button>
+            )}
+            {order.scheduledDate && !terminado && (
+              <button
+                onClick={() => disparar("lembrete_agendamento")}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/20"
+              >
+                Enviar Lembrete
               </button>
             )}
             {!terminado && (

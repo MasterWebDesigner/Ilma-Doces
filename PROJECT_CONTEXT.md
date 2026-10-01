@@ -21,7 +21,7 @@ Este documento descreve a arquitetura atual, rotas do App Router, estrutura de d
 - **`/admin/credores`** (`app/admin/credores/page.tsx`): Gestão de credores e fiados, abates parciais, reabertura de dívidas (estorno) e cobrança via WhatsApp.
 - **`/admin/precificacao`** (`app/admin/precificacao/page.tsx`): Fichas técnicas e precificação de produtos.
 - **`/admin/vendas`** (`app/admin/vendas/page.tsx`): Histórico de vendas, relatórios mensais, **Top 5 Produtos Mais Vendidos** e **Distribuição de Vendas por Categoria (fechamento exato em 100.0%)**.
-- **`/admin/configuracoes`** (`app/admin/configuracoes/page.tsx`): Configurações gerais da loja e dados de contato.
+- **`/admin/configuracoes`** (`app/admin/configuracoes/page.tsx`): Configurações gerais da loja, dados de contato e seção **Mensagens WhatsApp** (templates editáveis por gatilho — `components/admin/MensagensWhatsappCard.tsx` — com tags dinâmicas, ativar/pausar, restaurar padrão e prévia; persistidos em `configuracoes/loja` via `lib/storeConfig.ts` e aplicados pelos helpers de `lib/whatsapp.ts`).
 
 ---
 

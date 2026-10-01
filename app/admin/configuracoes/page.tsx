@@ -11,6 +11,7 @@ import {
   saveStoreConfig,
   makeInstagramPost,
 } from "@/lib/storeConfig";
+import { MensagensWhatsappCard } from "@/components/admin/MensagensWhatsappCard";
 
 function loadSettings(): StoreSettings {
   return getStoreConfig();
@@ -260,8 +261,19 @@ export default function AdminConfiguracoes() {
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Descricao PIX</label>
             <input type="text" value={settings.pixDescription} onChange={(e) => setSettings((s) => ({ ...s, pixDescription: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="Ex: Chave PIX da loja" />
           </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Link de Pagamento (opcional)</label>
+            <input type="url" value={settings.paymentLink} onChange={(e) => setSettings((s) => ({ ...s, paymentLink: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="https://... usado na tag {link_pagamento}" />
+          </div>
         </div>
       </div>
+
+      {/* Mensagens WhatsApp */}
+      <MensagensWhatsappCard
+        mensagens={settings.mensagensWhatsapp || []}
+        onChange={(mensagens) => setSettings((s) => ({ ...s, mensagensWhatsapp: mensagens }))}
+        onSave={handleSave}
+      />
 
       {/* Posts do Instagram */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
