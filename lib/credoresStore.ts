@@ -416,6 +416,7 @@ export const useCredoresStore = create<CredoresState>()(
 
             const novosPagamentos = (remoto.pagamentos || []).filter((p) => p.id !== pagamentoId);
 
+            const pedidosReabertos = new Set<string>();
             const comprasAtualizadas = (remoto.compras || []).map((compra) => {
               const temBaixaCorrespondente = (compra.baixas || []).some((b) => {
                 if (pagamentoAlvo.baixaId && b.id === pagamentoAlvo.baixaId) return true;
@@ -433,10 +434,16 @@ export const useCredoresStore = create<CredoresState>()(
                 return true;
               });
 
-              return recalcularCompra({
+              const recalculada = recalcularCompra({
                 ...compra,
+                pago: false,
                 baixas: novasBaixas,
               });
+
+              if (recalculada.status === 'PENDENTE' && recalculada.referenciaId) {
+                pedidosReabertos.add(recalculada.referenciaId);
+              }
+              return recalculada;
             });
 
             const credorAtualizado: Credor = {
@@ -445,9 +452,20 @@ export const useCredoresStore = create<CredoresState>()(
               pagamentos: novosPagamentos,
             };
 
+            const pedidosExistentes = new Map<string, boolean>();
+            for (const pedidoId of pedidosReabertos) {
+              const ps = await t.get(doc(db, "pedidos", pedidoId));
+              pedidosExistentes.set(pedidoId, ps.exists());
+            }
+
             t.set(ref, credorAtualizado);
             if (pagamentoAlvo.transacaoFinanceiraId) {
               t.delete(doc(db, "financeiro", pagamentoAlvo.transacaoFinanceiraId));
+            }
+            for (const pedidoId of pedidosReabertos) {
+              if (pedidosExistentes.get(pedidoId)) {
+                t.set(doc(db, "pedidos", pedidoId), { dataPagamento: deleteField() }, { merge: true });
+              }
             }
 
             return { credorAtualizado, financeiroId: pagamentoAlvo.transacaoFinanceiraId };
@@ -590,6 +608,17 @@ export const useCredoresStore = create<CredoresState>()(
               { permitirReverter: acaoReabrir }
             );
             aplicarLocal(atualizado);
+
+            const compraReaberta = (atualizado.compras || []).find((c) => c.id === compraId);
+            if (compraReaberta && compraReaberta.status === 'PENDENTE' && compraReaberta.referenciaId) {
+              try {
+                const pedidoRef = doc(db, "pedidos", compraReaberta.referenciaId);
+                const ps = await getDoc(pedidoRef);
+                if (ps.exists()) {
+                  await setDoc(pedidoRef, { dataPagamento: deleteField() }, { merge: true });
+                }
+              } catch {}
+            }
           } catch (err) {
             notifyError("Erro", erroAmigavel(err, "Não foi possível alterar o status da compra."));
             throw err;

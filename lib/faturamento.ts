@@ -71,7 +71,9 @@ export function pedidoEhFiado(order: Order): boolean {
 export function getPaidDate(order: Order): string | null {
   if (order.dataPagamento) return order.dataPagamento.slice(0, 10);
   if (pedidoEhFiado(order)) return null;
-  if (order.status === "concluido" && order.createdAt) return order.createdAt.slice(0, 10);
+  if (order.status === "concluido" && order.createdAt) {
+    return getLocalDateStr(new Date(order.createdAt));
+  }
   return null;
 }
 
