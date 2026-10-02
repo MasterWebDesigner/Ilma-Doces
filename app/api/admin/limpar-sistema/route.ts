@@ -2,6 +2,29 @@ import { NextResponse } from "next/server";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
+function parseServiceAccount(raw: string) {
+  const limpo = raw.trim().replace(/\s+/g, "");
+  const tentativas = [raw.trim(), Buffer.from(limpo, "base64").toString("utf-8")];
+
+  let ultimoErro: unknown;
+  for (const tentativa of tentativas) {
+    try {
+      const parsed = JSON.parse(tentativa);
+      if (parsed && typeof parsed === "object" && "project_id" in parsed) {
+        return parsed;
+      }
+      ultimoErro = new Error("JSON válido mas sem project_id.");
+    } catch (e) {
+      ultimoErro = e;
+    }
+  }
+  throw new Error(
+    `FIREBASE_SERVICE_ACCOUNT_KEY inválida: ${
+      ultimoErro instanceof Error ? ultimoErro.message : "formato desconhecido"
+    }`
+  );
+}
+
 function getDb() {
   if (getApps().length > 0) {
     return getFirestore(getApps()[0]);
@@ -23,9 +46,7 @@ function getDb() {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY é obrigatória em produção.");
   }
 
-  const serviceAccount = JSON.parse(
-    Buffer.from(rawKey, "base64").toString("utf-8")
-  );
+  const serviceAccount = parseServiceAccount(rawKey);
 
   const app = initializeApp({
     credential: cert(serviceAccount),
