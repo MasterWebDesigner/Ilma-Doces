@@ -1,73 +1,103 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const TABELAS: Record<string, string> = {
+  pedidos: "pedidos",
+  clientes: "clientes",
+  credores: "credores",
+  financeiro: "financeiro",
+  despesas: "despesas",
+};
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error("Variáveis de ambiente SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias");
+let clienteSupabase: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient {
+  if (clienteSupabase) return clienteSupabase;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !chave) {
+    throw new Error(
+      "Variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias."
+    );
+  }
+
+  clienteSupabase = createClient(url, chave, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  return clienteSupabase;
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+async function limparTabela(supabase: SupabaseClient, tabela: string): Promise<number> {
+  const { data: registos, error: erroBusca } = await supabase
+    .from(tabela)
+    .select("id");
 
-type LimparSistemaBody = {
-  collection: "pedidos" | "clientes" | "credores" | "financeiro" | "despesas";
-};
+  if (erroBusca) {
+    throw new Error(`Erro ao buscar registos de "${tabela}": ${erroBusca.message}`);
+  }
+
+  if (!registos || registos.length === 0) return 0;
+
+  const ids = registos.map((r) => r.id);
+
+  const { error: erroDelete } = await supabase
+    .from(tabela)
+    .delete()
+    .in("id", ids);
+
+  if (erroDelete) {
+    throw new Error(`Erro ao apagar registos de "${tabela}": ${erroDelete.message}`);
+  }
+
+  return ids.length;
+}
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as LimparSistemaBody;
+    const supabase = getSupabase();
+
+    let body: { collection?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Corpo do pedido inválido. Envie JSON com a propriedade 'collection'." },
+        { status: 400 }
+      );
+    }
+
     const { collection } = body;
 
     if (!collection) {
-      return NextResponse.json({ error: "Coleção não informada." }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Propriedade 'collection' em falta." },
+        { status: 400 }
+      );
     }
 
-    const collectionsToClear: Record<
-      "pedidos" | "clientes" | "credores" | "financeiro" | "despesas",
-      { table: string; idField: string }
-    > = {
-      pedidos: { table: "pedidos", idField: "id" },
-      clientes: { table: "clientes", idField: "id" },
-      credores: { table: "credores", idField: "id" },
-      financeiro: { table: "financeiro", idField: "id" },
-      despesas: { table: "despesas", idField: "id" },
-    };
+    const tabela = TABELAS[collection];
 
-    const { table, idField } = collectionsToClear[collection];
-
-    if (!table) {
-      return NextResponse.json({ error: "Coleção inválida." }, { status: 400 });
+    if (!tabela) {
+      return NextResponse.json(
+        { success: false, error: `Coleção inválida: "${collection}". Use: ${Object.keys(TABELAS).join(", ")}.` },
+        { status: 400 }
+      );
     }
 
-    // Fetch all records from the table
-    const { data: records, error: fetchError } = await supabase
-      .from(table)
-      .select(idField);
+    const apagados = await limparTabela(supabase, tabela);
 
-    if (fetchError) {
-      console.error(`Erro ao buscar registros de ${table}:`, fetchError);
-      return NextResponse.json({ error: "Erro ao buscar registros." }, { status: 500 });
-    }
-
-    if (records && Array.isArray(records) && records.length > 0) {
-      // Delete each record safely
-      for (const record of records) {
-        const idValue = record[idField as keyof typeof record];
-        if (idValue !== undefined && idValue !== null) {
-          await supabase.from(table).delete().eq(idField as string, idValue as string | number);
-        }
-      }
-    }
-
-    return NextResponse.json({ success: true, cleared: collection });
-  } catch (err: any) {
-    console.error("Erro na rota limpar-sistema:", err);
-    return NextResponse.json({ error: err.message || "Erro interno do servidor." }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      cleared: collection,
+      deleted: apagados,
+      message: `Coleção "${collection}" limpa com sucesso (${apagados} registo(s) apagado(s)).`,
+    });
+  } catch (err: unknown) {
+    const mensagem = err instanceof Error ? err.message : "Erro interno do servidor.";
+    console.error("[limpar-sistema]", mensagem);
+    return NextResponse.json({ success: false, error: mensagem }, { status: 500 });
   }
 }

@@ -63,7 +63,7 @@ export default function AdminConfiguracoes() {
   }
 
   async function apiRequest(method: string, endpoint: string, body?: any) {
-    const url = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api${endpoint}`;
+    const url = `/api${endpoint}`;
     const options: RequestInit = {
       method,
       headers: {
