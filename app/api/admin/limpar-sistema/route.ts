@@ -68,7 +68,7 @@ type Colecao = (typeof COLECOES)[number];
 
 export async function POST(request: Request) {
   try {
-    let body: { collection?: string };
+    let body: { collection?: string; dryRun?: boolean };
     try {
       body = await request.json();
     } catch {
@@ -102,6 +102,16 @@ export async function POST(request: Request) {
 
     const db = getDb();
     const snapshot = await db.collection(collection).get();
+
+    if (body.dryRun === true) {
+      return NextResponse.json({
+        success: true,
+        dryRun: true,
+        cleared: collection,
+        found: snapshot.size,
+        message: `Dry run: ${snapshot.size} registo(s) em "${collection}".`,
+      });
+    }
 
     if (snapshot.empty) {
       return NextResponse.json({
