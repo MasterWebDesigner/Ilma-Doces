@@ -90,6 +90,7 @@ export function availableBrindeFlavors(products: Product[], categories: Category
   if (!isBrindeAtivo()) return [];
   return products.filter((p) => {
     if (!isBrindeProduct(p, categories)) return false;
+    if (p.ativo === false) return false;
     if (p.is_available === false) return false;
     if (p.controlarEstoque && (p.estoque ?? 0) <= 0) return false;
     return true;

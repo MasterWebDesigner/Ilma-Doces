@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { assinarDocumento } from "./retrySnapshot";
 import {
   type MensagemTemplate,
   DEFAULT_MENSAGENS,
@@ -106,21 +107,17 @@ function comPadroes(raw: Partial<StoreSettings>): StoreSettings {
 }
 
 if (typeof window !== "undefined") {
-  onSnapshot(
-    doc(db, "configuracoes", "loja"),
-    (snap) => {
-      if (!snap.exists()) return;
-      try {
-        const remote = comPadroes(snap.data() as Partial<StoreSettings>);
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const local = comPadroes(raw ? JSON.parse(raw) : {});
-        if (JSON.stringify(local) === JSON.stringify(remote)) return;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
-        window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
-      } catch {}
-    },
-    () => {}
-  );
+  assinarDocumento("configurações da loja", doc(db, "configuracoes", "loja"), (snap) => {
+    if (!snap.exists()) return;
+    try {
+      const remote = comPadroes(snap.data() as Partial<StoreSettings>);
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const local = comPadroes(raw ? JSON.parse(raw) : {});
+      if (JSON.stringify(local) === JSON.stringify(remote)) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remote));
+      window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
+    } catch {}
+  });
 }
 
 export function getStoreConfig(): StoreSettings {

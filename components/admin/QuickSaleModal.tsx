@@ -216,7 +216,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     setLoading(true);
 
     try {
-      const check = await validarEstoqueServidor(itensAgrupados());
+      const check = await validarEstoqueServidor(itensAgrupados(), "balcao");
       if (!check.ok) {
         setLoading(false);
         notifyInfo("Estoque insuficiente", `${listarSemEstoque(check.insufficient)}. Ajuste a quantidade para finalizar.`);

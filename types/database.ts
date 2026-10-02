@@ -13,6 +13,7 @@ export interface Product {
   price: number;
   image_url: string | null;
   is_available: boolean;
+  ativo?: boolean;
   display_order: number;
   brand: string;
   isCustomWeight?: boolean;

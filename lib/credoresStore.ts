@@ -4,7 +4,8 @@ import { useFinanceiroStore, montarTransacao } from './financeiroStore';
 import { getLocalDateStr, paymentLabelOf } from './utils';
 import { db } from './firebase';
 import { quandoAutenticado } from './authSync';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, getDoc, runTransaction, deleteField } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, getDoc, runTransaction, deleteField } from 'firebase/firestore';
+import { assinarColecao } from './retrySnapshot';
 import { notifyError } from './notifications';
 import { divergenciaDeReversaoCredor, type OpcoesReversao } from './antiRollback';
 import type { Credor, CompraCredor, CompraItem, BaixaCompra, PagamentoCredor, FinancialTransaction } from '@/types/database';
@@ -13,7 +14,7 @@ type CredorRemoto = Omit<Credor, "id">;
 
 if (typeof window !== "undefined") {
   quandoAutenticado(() =>
-    onSnapshot(collection(db, "credores"), (snapshot) => {
+    assinarColecao("credores", collection(db, "credores"), (snapshot) => {
       const credores = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Credor));
       useCredoresStore.setState({ credores });
     })

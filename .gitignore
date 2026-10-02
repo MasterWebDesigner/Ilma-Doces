@@ -1,6 +1,8 @@
 node_modules/
 .next/
 _backups/
+backups/
+.secrets/
 .env.local
 .env*.local
 .vercel/

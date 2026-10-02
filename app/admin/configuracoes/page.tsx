@@ -130,7 +130,7 @@ export default function AdminConfiguracoes() {
   }
 
   async function handleClearAll() {
-    if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro e Despesas)? Esta ação é irreversível!")) return;
+    if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro, Despesas e Fidelidade) e zerar a numeração de pedidos? Esta ação é irreversível!")) return;
     try {
       await Promise.all([
         apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" }),
@@ -138,6 +138,8 @@ export default function AdminConfiguracoes() {
         apiRequest("POST", "/admin/limpar-sistema", { collection: "credores" }),
         apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" }),
         apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "fidelidade" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "contadores" }),
       ]);
       localStorage.clear();
       alert("Sistema limpo com sucesso!");

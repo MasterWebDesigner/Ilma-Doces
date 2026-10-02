@@ -12,6 +12,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
     const items: CheckItem[] = Array.isArray(body?.items) ? body.items : null;
+    const origem: string = typeof body?.origem === "string" && body.origem ? body.origem : "site";
 
     if (!items || items.length === 0) {
       return Response.json({ error: "Lista de itens ausente." }, { status: 400 });
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
       nome: string;
       solicitado: number;
       disponivel: number;
+      motivo?: "inativo" | "esgotado";
     }> = [];
 
     for (const item of items) {
@@ -37,7 +39,31 @@ export async function POST(req: Request) {
         controlarEstoque?: boolean;
         estoque?: number;
         is_available?: boolean;
+        ativo?: boolean;
       };
+
+      if (origem !== "balcao") {
+        if (produto.ativo === false) {
+          insufficient.push({
+            productId,
+            nome: produto.name || productId,
+            solicitado: quantity,
+            disponivel: 0,
+            motivo: "inativo",
+          });
+          continue;
+        }
+        if (produto.is_available === false) {
+          insufficient.push({
+            productId,
+            nome: produto.name || productId,
+            solicitado: quantity,
+            disponivel: 0,
+            motivo: "esgotado",
+          });
+          continue;
+        }
+      }
 
       if (!produto.controlarEstoque) continue;
 

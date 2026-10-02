@@ -282,9 +282,9 @@ export default function GelinhosPanel() {
 
                   {/* Footer: Status + Controls */}
                   <div className="flex items-center justify-between">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${estoque > 0 && p.is_available ? "text-[#10B981]" : "text-[#9CA3AF]"}`}>
-                      <span className={`h-2 w-2 rounded-full ${estoque > 0 && p.is_available ? "bg-[#10B981]" : "bg-[#9CA3AF]"}`} />
-                      {estoque > 0 && p.is_available ? "Ativo" : "Indisponível"}
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${estoque > 0 && p.is_available && p.ativo !== false ? "text-[#10B981]" : "text-[#9CA3AF]"}`}>
+                      <span className={`h-2 w-2 rounded-full ${estoque > 0 && p.is_available && p.ativo !== false ? "bg-[#10B981]" : "bg-[#9CA3AF]"}`} />
+                      {p.ativo === false ? "Inativo" : estoque > 0 && p.is_available ? "Ativo" : "Indisponível"}
                     </span>
                     <div className="flex items-center gap-0.5">
                       <button

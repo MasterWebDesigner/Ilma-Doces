@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getCategoryEmoji } from "@/lib/mockData";
 import type { Product } from "@/types/database";
 import { formatCurrency, formatItemQty, classNames } from "@/lib/utils";
+import { produtoVisivel, produtoEsgotado } from "@/lib/produtoStatus";
 import { useCartStore, useProductStore } from "@/lib/store";
 
 export default function CardapioPage() {
@@ -17,7 +18,7 @@ export default function CardapioPage() {
 
   const categoryById = new Map(categories.map((c) => [c.id, c.name]));
   const visibleCategories = categories.filter((cat) =>
-    products.some((p) => p.category_id === cat.id)
+    products.some((p) => p.category_id === cat.id && produtoVisivel(p))
   );
 
   function openProduct(product: Product) {
@@ -26,13 +27,14 @@ export default function CardapioPage() {
   }
 
   const allProducts = products.filter((p) => {
+    if (!produtoVisivel(p)) return false;
     const matchCat = activeCategory === "all" || p.category_id === activeCategory;
     const q = search.toLowerCase();
     const matchSearch = !q || p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
     return matchCat && matchSearch;
   });
 
-  const galleryPhotos = products.filter((p) => p.image_url).slice(0, 8);
+  const galleryPhotos = products.filter((p) => produtoVisivel(p) && p.image_url).slice(0, 8);
 
   return (
     <main className="bg-white pb-16 pt-20 dark:bg-neutral-950">
@@ -77,7 +79,7 @@ export default function CardapioPage() {
         ) : (
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {allProducts.map((product) => {
-              const isEsgotado = product.controlarEstoque && (product.estoque ?? 0) <= 0;
+              const isEsgotado = produtoEsgotado(product);
               return (
                 <div
                   key={product.id}
@@ -168,14 +170,14 @@ export default function CardapioPage() {
                 <img
                   src={selectedProduct.image_url}
                   alt={selectedProduct.name}
-                  className={`h-full w-full object-cover ${selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? "opacity-40 grayscale" : ""}`}
+                  className={`h-full w-full object-cover ${produtoEsgotado(selectedProduct) ? "opacity-40 grayscale" : ""}`}
                 />
               ) : (
-                <div className={`flex h-full items-center justify-center text-7xl ${selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? "opacity-40 grayscale" : ""}`}>
+                <div className={`flex h-full items-center justify-center text-7xl ${produtoEsgotado(selectedProduct) ? "opacity-40 grayscale" : ""}`}>
                   {getCategoryEmoji(selectedProduct.category_id, categoryById.get(selectedProduct.category_id))}
                 </div>
               )}
-              {selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 && (
+              {produtoEsgotado(selectedProduct) && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="rounded bg-red-600/90 px-4 py-1.5 text-sm font-bold text-white">Esgotado</span>
                 </div>
@@ -229,7 +231,7 @@ export default function CardapioPage() {
                 </div>
               )}
               <div className="mt-5">
-                {selectedProduct.controlarEstoque && (selectedProduct.estoque ?? 0) <= 0 ? (
+                {produtoEsgotado(selectedProduct) ? (
                   <span className="block rounded-lg bg-neutral-200 px-5 py-3 text-center text-sm font-semibold text-neutral-500 dark:bg-neutral-800">
                     Esgotado
                   </span>

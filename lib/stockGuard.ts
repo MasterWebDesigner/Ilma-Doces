@@ -8,17 +8,19 @@ export interface StockInsufficient {
   nome: string;
   solicitado: number;
   disponivel: number;
+  motivo?: "inativo" | "esgotado";
 }
 
 export async function validarEstoqueServidor(
-  items: StockCheckItem[]
+  items: StockCheckItem[],
+  origem: "site" | "balcao" = "site"
 ): Promise<{ ok: boolean; insufficient: StockInsufficient[]; error?: string }> {
   if (!items.length) return { ok: true, insufficient: [] };
   try {
     const res = await fetch("/api/pedidos/validar-estoque", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, origem }),
     });
     const data = await res.json().catch(() => null);
     if (res.status === 409 && data?.insufficient) {
@@ -36,6 +38,12 @@ export async function validarEstoqueServidor(
 
 export function listarSemEstoque(insufficient: StockInsufficient[]): string {
   return insufficient
-    .map((i) => `${i.nome} (disponível: ${i.disponivel}, pedido: ${i.solicitado})`)
+    .map((i) =>
+      i.motivo === "inativo"
+        ? `${i.nome} (indisponível no site)`
+        : i.motivo === "esgotado"
+          ? `${i.nome} (esgotado)`
+          : `${i.nome} (disponível: ${i.disponivel}, pedido: ${i.solicitado})`
+    )
     .join(", ");
 }

@@ -62,6 +62,8 @@ const COLECOES = [
   "credores",
   "financeiro",
   "despesas",
+  "fidelidade",
+  "contadores",
 ] as const;
 
 type Colecao = (typeof COLECOES)[number];

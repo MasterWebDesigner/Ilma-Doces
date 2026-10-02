@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useStoreConfig } from "@/lib/storeConfig";
 import { useCartStore, useProductStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
+import { statusProduto, produtoEsgotado } from "@/lib/produtoStatus";
 import { getCategoryEmoji } from "@/lib/mockData";
 import HistoryCarousel from "@/components/HistoryCarousel";
 import StoreFooter from "@/components/StoreFooter";
@@ -42,7 +43,7 @@ export default function Home() {
       if (imgA !== imgB) return imgB - imgA;
       return a.display_order - b.display_order;
     });
-    return ordered.filter((p) => p.is_available !== false).slice(0, 10);
+    return ordered.filter((p) => statusProduto(p) === "ativo").slice(0, 10);
   }, [products]);
 
   const slidesPerView = 3;
@@ -240,7 +241,7 @@ export default function Home() {
               >
                 {destaques.map((product) => {
                   const catName = categoryById.get(product.category_id) || "Especialidade";
-                  const isEsgotado = product.controlarEstoque && (product.estoque ?? 0) <= 0;
+                  const isEsgotado = produtoEsgotado(product);
                   return (
                     <article
                       key={product.id}

@@ -211,6 +211,18 @@ export default function CartDrawer() {
     const itensParaPedido = items.filter((i) => !i.is_brinde);
 
     for (const item of itensParaPedido) {
+      if (item.product.ativo === false) {
+        setValidationError(
+          `${item.product.name} não está mais disponível no cardápio. Remova-o do carrinho.`
+        );
+        return;
+      }
+      if (item.product.is_available === false) {
+        setValidationError(
+          `${item.product.name} está esgotado. Remova-o do carrinho.`
+        );
+        return;
+      }
       if (item.product.controlarEstoque && item.quantity > (item.product.estoque ?? 0)) {
         const disp = Math.max(0, item.product.estoque ?? 0);
         setValidationError(
@@ -225,7 +237,7 @@ export default function CartDrawer() {
     );
     if (!check.ok) {
       setValidationError(
-        `Sem estoque no servidor: ${listarSemEstoque(check.insufficient)}. Ajuste o carrinho para finalizar.`
+        `Itens indisponíveis: ${listarSemEstoque(check.insufficient)}. Ajuste o carrinho para finalizar.`
       );
       return;
     }

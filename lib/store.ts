@@ -6,9 +6,10 @@ import { useCredoresStore } from "./credoresStore";
 import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
 import { getLocalDateStr, getLocalDateStrFromISO } from "./utils";
 import { db, auth } from "./firebase";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, runTransaction } from "firebase/firestore";
+import { collection, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, runTransaction } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { notifyError, notifyInfo } from "./notifications";
+import { assinarColecao } from "./retrySnapshot";
 import { deveBloquearReversaoPedido, type OpcoesReversao } from "./antiRollback";
 import { formatItemQty } from "./utils";
 import { enforceBrindeRule, makeBrindeItem, isBrindeAtivo } from "./brinde";
@@ -151,7 +152,7 @@ if (typeof window !== "undefined") {
     }
   };
 
-  onSnapshot(collection(db, "produtos"), (snapshot) => {
+  assinarColecao("produtos", collection(db, "produtos"), (snapshot) => {
     const products = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
     if (products.length > 0) {
       const seedCostById = new Map(INITIAL_PRODUCTS.filter((p) => typeof p.precoCustoInicial === "number").map((p) => [p.id, p.precoCustoInicial as number]));
@@ -168,14 +169,14 @@ if (typeof window !== "undefined") {
     }
   });
 
-  onSnapshot(collection(db, "marcas"), (snapshot) => {
+  assinarColecao("marcas", collection(db, "marcas"), (snapshot) => {
     const brands = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Brand));
     if (brands.length > 0) {
       useBrandStore.setState({ brands });
     }
   });
 
-  onSnapshot(collection(db, "categorias"), (snapshot) => {
+  assinarColecao("categorias", collection(db, "categorias"), (snapshot) => {
     const firestoreCats = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Category));
     const state = useProductStore.getState();
     const result = reconcileCategories(firestoreCats, state.categories, state.products);
@@ -203,7 +204,7 @@ if (typeof window !== "undefined") {
   // navegador de quem esta autenticado no painel.
   const assinarColecoesPrivadas = () => {
     canceladoresPrivados.push(
-      onSnapshot(collection(db, "pedidos"), (snapshot) => {
+      assinarColecao("pedidos", collection(db, "pedidos"), (snapshot) => {
         const rawOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
         const chronological = [...rawOrders].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
         const withNumbers = chronological.map((o, idx) => ({
@@ -217,20 +218,20 @@ if (typeof window !== "undefined") {
         agendarSincroniaFidelidade();
       }),
 
-      onSnapshot(collection(db, "clientes"), (snapshot) => {
+      assinarColecao("clientes", collection(db, "clientes"), (snapshot) => {
         const customers = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Customer));
         useCustomerStore.setState({ customers });
         clientesProntos = true;
         agendarSincroniaFidelidade();
       }),
 
-      onSnapshot(collection(db, "despesas"), (snapshot) => {
+      assinarColecao("despesas", collection(db, "despesas"), (snapshot) => {
         const expenses = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Expense));
         useExpenseStore.setState({ expenses });
         preencherCustosBrindeZero();
       }),
 
-      onSnapshot(collection(db, "fichas_tecnicas"), (snapshot) => {
+      assinarColecao("fichas técnicas", collection(db, "fichas_tecnicas"), (snapshot) => {
         const fichas = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as FichaTecnica));
         if (fichas.length > 0) {
           useFichaTecnicaStore.setState({ fichas });
@@ -552,6 +553,14 @@ export const useCartStore = create<CartState>((set) => ({
   addItem: (product, weight) => {
     let toastMsg: string | null = null;
     set((state) => {
+      if (product.ativo === false) {
+        toastMsg = `${product.name} não está disponível no momento.`;
+        return state;
+      }
+      if (product.is_available === false) {
+        toastMsg = `${product.name} está esgotado.`;
+        return state;
+      }
       const addQty = product.isCustomWeight ? Math.max(1, Math.round((weight || 1) * 2) / 2) : 1;
       const existing = state.items.find((i) => i.product.id === product.id && !i.is_brinde);
       const currentQty = existing ? existing.quantity : 0;

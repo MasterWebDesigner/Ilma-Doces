@@ -70,7 +70,8 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 - `description`: string | null
 - `price`: number
 - `image_url`: string | null
-- `is_available`: boolean
+- `is_available`: boolean (esgotado = false — gerido pelo estoque e pelo rádio "Esgotado" do admin)
+- `ativo?`: boolean (false = Inativo, escondido do site inteiro; ausente/true = Ativo — helper `statusProduto`/`produtoVisivel`/`produtoEsgotado` em `lib/produtoStatus.ts`)
 - `display_order`: number
 - `brand`: string
 - `isCustomWeight`: boolean (opcional)

@@ -6,6 +6,7 @@ import { auth } from "@/lib/firebase";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
 import { compararTexto } from "@/lib/utils";
+import { statusProduto, type StatusProduto } from "@/lib/produtoStatus";
 import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, limparLotesUmaVez, seedBatchesIfEmpty } from "@/lib/stockStorage";
 import GelinhosPanel from "@/components/admin/GelinhosPanel";
 
@@ -27,7 +28,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "cat-3": "bg-cyan-500/15 text-cyan-400",
 };
 
-const EMPTY_FORM = { name: "", category_id: "cat-1", description: "", price: 0, prepTime: "", imageUrl: "", available: true, isCustomWeight: false, controlarEstoque: false, estoque: 0, estoqueMinimo: 5, estoqueCritico: 2, cardapioRapido: false };
+const EMPTY_FORM = { name: "", category_id: "cat-1", description: "", price: 0, prepTime: "", imageUrl: "", status: "ativo" as StatusProduto, isCustomWeight: false, controlarEstoque: false, estoque: 0, estoqueMinimo: 5, estoqueCritico: 2, cardapioRapido: false };
 
 export default function AdminProdutos() {
   const products = useProductStore((s) => s.products);
@@ -144,12 +145,12 @@ export default function AdminProdutos() {
   }
   function openEdit(p: typeof products[0]) {
     setEditingId(p.id);
-    setForm({ name: p.name, category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", available: p.is_available, isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: p.cardapioRapido ?? false });
+    setForm({ name: p.name, category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: p.cardapioRapido ?? false });
     setModalOpen(true);
   }
   function openDuplicate(p: typeof products[0]) {
     setEditingId(null);
-    setForm({ name: p.name + " (Copia)", category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", available: p.is_available, isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: false });
+    setForm({ name: p.name + " (Copia)", category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: false });
     setModalOpen(true);
   }
 
@@ -163,7 +164,8 @@ export default function AdminProdutos() {
         price: form.price,
         image_url: form.imageUrl || null,
         brand: "",
-        is_available: form.available,
+        is_available: form.status !== "esgotado",
+        ativo: form.status !== "inativo",
         isCustomWeight: form.isCustomWeight,
         controlarEstoque: form.controlarEstoque,
         estoque: form.estoque,
@@ -179,7 +181,8 @@ export default function AdminProdutos() {
         price: form.price,
         image_url: form.imageUrl || null,
         brand: "",
-        is_available: form.available,
+        is_available: form.status !== "esgotado",
+        ativo: form.status !== "inativo",
         isCustomWeight: form.isCustomWeight,
         controlarEstoque: form.controlarEstoque,
         estoque: form.estoque,
@@ -464,8 +467,8 @@ export default function AdminProdutos() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${p.is_available ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
-                    {p.is_available ? "Ativo" : "Esgotado"}
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusProduto(p) === "ativo" ? "bg-emerald-500/15 text-emerald-400" : statusProduto(p) === "esgotado" ? "bg-red-500/15 text-red-400" : "bg-neutral-700/60 text-neutral-400"}`}>
+                    {statusProduto(p) === "ativo" ? "Ativo" : statusProduto(p) === "esgotado" ? "Esgotado" : "Inativo"}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
@@ -616,13 +619,19 @@ export default function AdminProdutos() {
               <div>
                 <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Status</label>
                 <div className="flex gap-3">
-                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all ${form.available ? "border-emerald-500 bg-emerald-500/15 text-emerald-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
-                    <input type="radio" name="status" checked={form.available === true} onChange={() => setForm({ ...form, available: true })} className="sr-only" />Ativo
+                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all ${form.status === "ativo" ? "border-emerald-500 bg-emerald-500/15 text-emerald-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
+                    <input type="radio" name="status" checked={form.status === "ativo"} onChange={() => setForm({ ...form, status: "ativo" })} className="sr-only" />Ativo
                   </label>
-                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all ${!form.available ? "border-red-500 bg-red-500/15 text-red-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
-                    <input type="radio" name="status" checked={form.available === false} onChange={() => setForm({ ...form, available: false })} className="sr-only" />Esgotado
+                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all ${form.status === "inativo" ? "border-amber-500 bg-amber-500/15 text-amber-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
+                    <input type="radio" name="status" checked={form.status === "inativo"} onChange={() => setForm({ ...form, status: "inativo" })} className="sr-only" />Inativo
+                  </label>
+                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all ${form.status === "esgotado" ? "border-red-500 bg-red-500/15 text-red-400" : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
+                    <input type="radio" name="status" checked={form.status === "esgotado"} onChange={() => setForm({ ...form, status: "esgotado" })} className="sr-only" />Esgotado
                   </label>
                 </div>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-neutral-500">
+                  Ativo aparece no site e pode ser comprado. Inativo fica escondido do site. Esgotado aparece no cardápio sem botão de compra — vira automático quando o estoque zera.
+                </p>
               </div>
               <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3">
                 <label className="flex cursor-pointer items-center gap-3">
