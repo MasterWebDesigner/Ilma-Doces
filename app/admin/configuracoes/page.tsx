@@ -339,11 +339,11 @@ export default function AdminConfiguracoes() {
           </button>
         </div>
         <p className="mb-4 text-xs text-neutral-500">
-          Gerencie os posts exibidos na seção "Siga no Instagram" da landing page (4 a 8 itens ativos recomendados).
+          Gerencie os posts exibidos na seção &quot;Siga no Instagram&quot; da landing page (4 a 8 itens ativos recomendados).
         </p>
         {(settings.instagramPosts || []).length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-700 px-4 py-8 text-center text-xs text-neutral-500">
-            Nenhum post cadastrado. Clique em "+ Adicionar Post".
+            Nenhum post cadastrado. Clique em &quot;+ Adicionar Post&quot;.
           </p>
         ) : (
           <div className="space-y-3">
@@ -416,7 +416,19 @@ export default function AdminConfiguracoes() {
       {/* Zona de Perigo */}
       <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-red-400">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
           Zona de Perigo
         </h2>
         <div className="space-y-3">
