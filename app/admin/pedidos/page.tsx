@@ -14,6 +14,7 @@ import type { Order, PaymentMethod, CartItem } from "@/types/database";
 import { OpcaoTelefone } from "@/lib/phoneBlur";
 import { OrderDetailsDrawer, STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 import { EditOrderModal, EncerrarPedidoModal, FinalizeOrderModal, RegistrarSinalModal } from "@/components/admin/OrderModals";
+import ResumoItens from "@/components/admin/ResumoItens";
 
 const PEDIDOS_PAGE_SIZE = 15;
 
@@ -224,9 +225,6 @@ export default function AdminPedidos() {
             const hora = order.scheduledDate
               ? order.scheduledTime || ""
               : formatarHoraBR(order.createdAt);
-            const resumo = order.items
-              .map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)
-              .join(", ");
             return (
               <div
                 key={order.id}
@@ -239,7 +237,11 @@ export default function AdminPedidos() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">{order.customerName}</p>
-                  <p className="mt-0.5 truncate text-xs text-neutral-500">{resumo}</p>
+                  <ResumoItens
+                    itens={order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)}
+                    className="mt-0.5 text-xs text-neutral-500"
+                    classeItem="leading-5"
+                  />
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] ${status.color}`}>
                   {status.label}
