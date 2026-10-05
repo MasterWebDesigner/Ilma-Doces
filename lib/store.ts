@@ -485,32 +485,29 @@ export const useBrandStore = create<BrandState>()(
           nome: trimmed,
           status: "Ativa",
         };
-        try {
-          setDoc(doc(db, "marcas", brand.id), sanitizeForFirestore(brand));
-        } catch (err) {
-          notifyError("Erro", "Não foi possível adicionar a marca.");
-        }
+        setDoc(doc(db, "marcas", brand.id), sanitizeForFirestore(brand)).catch(() => {
+          notifyError("Erro", "Não foi possível salvar a marca no site. Faça login no painel e tente novamente.");
+        });
         set((s) => ({ brands: [...s.brands, brand] }));
         return brand;
       },
 
       updateBrand: (id, data) => {
-        try {
-          updateDoc(doc(db, "marcas", id), sanitizeForFirestore(data));
-        } catch (err) {
-          notifyError("Erro", "Não foi possível atualizar a marca.");
-        }
+        setDoc(doc(db, "marcas", id), sanitizeForFirestore(data), { merge: true }).catch(() => {
+          notifyError("Erro", "Não foi possível salvar a alteração da marca no site. Faça login no painel e tente novamente.");
+        });
         set((s) => ({
           brands: s.brands.map((b) => (b.id === id ? { ...b, ...data } : b)),
         }));
       },
 
       deleteBrand: (id) => {
-        try {
-          deleteDoc(doc(db, "marcas", id));
-        } catch (err) {
-          notifyError("Erro", "Não foi possível deletar a marca.");
-        }
+        deleteDoc(doc(db, "marcas", id)).catch((err) => {
+          const code = (err as { code?: string })?.code;
+          if (code !== "not-found") {
+            notifyError("Erro", "Não foi possível excluir a marca no site. Faça login no painel e tente novamente.");
+          }
+        });
         set((s) => ({ brands: s.brands.filter((b) => b.id !== id) }));
       },
 

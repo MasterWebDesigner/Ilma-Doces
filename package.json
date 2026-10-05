@@ -8,6 +8,7 @@
     "db:sync": "node scripts/db-sync.mjs",
     "db:export": "node scripts/db-export.mjs",
     "db:backup": "node scripts/db-backup.mjs",
+    "db:brands": "node scripts/sync-brands.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
