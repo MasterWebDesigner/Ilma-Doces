@@ -95,6 +95,19 @@ service cloud.firestore {
       allow read, write: if autenticado();
     }
 
+    // ── Estoque de insumos (migrado da nuvem): somente painel ───────────
+    match /insumos/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /insumo-marcas/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /lotes/{id} {
+      allow read, write: if autenticado();
+    }
+
     match /fichas_tecnicas/{id} {
       allow read, write: if autenticado();
     }

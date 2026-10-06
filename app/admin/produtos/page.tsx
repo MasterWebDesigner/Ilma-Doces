@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useProductStore, useBrandStore, useFichaTecnicaStore } from "@/lib/store";
 import { auth } from "@/lib/firebase";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
 import { compararTexto } from "@/lib/utils";
 import { statusProduto, type StatusProduto } from "@/lib/produtoStatus";
-import { BATCH_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, limparLotesUmaVez, seedBatchesIfEmpty } from "@/lib/stockStorage";
+import { useEstoqueStore } from "@/lib/estoqueStore";
 import GelinhosPanel from "@/components/admin/GelinhosPanel";
 
 interface PreviewLote {
@@ -60,48 +60,15 @@ export default function AdminProdutos() {
   const [fichaPreviewProductId, setFichaPreviewProductId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"produtos" | "gelinhos">("produtos");
 
-  const [previewBatches, setPreviewBatches] = useState<PreviewLote[]>([]);
-  const [previewInsumos, setPreviewInsumos] = useState<Map<string, PreviewInsumo>>(new Map());
-
-  useEffect(() => {
-    limparLotesUmaVez();
-    seedBatchesIfEmpty();
-    const load = () => {
-      try {
-        const rawBatches = localStorage.getItem(BATCH_KEY);
-        if (rawBatches) {
-          const parsed = JSON.parse(rawBatches);
-          if (Array.isArray(parsed)) setPreviewBatches(parsed);
-        }
-        const rawStock = localStorage.getItem(STOCK_KEY);
-        if (rawStock) {
-          const parsed = JSON.parse(rawStock);
-          if (Array.isArray(parsed)) {
-            setPreviewInsumos(
-              new Map(
-                parsed.map((i: any) => [
-                  i.id,
-                  { unit: i.unit, precoCustoInicial: i.precoCustoInicial },
-                ])
-              )
-            );
-          }
-        }
-      } catch {}
-    };
-    load();
-    window.addEventListener("focus", load);
-    window.addEventListener(STOCK_CHANGED_EVENT, load);
-    function handleStorage(e: StorageEvent) {
-      if (e.key === BATCH_KEY || e.key === STOCK_KEY) load();
-    }
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener("focus", load);
-      window.removeEventListener(STOCK_CHANGED_EVENT, load);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
+  const insumosEstoque = useEstoqueStore((s) => s.insumos);
+  const previewBatches = useEstoqueStore((s) => s.lotes);
+  const previewInsumos = useMemo(
+    () =>
+      new Map<string, PreviewInsumo>(
+        insumosEstoque.map((i) => [i.id, { unit: i.unit, precoCustoInicial: i.precoCustoInicial }])
+      ),
+    [insumosEstoque]
+  );
 
   const [brandModalOpen, setBrandModalOpen] = useState(false);
   const [brandSearch, setBrandSearch] = useState("");

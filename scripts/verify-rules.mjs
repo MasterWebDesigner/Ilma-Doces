@@ -97,6 +97,18 @@ await deveNegar("le a colecao financeiro", () => getDocs(collection(db, "finance
 await deveNegar("le a colecao credores", () => getDocs(collection(db, "credores")));
 await deveNegar("le a colecao despesas", () => getDocs(collection(db, "despesas")));
 await deveNegar("le a colecao fichas_tecnicas", () => getDocs(collection(db, "fichas_tecnicas")));
+await deveNegar("le a colecao insumos", () => getDocs(collection(db, "insumos")));
+await deveNegar("le a colecao insumo-marcas", () => getDocs(collection(db, "insumo-marcas")));
+await deveNegar("le a colecao lotes", () => getDocs(collection(db, "lotes")));
+await deveNegar("cria insumo sem sessao", () =>
+  setDoc(doc(db, "insumos", "t-insumo-1"), {
+    name: "Insumo Teste",
+    category: "Uso Interno",
+    min: 1,
+    unit: "un",
+    precoCustoInicial: 0,
+  })
+);
 await devePermitir("le a colecao produtos", () => getDocs(collection(db, "produtos")));
 await devePermitir("le a colecao categorias", () => getDocs(collection(db, "categorias")));
 await devePermitir("le a colecao marcas", () => getDocs(collection(db, "marcas")));
@@ -229,6 +241,48 @@ if (!auth.currentUser) registrar("sessao autenticada do painel", false, "sem usu
 await devePermitir("le a lista de pedidos", () => getDocs(collection(db, "pedidos")));
 await devePermitir("le a lista de clientes", () => getDocs(collection(db, "clientes")));
 await devePermitir("le a lista de financeiro", () => getDocs(collection(db, "financeiro")));
+await devePermitir("le a lista de insumos", () => getDocs(collection(db, "insumos")));
+await devePermitir("grava insumo autenticado", () =>
+  setDoc(doc(db, "insumos", "t-insumo-1"), {
+    name: "Insumo Teste",
+    category: "Uso Interno",
+    min: 1,
+    unit: "un",
+    precoCustoInicial: 0,
+  })
+);
+await devePermitir("grava vinculo insumo-marca", () =>
+  setDoc(doc(db, "insumo-marcas", "t-vinculo-1"), { stockItemId: "t-insumo-1", brandId: "br-01" })
+);
+await devePermitir("grava lote autenticado", () =>
+  setDoc(doc(db, "lotes", "t-lote-1"), {
+    insumoId: "t-insumo-1",
+    brandId: "",
+    dataEntrada: "2026-10-05",
+    quantidadeInicial: 5,
+    quantidadeRestante: 5,
+    precoUnitario: 2.5,
+  })
+);
+await devePermitir("batch atomico estoque (insumo + lote)", async () => {
+  const batch = writeBatch(db);
+  batch.set(doc(db, "insumos", "t-insumo-2"), {
+    name: "Insumo Teste 2",
+    category: "Uso Interno",
+    min: 1,
+    unit: "un",
+    precoCustoInicial: 0,
+  });
+  batch.set(doc(db, "lotes", "t-lote-2"), {
+    insumoId: "t-insumo-2",
+    brandId: "",
+    dataEntrada: "2026-10-05",
+    quantidadeInicial: 3,
+    quantidadeRestante: 3,
+    precoUnitario: 1.5,
+  });
+  await batch.commit();
+});
 await devePermitir("cria pedido confirmado", () =>
   setDoc(doc(db, "pedidos", "t-adm-1"), pedidoAnon({ id: "t-adm-1", status: "confirmado", origem: "manual" }))
 );
@@ -329,6 +383,11 @@ for (const [col, id] of [
   ["despesas", "t-brinde-1"],
   ["despesas", "t-desp-1"],
   ["fidelidade", "11999990001"],
+  ["insumos", "t-insumo-1"],
+  ["insumos", "t-insumo-2"],
+  ["insumo-marcas", "t-vinculo-1"],
+  ["lotes", "t-lote-1"],
+  ["lotes", "t-lote-2"],
 ]) {
   try {
     await deleteDoc(doc(db, col, id));

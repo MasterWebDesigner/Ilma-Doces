@@ -7,8 +7,7 @@ import type { FichaTecnicaIngrediente } from "@/types/database";
 import { getConsumptionUnits, getStep, converterCustoFicha } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { calcularPrecificacao, ehReceitaPorUnidade, normalizarQuantidadeProduzida, somarCustoIngredientes } from "@/lib/precificacao";
-import { BATCH_KEY, SEED_KEY, STOCK_CHANGED_EVENT, STOCK_KEY, limparLotesUmaVez, loadBatchesData, loadStockData, saveStockData, seedBatchesIfEmpty } from "@/lib/stockStorage";
-import { SEED_STOCK } from "@/lib/seedData";
+import { useEstoqueStore } from "@/lib/estoqueStore";
 
 interface StockItem {
   id: string;
@@ -29,35 +28,6 @@ interface Batch {
   quantidadeRestante: number;
   precoUnitario: number;
   dataValidade?: string;
-}
-
-function seedStockIfEmpty() {
-  if (typeof window === "undefined") return;
-  try {
-    limparLotesUmaVez();
-    seedBatchesIfEmpty();
-    const alreadySeeded = localStorage.getItem(SEED_KEY);
-    if (alreadySeeded) return;
-    const existing = loadStockData<any[]>();
-    if (existing) return;
-    saveStockData(SEED_STOCK);
-  } catch {}
-}
-
-function loadStock(): StockItem[] {
-  if (typeof window === "undefined") return SEED_STOCK.map((item) => ({ ...item, qty: 0, custoUnitario: 0 }));
-  const parsed = loadStockData<any[]>();
-  if (parsed) {
-    return parsed.map((item) => ({
-      ...item,
-      custoUnitario: 0,
-    }));
-  }
-  return SEED_STOCK.map((item) => ({ ...item, qty: 0, custoUnitario: 0 }));
-}
-
-function loadBatches(): Batch[] {
-  return loadBatchesData<Batch>();
 }
 
 function withPrecosMedios(items: StockItem[], batchList: Batch[]): StockItem[] {
@@ -105,8 +75,12 @@ export default function AdminPrecificacao() {
   const products = useProductStore((s) => s.products);
   const updateProduct = useProductStore((s) => s.updateProduct);
   const { fichas, addFicha, updateFicha, getFichaByProduct } = useFichaTecnicaStore();
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
+  const insumosEstoque = useEstoqueStore((s) => s.insumos);
+  const batches = useEstoqueStore((s) => s.lotes);
+  const stockItems = useMemo(
+    () => withPrecosMedios(insumosEstoque.map((i) => ({ ...i, qty: 0, custoUnitario: 0 })), batches),
+    [insumosEstoque, batches]
+  );
 
   const [selectedProductId, setSelectedProductId] = useState("");
   const [ingredienteModal, setIngredienteModal] = useState(false);
@@ -203,35 +177,6 @@ export default function AdminPrecificacao() {
     const found = consumptionUnits.find((u) => u.value === editUnidade);
     return found?.step || "0.001";
   }, [editIdx, editUnidade, ingredientes, stockItems]);
-
-  useEffect(() => {
-    seedStockIfEmpty();
-
-    function refreshStock() {
-      const freshBatches = loadBatches();
-      const withPrices = withPrecosMedios(loadStock(), freshBatches);
-      setBatches(freshBatches);
-      setStockItems(withPrices);
-    }
-
-    refreshStock();
-
-    function handleFocus() {
-      refreshStock();
-    }
-    function handleStorage(e: StorageEvent) {
-      if (e.key === STOCK_KEY || e.key === BATCH_KEY) refreshStock();
-    }
-
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener(STOCK_CHANGED_EVENT, refreshStock);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener(STOCK_CHANGED_EVENT, refreshStock);
-    };
-  }, []);
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 

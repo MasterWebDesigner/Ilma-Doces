@@ -5,200 +5,17 @@ import { useBrandStore } from "@/lib/store";
 import { classNames, compararTexto } from "@/lib/utils";
 import { getStep, formatQty, ALL_STOCK_UNITS } from "@/lib/units";
 import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
-import { notifyStockChanged, saveStockData, saveBatchesData, seedBatchesIfEmpty, limparLotesUmaVez } from "@/lib/stockStorage";
-import { SEED_STOCK, SEED_BRANDS, SEED_LINKS } from "@/lib/seedData";
+import {
+  useEstoqueStore,
+  calcularQtyTotal,
+  calcularLotesAtivos,
+  type StockItem,
+} from "@/lib/estoqueStore";
 
-// ═══════════ TYPES ═══════════
-export interface StockItem {
-  id: string;
-  name: string;
-  category: string;
-  min: number;
-  unit: string;
-  precoCustoInicial?: number;
-}
-
-export interface StockBrand {
-  id: string;
-  stockItemId: string;
-  brandId: string;
-}
-
-export interface Batch {
-  id: string;
-  insumoId: string;
-  brandId: string;
-  dataEntrada: string;
-  quantidadeInicial: number;
-  quantidadeRestante: number;
-  precoUnitario: number;
-  dataValidade?: string;
-}
-
-const STOCK_KEY = "ilma-stock";
-const STOCK_BRANDS_KEY = "ilma-stock-brands";
-const BATCH_KEY = "ilma-batches";
-const SEED_KEY = "ilma-seeded-v3";
-
-// ═══════════ SEED DATA ═══════════
-
-function seedDataIfEmpty() {
-  if (typeof window === "undefined") return;
-  try {
-    seedBatchesIfEmpty();
-    const alreadySeeded = localStorage.getItem(SEED_KEY);
-    if (alreadySeeded) return;
-
-    // 1. Seed stock
-    const stockRaw = localStorage.getItem(STOCK_KEY);
-    let existingStock: any[] = [];
-    if (stockRaw) {
-      try {
-        const parsed = JSON.parse(stockRaw);
-        existingStock = Array.isArray(parsed) ? parsed : [];
-      } catch {}
-    }
-    if (existingStock.length === 0) {
-      saveStockData(SEED_STOCK);
-    }
-
-    // 2. Seed brands directly into Zustand persist format
-    const brandsRaw = localStorage.getItem("ilma-brands-v2");
-    let existingBrands: any[] = [];
-    if (brandsRaw) {
-      try {
-        const parsed = JSON.parse(brandsRaw);
-        existingBrands = parsed?.state?.brands ?? parsed?.brands ?? [];
-      } catch {}
-    }
-    if (existingBrands.length === 0) {
-      const brandsState = {
-        state: {
-          brands: SEED_BRANDS.map((b) => ({
-            id: b.id,
-            nome: b.nome,
-            status: "Ativa",
-          })),
-        },
-        version: 0,
-      };
-      localStorage.setItem("ilma-brands-v2", JSON.stringify(brandsState));
-    }
-
-    // 3. Seed stock-brands using fixed IDs (must match SEED_BRANDS IDs)
-    const sbRaw = localStorage.getItem(STOCK_BRANDS_KEY);
-    let existingSB: any[] = [];
-    if (sbRaw) {
-      try {
-        const parsed = JSON.parse(sbRaw);
-        existingSB = Array.isArray(parsed) ? parsed : [];
-      } catch {}
-    }
-    if (existingSB.length === 0) {
-      const newSB: StockBrand[] = [];
-      for (const [stockItemId, brandIds] of Object.entries(SEED_LINKS)) {
-        for (const brandId of brandIds) {
-          newSB.push({
-            id: `sb-${stockItemId}-${brandId}`,
-            stockItemId,
-            brandId,
-          });
-        }
-      }
-      localStorage.setItem(STOCK_BRANDS_KEY, JSON.stringify(newSB));
-    }
-
-    localStorage.setItem(SEED_KEY, "done");
-  } catch {}
-}
+export type { StockItem, StockBrand, Batch } from "@/lib/estoqueStore";
 
 const EMPTY_FORM = { name: "", category: "Uso Interno", min: 1, unit: "un", precoCustoInicial: 0 };
 const EMPTY_BATCH = { qtd: "", preco: "", validade: "", temValidade: false };
-
-// ═══════════ STORAGE HELPERS ═══════════
-function loadStock(): StockItem[] {
-  if (typeof window === "undefined") return SEED_STOCK;
-  try {
-    const raw = localStorage.getItem(STOCK_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        min: item.min,
-        unit: item.unit,
-        precoCustoInicial: item.precoCustoInicial ?? 0,
-      }));
-    }
-  } catch {}
-  return SEED_STOCK;
-}
-
-function loadStockBrands(): StockBrand[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STOCK_BRANDS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
-
-function loadBatches(): Batch[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(BATCH_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
-
-function saveStock(items: StockItem[]) {
-  saveStockData(items);
-}
-
-function saveStockBrands(stockBrands: StockBrand[]) {
-  localStorage.setItem(STOCK_BRANDS_KEY, JSON.stringify(stockBrands));
-}
-
-function saveBatches(batches: Batch[]) {
-  saveBatchesData(batches);
-}
-
-// ═══════════ PEPS LOGIC ═══════════
-function calcularQtyTotal(batches: Batch[], insumoId: string, brandId?: string): number {
-  return batches
-    .filter((b) => b.insumoId === insumoId && b.quantidadeRestante > 0 && (brandId ? b.brandId === brandId : true))
-    .reduce((s, b) => s + b.quantidadeRestante, 0);
-}
-
-function calcularLotesAtivos(batches: Batch[], insumoId: string, brandId?: string): number {
-  return batches.filter((b) =>
-    b.insumoId === insumoId && b.quantidadeRestante > 0 && (brandId ? b.brandId === brandId : true)
-  ).length;
-}
-
-function baixarEstoquePEPS(batches: Batch[], insumoId: string, quantidade: number, brandId?: string): Batch[] {
-  const sorted = [...batches]
-    .filter((b) =>
-      b.insumoId === insumoId && b.quantidadeRestante > 0 && (brandId ? b.brandId === brandId : true)
-    )
-    .sort((a, b) => a.dataEntrada.localeCompare(b.dataEntrada));
-
-  let restante = quantidade;
-  const updated = batches.map((b) => ({ ...b }));
-
-  for (const lote of sorted) {
-    if (restante <= 0) break;
-    const loteRef = updated.find((u) => u.id === lote.id);
-    if (!loteRef) continue;
-    const baixa = Math.min(loteRef.quantidadeRestante, restante);
-    loteRef.quantidadeRestante -= baixa;
-    restante -= baixa;
-  }
-
-  return updated;
-}
 
 // ═══════════ COMPONENT ═══════════
 export default function AdminEstoque() {
@@ -209,10 +26,19 @@ export default function AdminEstoque() {
   const getActiveBrands = useBrandStore((s) => s.getActiveBrands);
   const getBrandNameById = useBrandStore((s) => s.getBrandNameById);
 
-  const [items, setItems] = useState<StockItem[]>([]);
-  const [stockBrands, setStockBrands] = useState<StockBrand[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const items = useEstoqueStore((s) => s.insumos);
+  const stockBrands = useEstoqueStore((s) => s.vinculos);
+  const batches = useEstoqueStore((s) => s.lotes);
+  const loaded = useEstoqueStore((s) => s.carregado);
+  const adicionarInsumo = useEstoqueStore((s) => s.adicionarInsumo);
+  const editarInsumo = useEstoqueStore((s) => s.editarInsumo);
+  const removerInsumo = useEstoqueStore((s) => s.removerInsumo);
+  const adicionarLote = useEstoqueStore((s) => s.adicionarLote);
+  const baixarEstoque = useEstoqueStore((s) => s.baixarEstoque);
+  const vincularMarca = useEstoqueStore((s) => s.vincularMarca);
+  const removerVinculo = useEstoqueStore((s) => s.removerVinculo);
+  const removerVinculosDaMarca = useEstoqueStore((s) => s.removerVinculosDaMarca);
+  const resetarEstoque = useEstoqueStore((s) => s.resetarEstoque);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -251,21 +77,8 @@ export default function AdminEstoque() {
   const [brandError, setBrandError] = useState("");
 
   useEffect(() => {
-    limparLotesUmaVez();
-    seedDataIfEmpty();
-
-    // Force Zustand brand store to rehydrate from localStorage
     useBrandStore.persist.rehydrate();
-
-    setItems(loadStock());
-    setStockBrands(loadStockBrands());
-    setBatches(loadBatches());
-    setLoaded(true);
   }, []);
-
-  useEffect(() => { if (loaded) saveStock(items); }, [items, loaded]);
-  useEffect(() => { if (loaded) saveStockBrands(stockBrands); }, [stockBrands, loaded]);
-  useEffect(() => { if (loaded) saveBatches(batches); }, [batches, loaded]);
 
   // ═══════ COMPUTED ═══════
   const getBrandsForInsumo = (insumoId: string) => {
@@ -340,9 +153,7 @@ export default function AdminEstoque() {
 
   // ═══════ ACTIONS ═══════
   function handleDelete(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    setStockBrands((prev) => prev.filter((sb) => sb.stockItemId !== id));
-    setBatches((prev) => prev.filter((b) => b.insumoId !== id));
+    removerInsumo(id);
     setDeleteId(null);
   }
 
@@ -360,18 +171,17 @@ export default function AdminEstoque() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const dados = {
+      name: form.name,
+      category: form.category,
+      min: form.min,
+      unit: form.unit,
+      precoCustoInicial: form.precoCustoInicial,
+    };
     if (editingId) {
-      setItems((prev) => prev.map((i) => i.id === editingId ? { ...i, name: form.name, category: form.category, min: form.min, unit: form.unit, precoCustoInicial: form.precoCustoInicial } : i));
+      editarInsumo(editingId, dados);
     } else {
-      const newItem: StockItem = {
-        id: "s-" + Date.now(),
-        name: form.name,
-        category: form.category,
-        min: form.min,
-        unit: form.unit,
-        precoCustoInicial: form.precoCustoInicial,
-      };
-      setItems((prev) => [...prev, newItem]);
+      adicionarInsumo(dados);
     }
     setEditingId(null);
     setForm(EMPTY_FORM);
@@ -392,8 +202,7 @@ export default function AdminEstoque() {
     const preco = parseFloat(batchForm.preco);
     if (!batchInsumoId || !qtd || !preco) return;
 
-    const newBatch: Batch = {
-      id: "b-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5),
+    adicionarLote({
       insumoId: batchInsumoId,
       brandId: batchBrandId,
       dataEntrada: new Date().toISOString().slice(0, 10),
@@ -401,9 +210,7 @@ export default function AdminEstoque() {
       quantidadeRestante: qtd,
       precoUnitario: preco,
       dataValidade: batchForm.temValidade && batchForm.validade ? batchForm.validade : undefined,
-    };
-
-    setBatches((prev) => [...prev, newBatch]);
+    });
     setBatchModalOpen(false);
     setBatchForm(EMPTY_BATCH);
     setBatchInsumoId("");
@@ -411,15 +218,11 @@ export default function AdminEstoque() {
   }
 
   function handleQuickConsume(insumoId: string) {
-    const qty = calcularQtyTotal(batches, insumoId);
-    if (qty <= 0) return;
-    setBatches((prev) => baixarEstoquePEPS(prev, insumoId, 1));
+    baixarEstoque(insumoId, 1);
   }
 
   function handleQuickConsumeBrand(insumoId: string, brandId: string) {
-    const qty = calcularQtyTotal(batches, insumoId, brandId);
-    if (qty <= 0) return;
-    setBatches((prev) => baixarEstoquePEPS(prev, insumoId, 1, brandId));
+    baixarEstoque(insumoId, 1, brandId);
   }
 
   // Brand per insumo
@@ -443,12 +246,7 @@ export default function AdminEstoque() {
     const exists = stockBrands.some((sb) => sb.stockItemId === insumoBrandModal && sb.brandId === brandId);
     if (exists) return;
 
-    const newSB: StockBrand = {
-      id: "sb-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5),
-      stockItemId: insumoBrandModal,
-      brandId,
-    };
-    setStockBrands((prev) => [...prev, newSB]);
+    vincularMarca(insumoBrandModal, brandId);
     setNewInsumoBrandId("");
     setInlineBrandName("");
   }
@@ -456,8 +254,7 @@ export default function AdminEstoque() {
   function removeBrandFromInsumo(stockBrandId: string) {
     const sb = stockBrands.find((s) => s.id === stockBrandId);
     if (!sb) return;
-    setStockBrands((prev) => prev.filter((s) => s.id !== stockBrandId));
-    setBatches((prev) => prev.filter((b) => !(b.insumoId === sb.stockItemId && b.brandId === sb.brandId)));
+    removerVinculo(stockBrandId);
   }
 
   // Global brand CRUD
@@ -483,24 +280,21 @@ export default function AdminEstoque() {
 
   function handleDeleteBrandConfirm() {
     if (!deleteBrandId) return;
-    setStockBrands((prev) => prev.filter((sb) => sb.brandId !== deleteBrandId));
-    setBatches((prev) => prev.filter((b) => b.brandId !== deleteBrandId));
+    removerVinculosDaMarca(deleteBrandId);
     deleteBrand(deleteBrandId);
     setDeleteBrandId(null);
   }
 
   function handleResetData() {
-    if (!confirm("Isso vai apagar TODO o estoque, lotes e marcas. Deseja continuar?")) return;
-    localStorage.removeItem(STOCK_KEY);
-    localStorage.removeItem(STOCK_BRANDS_KEY);
-    localStorage.removeItem(BATCH_KEY);
-    localStorage.removeItem(SEED_KEY);
-    localStorage.removeItem("ilma-brands-v2");
-    notifyStockChanged();
-    window.location.reload();
+    if (!confirm("Isso vai apagar TODO o estoque da nuvem (insumos, lotes e vinculos). Deseja continuar?")) return;
+    void resetarEstoque();
   }
 
   const activeBrands = getActiveBrands();
+
+  if (!loaded) {
+    return <div className="py-16 text-center text-sm text-neutral-500">Carregando estoque...</div>;
+  }
 
   return (
     <div className="space-y-6">
