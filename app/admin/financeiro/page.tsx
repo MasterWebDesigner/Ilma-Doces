@@ -490,7 +490,7 @@ export default function AdminFinanceiro() {
           <span className="text-emerald-400">
             Pago R$ {safeMoney(resumoDespesas.pago)} ({resumoDespesas.pagas})
           </span>
-          <span className="text-amber-400">
+          <span className="font-semibold text-[#8B1D22] dark:text-red-400">
             Pendente R$ {safeMoney(resumoDespesas.pendente)} ({resumoDespesas.pendentes})
           </span>
           {resumoDespesas.vencidas > 0 && (
@@ -593,7 +593,7 @@ export default function AdminFinanceiro() {
                               className={classNames(
                                 "rounded-full border px-1.5 py-0.5 text-[10px] font-bold",
                                 ehParcela
-                                  ? "border-amber-500/30 bg-amber-500/15 text-amber-400"
+                                  ? "border-[#8B1D22]/40 bg-[#8B1D22]/10 text-[#8B1D22] dark:border-red-800/60 dark:bg-red-950/60 dark:text-red-400"
                                   : "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
                               )}
                             >

@@ -75,9 +75,9 @@ export default function LaunchDespesaModal({ onClose }: Props) {
                   <button key={s} type="button" onClick={() => setForm((f) => ({ ...f, status: s }))}
                     className={`flex-1 rounded-lg border-2 px-2 py-2 text-xs font-semibold transition-all ${
                       form.status === s
-                        ? s === "Pago" ? "border-emerald-500 bg-emerald-500/15 text-emerald-400"
-                        : s === "Pendente" ? "border-amber-500 bg-amber-500/15 text-amber-400"
-                        : "border-red-500 bg-red-500/15 text-red-400"
+                        ? s === "Pago" ? "border-emerald-600 bg-emerald-600 text-white"
+                        : s === "Pendente" ? "border-[#8B1D22] bg-[#8B1D22] text-white"
+                        : "border-red-600 bg-red-600 text-white"
                         : "border-neutral-700 bg-neutral-800 text-neutral-500 hover:border-neutral-600"
                     }`}>
                     {s}

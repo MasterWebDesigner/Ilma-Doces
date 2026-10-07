@@ -407,9 +407,9 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 export const EXPENSE_STATUS_COLORS: Record<string, string> = {
-  Pago: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  Pendente: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  "Em Atraso": "bg-red-500/15 text-red-400 border-red-500/30",
+  Pago: "border-emerald-600 bg-emerald-600 text-white",
+  Pendente: "border-[#8B1D22] bg-[#8B1D22] text-white",
+  "Em Atraso": "border-red-600 bg-red-600 text-white",
 };
 
 export const EXPENSE_CATEGORIA_COLORS: Record<string, string> = {
