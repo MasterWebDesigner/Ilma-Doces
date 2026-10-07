@@ -7,8 +7,10 @@ import { notifyError, notifySuccess } from "./notifications";
 import { useEstoqueStore, montarDadosLote, sincronizarPrecoMedioInsumo, type Batch } from "./estoqueStore";
 import { useExpenseStore } from "./store";
 import {
+  categoriaDoInsumo,
   custoUnitarioComFrete,
   descricaoDespesaEntrada,
+  dividirValorPorCategoria,
   montarDadosDespesaEntrada,
   montarDadosEntrada,
   money,
@@ -94,20 +96,31 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
         precoUnitario: custoUnitarioComFrete(item, rateio[i] || 0),
       }));
 
-      const novasDespesas: Expense[] = parcelas.map((p) => {
-        const id = novoId("dep-");
-        return {
-          id,
+      const porCategoria = new Map<string, number>();
+      itens.forEach((item, i) => {
+        const categoria = categoriaDoInsumo(insumos.find((s) => s.id === item.insumoId)?.category);
+        const valorItem = item.qtd * item.custoUnitario + (rateio[i] || 0);
+        porCategoria.set(categoria, (porCategoria.get(categoria) || 0) + valorItem);
+      });
+      const partesCategoria = [...porCategoria].map(([categoria, valor]) => ({ categoria, valor: round2(valor) }));
+
+      const novasDespesas: Expense[] = parcelas.flatMap((p) => {
+        const base = descricaoDespesaEntrada(dados.fornecedor.trim(), p.numero, parcelas.length);
+        const divisao = dividirValorPorCategoria(partesCategoria, p.valor);
+        return divisao.map((parte) => ({
+          id: novoId("dep-"),
           ...montarDadosDespesaEntrada({
-            descricao: descricaoDespesaEntrada(dados.fornecedor.trim(), p.numero, parcelas.length),
-            valor: p.valor,
+            descricao: divisao.length > 1 ? `${base} · ${parte.categoria}` : base,
+            valor: parte.valor,
             data: dados.data,
             vencimento: p.vencimento,
             entradaId,
             criadoEm,
             status: dados.aVista ? "Pago" : "Pendente",
+            categoria: parte.categoria,
+            parcela: p.numero,
           }),
-        };
+        }));
       });
 
       const entrada: EntradaMercadoria = {
@@ -184,7 +197,7 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
               const desp = despSnap.data() as Partial<Expense>;
               if (desp.status === "Pago") {
                 throw new Error(
-                  `A parcela ${i + 1} de ${entrada.despesaIds.length} ja esta paga. Apague a despesa no Financeiro (botao X) antes de estornar a entrada.`
+                  `A parcela ${desp.parcela ?? i + 1} de ${entrada.parcelas.length} ja esta paga. Apague a despesa no Financeiro (botao X) antes de estornar a entrada.`
                 );
               }
             }

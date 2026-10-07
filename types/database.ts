@@ -99,6 +99,7 @@ export interface Expense {
   data: string;
   vencimento?: string;
   entradaId?: string;
+  parcela?: number;
   status: "Pago" | "Pendente" | "Em Atraso";
   createdAt: string;
 }

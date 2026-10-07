@@ -3,13 +3,14 @@
 import { Fragment, useMemo, useState } from "react";
 import { classNames, getLocalDateStr, getLocalMonthStr } from "@/lib/utils";
 import { getStep, ALL_STOCK_UNITS } from "@/lib/units";
-import { useBrandStore, useExpenseStore } from "@/lib/store";
+import { useBrandStore, useExpenseStore, EXPENSE_CATEGORIA_COLORS } from "@/lib/store";
 import { useEstoqueStore } from "@/lib/estoqueStore";
 import { useEntradasStore } from "@/lib/entradasStore";
 import { notifySuccess } from "@/lib/notifications";
 import {
   addDays,
   addMonthsClamped,
+  agruparDespesasPorParcela,
   aplicarVencimentos,
   calcularTotais,
   dividirValorEm,
@@ -22,7 +23,7 @@ import {
   sugestoesFornecedor,
   validarEntrada,
 } from "@/lib/entradas";
-import type { EntradaMercadoria, EntradaParcela } from "@/types/database";
+import type { EntradaParcela } from "@/types/database";
 
 type ItemForm = { insumoId: string; brandId: string; qtd: string; custo: string };
 type ParcelaCustom = { vencimento: string; valor: string };
@@ -37,6 +38,7 @@ export default function AdminEntradas() {
   const insumos = useEstoqueStore((s) => s.insumos);
   const vinculos = useEstoqueStore((s) => s.vinculos);
   const adicionarInsumo = useEstoqueStore((s) => s.adicionarInsumo);
+  const editarInsumo = useEstoqueStore((s) => s.editarInsumo);
   const vincularMarca = useEstoqueStore((s) => s.vincularMarca);
   const brands = useBrandStore((s) => s.brands);
   const addBrand = useBrandStore((s) => s.addBrand);
@@ -104,7 +106,7 @@ export default function AdminEntradas() {
       }));
     }
     if (total <= 0) return [];
-    if (modo === "avista") return parcelasAvista(total, primeiroEfetivo);
+    if (modo === "avista") return parcelasAvista(total, data);
     const geradas =
       tipoPrazo === "carne"
         ? parcelasMensaisApartirDe(total, primeiroEfetivo, nCarne)
@@ -259,8 +261,10 @@ export default function AdminEntradas() {
     }
   }
 
-  function pagasDaEntrada(entrada: EntradaMercadoria): number {
-    return entrada.despesaIds.filter((id) => expenses.find((e) => e.id === id)?.status === "Pago").length;
+  function alterarCategoriaItem(idx: number, categoria: string) {
+    const insumo = insumos.find((i) => i.id === itens[idx].insumoId);
+    if (!insumo || insumo.category === categoria) return;
+    editarInsumo(insumo.id, { ...insumo, category: categoria });
   }
 
   if (!carregado) {
@@ -385,7 +389,9 @@ export default function AdminEntradas() {
               </div>
               <div className="space-y-2">
                 {itens.map((item, idx) => {
-                  const unit = insumos.find((i) => i.id === item.insumoId)?.unit || "un";
+                  const insumoAtual = insumos.find((i) => i.id === item.insumoId);
+                  const unit = insumoAtual?.unit || "un";
+                  const categoriaAtual = insumoAtual?.category || "Uso Interno";
                   const opcoesMarca = vinculosDo(item.insumoId);
                   const subtotalItem =
                     (Number((item.qtd || "").replace(",", ".")) || 0) * (Number((item.custo || "").replace(",", ".")) || 0);
@@ -405,6 +411,33 @@ export default function AdminEntradas() {
                           ))}
                           <option value={NOVO_INSUMO}>+ Adicionar novo insumo...</option>
                         </select>
+                        {item.insumoId && (
+                          <div className="mt-1.5 flex gap-1">
+                            {[
+                              { valor: "Uso Interno", rotulo: "Insumo" },
+                              { valor: "Embalagens", rotulo: "Embalagem" },
+                            ].map((c) => {
+                              const ativo = categoriaAtual === c.valor;
+                              return (
+                                <button
+                                  key={c.valor}
+                                  type="button"
+                                  onClick={() => alterarCategoriaItem(idx, c.valor)}
+                                  className={classNames(
+                                    "flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors",
+                                    ativo
+                                      ? c.valor === "Embalagens"
+                                        ? "bg-purple-600 text-white"
+                                        : "bg-blue-600 text-white"
+                                      : "border border-neutral-700 bg-neutral-800 text-neutral-400 hover:text-white"
+                                  )}
+                                >
+                                  {c.rotulo}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                       <div className="sm:col-span-2">
                         {opcoesMarca.length > 0 ? (
@@ -759,7 +792,10 @@ export default function AdminEntradas() {
                 </tr>
               ) : (
                 entradas.map((entrada) => {
-                  const pagas = pagasDaEntrada(entrada);
+                  const grupos = agruparDespesasPorParcela(entrada, expenses);
+                  const pagas = grupos.filter(
+                    (g) => g.despesas.length > 0 && g.despesas.every((d) => d.status === "Pago")
+                  ).length;
                   const aberto = expandedId === entrada.id;
                   return (
                     <Fragment key={entrada.id}>
@@ -828,27 +864,40 @@ export default function AdminEntradas() {
                               <div>
                                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Parcelas / Despesas</p>
                                 <div className="space-y-1.5">
-                                  {entrada.parcelas.map((p, i) => {
-                                    const desp = expenses.find((e) => e.id === entrada.despesaIds[i]);
-                                    const status = desp ? desp.status : "Removida";
+                                  {grupos.map((g) => {
+                                    const p = g.parcela;
+                                    const todasPagas = g.despesas.length > 0 && g.despesas.every((d) => d.status === "Pago");
+                                    const status = g.despesas.length === 0 ? "Removida" : todasPagas ? "Pago" : "Pendente";
                                     return (
                                       <div key={p.numero} className="flex items-center justify-between rounded-lg bg-neutral-900 px-3 py-2 text-xs">
-                                        <span className="text-neutral-400">
-                                          {p.numero}x — vence {p.vencimento ? p.vencimento.split("-").reverse().join("/") : "—"}
+                                        <span className="flex items-center gap-1.5 text-neutral-400">
+                                          {g.despesas.map((d) => (
+                                            <span
+                                              key={d.id}
+                                              title={d.categoria}
+                                              className={classNames(
+                                                "h-1.5 w-1.5 shrink-0 rounded-full",
+                                                EXPENSE_CATEGORIA_COLORS[d.categoria] || "bg-neutral-500"
+                                              )}
+                                            />
+                                          ))}
+                                          <span>
+                                            {p.numero}x — vence {p.vencimento ? p.vencimento.split("-").reverse().join("/") : "—"}
+                                          </span>
                                         </span>
                                         <span className="flex items-center gap-2">
-                                          {desp ? (
+                                          {g.despesas.length > 0 ? (
                                             <button
                                               type="button"
                                               onClick={() =>
-                                                status === "Pago"
-                                                  ? updateExpense(desp.id, { status: "Pendente" })
-                                                  : markAsPaid(desp.id)
+                                                todasPagas
+                                                  ? g.despesas.forEach((d) => updateExpense(d.id, { status: "Pendente" }))
+                                                  : g.despesas.forEach((d) => markAsPaid(d.id))
                                               }
-                                              title={status === "Pago" ? "Clique para reabrir a parcela" : "Clique para marcar como paga"}
+                                              title={todasPagas ? "Clique para reabrir a parcela" : "Clique para marcar como paga"}
                                               className={classNames(
                                                 "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold text-white transition-colors",
-                                                status === "Pago"
+                                                todasPagas
                                                   ? "border-emerald-600 bg-emerald-600 hover:bg-emerald-700"
                                                   : "border-[#8B1D22] bg-[#8B1D22] hover:bg-[#721519]"
                                               )}
@@ -992,8 +1041,8 @@ export default function AdminEntradas() {
 }
 
 function statusBadge(status: string): string {
-  if (status === "Pago") return "border-emerald-500/30 bg-emerald-500/15 text-emerald-400";
-  if (status === "Em Atraso") return "border-red-500/30 bg-red-500/15 text-red-400";
+  if (status === "Pago") return "border-emerald-600 bg-emerald-600 text-white";
+  if (status === "Em Atraso") return "border-red-600 bg-red-600 text-white";
   if (status === "Removida") return "border-neutral-600 bg-neutral-800 text-neutral-400";
-  return "border-amber-500/30 bg-amber-500/15 text-amber-400";
+  return "border-[#8B1D22] bg-[#8B1D22] text-white";
 }

@@ -162,6 +162,46 @@ export function custoUnitarioComFrete(item: { qtd: number; custoUnitario: number
   return round4((item.qtd * item.custoUnitario + freteRateado) / item.qtd);
 }
 
+// ═══════════ RATEIO POR CATEGORIA ═══════════
+
+export function categoriaDoInsumo(category?: string): string {
+  return category === "Embalagens" ? "Embalacoes" : "Insumos";
+}
+
+export function dividirValorPorCategoria(
+  partes: { categoria: string; valor: number }[],
+  valor: number
+): { categoria: string; valor: number }[] {
+  const ativas = partes.filter((p) => p.valor > 0);
+  if (ativas.length === 0) return [{ categoria: "Insumos", valor: round2(valor) }];
+  if (ativas.length === 1) return [{ categoria: ativas[0].categoria, valor: round2(valor) }];
+  const total = ativas.reduce((s, p) => s + p.valor, 0);
+  const resultado: { categoria: string; valor: number }[] = [];
+  let resto = round2(valor);
+  ativas.forEach((p, i) => {
+    const bruto = i === ativas.length - 1 ? resto : round2((valor * p.valor) / total);
+    resto = round2(resto - bruto);
+    if (bruto > 0) resultado.push({ categoria: p.categoria, valor: bruto });
+  });
+  return resultado.length > 0 ? resultado : [{ categoria: ativas[0].categoria, valor: round2(valor) }];
+}
+
+export function agruparDespesasPorParcela(
+  entrada: EntradaMercadoria,
+  expenses: Expense[]
+): { parcela: EntradaParcela; despesas: Expense[] }[] {
+  const daEntrada = entrada.despesaIds
+    .map((id) => expenses.find((e) => e.id === id))
+    .filter((e): e is Expense => Boolean(e));
+  const temParcela = daEntrada.some((e) => e.parcela !== undefined);
+  return entrada.parcelas.map((p, i) => ({
+    parcela: p,
+    despesas: temParcela
+      ? daEntrada.filter((e) => e.parcela === p.numero)
+      : expenses.filter((e) => e.id === entrada.despesaIds[i]),
+  }));
+}
+
 // ═══════════ VALIDACAO ═══════════
 
 export function calcularTotais(
@@ -236,14 +276,17 @@ export function montarDadosDespesaEntrada(params: {
   entradaId: string;
   criadoEm: string;
   status?: "Pago" | "Pendente";
+  categoria?: string;
+  parcela?: number;
 }): Omit<Expense, "id"> {
   return {
     descricao: params.descricao,
-    categoria: "Insumos",
+    categoria: params.categoria || "Insumos",
     valor: round2(params.valor),
     data: params.data,
     vencimento: params.vencimento,
     entradaId: params.entradaId,
+    ...(params.parcela !== undefined ? { parcela: params.parcela } : {}),
     status: params.status ?? "Pendente",
     createdAt: params.criadoEm,
   };

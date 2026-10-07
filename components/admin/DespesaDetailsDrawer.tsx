@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useExpenseStore, EXPENSE_STATUS_COLORS, EXPENSE_CATEGORIA_COLORS } from "@/lib/store";
+import { agruparDespesasPorParcela } from "@/lib/entradas";
 import { classNames, formatCurrency } from "@/lib/utils";
 import type { EntradaMercadoria, Expense } from "@/types/database";
 
@@ -59,7 +60,9 @@ export default function DespesaDetailsDrawer({ desp, entrada, onClose }: Props) 
   const ehParcela = ehEntrada && (Boolean(mParcela) || dataVenc !== desp.data);
   const chipLabel = mParcela ? `${mParcela[1]}/${mParcela[2]}` : ehParcela ? "Parcela" : "À Vista";
 
-  const idxParcela = entrada && ehEntrada ? entrada.despesaIds.indexOf(desp.id) : -1;
+  const grupos = entrada && ehEntrada ? agruparDespesasPorParcela(entrada, expenses) : [];
+  const idxParcela = grupos.findIndex((g) => g.despesas.some((e) => e.id === desp.id));
+  const despesasDoGrupo = grupos.find((g) => g.despesas.some((e) => e.id === desp.id))?.despesas || [desp];
 
   function excluir() {
     const aviso = desp.entradaId
@@ -105,7 +108,7 @@ export default function DespesaDetailsDrawer({ desp, entrada, onClose }: Props) 
                 className={classNames(
                   "rounded-full border px-2.5 py-1 text-[11px] font-bold",
                   ehParcela
-                    ? "border-amber-500/30 bg-amber-500/15 text-amber-400"
+                    ? "border-[#8B1D22]/40 bg-[#8B1D22]/10 text-[#8B1D22] dark:border-red-800/60 dark:bg-red-950/60 dark:text-red-400"
                     : "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
                 )}
               >
@@ -126,14 +129,14 @@ export default function DespesaDetailsDrawer({ desp, entrada, onClose }: Props) 
             )}
             {desp.status !== "Pago" ? (
               <button
-                onClick={() => markAsPaid(desp.id)}
+                onClick={() => despesasDoGrupo.forEach((d) => markAsPaid(d.id))}
                 className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20"
               >
                 Marcar Pago
               </button>
             ) : (
               <button
-                onClick={() => updateExpense(desp.id, { status: "Pendente" })}
+                onClick={() => despesasDoGrupo.forEach((d) => updateExpense(d.id, { status: "Pendente" }))}
                 className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20"
               >
                 Reabrir
@@ -232,29 +235,41 @@ export default function DespesaDetailsDrawer({ desp, entrada, onClose }: Props) 
                 Parcelas ({idxParcela >= 0 ? idxParcela + 1 : "?"}/{entrada.parcelas.length})
               </p>
               <div className="space-y-1 rounded-xl border border-neutral-800 bg-neutral-950 p-2">
-                {entrada.parcelas.map((p, i) => {
-                  const irma = expenses.find((e) => e.id === entrada.despesaIds[i]);
-                  const atual = entrada.despesaIds[i] === desp.id;
+                {grupos.map((g) => {
+                  const atual = g.despesas.some((e) => e.id === desp.id);
+                  const statusGrupo =
+                    g.despesas.length > 0 && g.despesas.every((d) => d.status === "Pago")
+                      ? "Pago"
+                      : g.despesas.find((d) => d.status !== "Pago")?.status || "—";
                   return (
                     <div
-                      key={p.numero}
+                      key={g.parcela.numero}
                       className={classNames(
                         "flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs",
                         atual && "border border-wine-500/40 bg-wine-500/10"
                       )}
                     >
-                      <span className={classNames("min-w-0 truncate", atual ? "font-bold text-slate-900 dark:text-white" : "text-neutral-400")}>
-                        {p.numero}/{entrada.parcelas.length} · {dataBR(p.vencimento)}
+                      <span className={classNames("flex min-w-0 items-center gap-1.5", atual ? "font-bold text-slate-900 dark:text-white" : "text-neutral-400")}>
+                        {g.despesas.map((d) => (
+                          <span
+                            key={d.id}
+                            title={d.categoria}
+                            className={classNames("h-1.5 w-1.5 shrink-0 rounded-full", EXPENSE_CATEGORIA_COLORS[d.categoria] || "bg-neutral-500")}
+                          />
+                        ))}
+                        <span className="min-w-0 truncate">
+                          {g.parcela.numero}/{entrada.parcelas.length} · {dataBR(g.parcela.vencimento)}
+                        </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(p.valor)}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(g.parcela.valor)}</span>
                         <span
                           className={classNames(
                             "rounded-full border px-1.5 py-0.5 text-[10px] font-bold",
-                            EXPENSE_STATUS_COLORS[irma?.status || "Pendente"]
+                            EXPENSE_STATUS_COLORS[statusGrupo as Expense["status"]] || EXPENSE_STATUS_COLORS["Pendente"]
                           )}
                         >
-                          {irma ? irma.status : "—"}
+                          {statusGrupo}
                         </span>
                       </span>
                     </div>

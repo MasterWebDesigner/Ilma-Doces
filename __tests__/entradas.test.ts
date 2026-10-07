@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   addDays,
   addMonthsClamped,
+  agruparDespesasPorParcela,
   aplicarVencimentos,
   calcularTotais,
+  categoriaDoInsumo,
   custoUnitarioComFrete,
   descricaoDespesaEntrada,
   dividirValorEm,
+  dividirValorPorCategoria,
   ehFornecedorNovo,
   money,
   montarDadosDespesaEntrada,
@@ -23,7 +26,7 @@ import {
   sugestoesFornecedor,
   validarEntrada,
 } from "@/lib/entradas";
-import type { EntradaMercadoria } from "@/types/database";
+import type { EntradaMercadoria, Expense } from "@/types/database";
 
 const ENTRADA_BASE: EntradaMercadoria = {
   id: "cf-1",
