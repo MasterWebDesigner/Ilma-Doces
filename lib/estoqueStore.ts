@@ -167,20 +167,24 @@ async function gravarParesEmLotes(pares: Array<[DocumentReference, any]>): Promi
 export async function migrarEstoqueSePreciso(): Promise<void> {
   if (typeof window === "undefined") return;
   try {
-    if (localStorage.getItem(ESTOQUE_MIGRADO_KEY)) return;
+    const jaMigrado = Boolean(localStorage.getItem(ESTOQUE_MIGRADO_KEY));
+    const ehEmulador = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1";
+    if (jaMigrado && !ehEmulador) return;
     limparLotesUmaVez();
     const remotos = await getDocs(collection(db, "insumos"));
-    if (remotos.empty) {
-      const insumos = insumosDeOrigem();
-      const vinculos = vinculosDeOrigem();
-      const lotes = loadBatchesData<Batch>();
-      const pares: Array<[DocumentReference, any]> = [
-        ...insumos.map((i): [DocumentReference, any] => [doc(db, "insumos", i.id), montarDadosInsumo(i)]),
-        ...vinculos.map((v): [DocumentReference, any] => [doc(db, "insumo-marcas", v.id), montarDadosVinculo(v)]),
-        ...lotes.map((l): [DocumentReference, any] => [doc(db, "lotes", l.id), montarDadosLote(l)]),
-      ];
-      await gravarParesEmLotes(pares);
+    if (!remotos.empty) {
+      localStorage.setItem(ESTOQUE_MIGRADO_KEY, "1");
+      return;
     }
+    const insumos = insumosDeOrigem();
+    const vinculos = vinculosDeOrigem();
+    const lotes = loadBatchesData<Batch>();
+    const pares: Array<[DocumentReference, any]> = [
+      ...insumos.map((i): [DocumentReference, any] => [doc(db, "insumos", i.id), montarDadosInsumo(i)]),
+      ...vinculos.map((v): [DocumentReference, any] => [doc(db, "insumo-marcas", v.id), montarDadosVinculo(v)]),
+      ...lotes.map((l): [DocumentReference, any] => [doc(db, "lotes", l.id), montarDadosLote(l)]),
+    ];
+    await gravarParesEmLotes(pares);
     localStorage.setItem(ESTOQUE_MIGRADO_KEY, "1");
   } catch {
     notifyError("Erro", "Nao foi possivel migrar o estoque para a nuvem. Tente novamente.");
@@ -194,7 +198,7 @@ interface EstoqueState {
   vinculos: StockBrand[];
   lotes: Batch[];
   carregado: boolean;
-  adicionarInsumo: (dados: Omit<StockItem, "id">) => void;
+  adicionarInsumo: (dados: Omit<StockItem, "id">) => string;
   editarInsumo: (id: string, dados: Omit<StockItem, "id">) => void;
   removerInsumo: (id: string) => void;
   adicionarLote: (dados: Omit<Batch, "id">) => void;
@@ -212,12 +216,13 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
   carregado: false,
 
   adicionarInsumo: (dados) => {
-    const id = "s-" + Date.now();
+    const id = "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5);
     const item: StockItem = { ...dados, id };
     set((s) => ({ insumos: [...s.insumos, item] }));
     setDoc(doc(db, "insumos", id), montarDadosInsumo(item)).catch(() => {
       notifyError("Erro", "Nao foi possivel adicionar o insumo.");
     });
+    return id;
   },
 
   editarInsumo: (id, dados) => {
@@ -353,9 +358,32 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
   },
 }));
 
+// ═══════════ BACKUP LOCAL ═══════════
+
+function salvarBackupEstoque(): void {
+  if (typeof window === "undefined") return;
+  const { insumos, vinculos, lotes } = useEstoqueStore.getState();
+  if (insumos.length === 0) return;
+  try {
+    localStorage.setItem(STOCK_KEY, JSON.stringify(insumos));
+    localStorage.setItem(STOCK_BRANDS_KEY, JSON.stringify(vinculos));
+    localStorage.setItem(BATCH_KEY, JSON.stringify(lotes));
+  } catch {}
+}
+
 // ═══════════ ASSINATURAS ═══════════
 
 if (typeof window !== "undefined") {
+  useEstoqueStore.subscribe((estado, anterior) => {
+    if (
+      estado.insumos !== anterior.insumos ||
+      estado.vinculos !== anterior.vinculos ||
+      estado.lotes !== anterior.lotes
+    ) {
+      salvarBackupEstoque();
+    }
+  });
+  window.addEventListener("pagehide", salvarBackupEstoque);
   quandoAutenticado(() => {
     const cancelarInsumos = assinarColecao("insumos", collection(db, "insumos"), (snapshot) => {
       useEstoqueStore.setState({
