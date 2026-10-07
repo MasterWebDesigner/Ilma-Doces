@@ -1,34 +1,28 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useOrderStore, useExpenseStore, useProductStore, useCustomerStore, EXPENSE_CATEGORIES } from "@/lib/store";
+import {
+  useOrderStore,
+  useExpenseStore,
+  useProductStore,
+  useCustomerStore,
+  EXPENSE_CATEGORIES,
+  EXPENSE_STATUS_COLORS as STATUS_COLORS,
+  EXPENSE_CATEGORIA_COLORS as CATEGORIA_COLORS,
+} from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
+import { useEntradasStore } from "@/lib/entradasStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
+import DespesaDetailsDrawer from "@/components/admin/DespesaDetailsDrawer";
 import { classNames, compararTexto, getLocalDateStr, getLocalDateStrFromISO, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, sinalRecebidoDoPedido, isFiadoPendente, saldoPendenteDoPedido } from "@/lib/faturamento";
+import type { Expense } from "@/types/database";
 
 type Periodo = "dia" | "mes" | "ano";
 
 const PAGE_SIZE = 15;
 const CATEGORIA_BRINDE = "Custos de Brindes / Fidelidade";
-
-const STATUS_COLORS: Record<string, string> = {
-  Pago: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  Pendente: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  "Em Atraso": "bg-red-500/15 text-red-400 border-red-500/30",
-};
-
-const CATEGORIA_COLORS: Record<string, string> = {
-  Insumos: "bg-blue-500",
-  Fixos: "bg-amber-500",
-  Embalacoes: "bg-purple-500",
-  Transporte: "bg-cyan-500",
-  Equipe: "bg-emerald-500",
-  Marketing: "bg-[#8B1D22]",
-  "Custos de Brindes / Fidelidade": "bg-red-700",
-  Outros: "bg-neutral-500",
-};
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -41,6 +35,7 @@ function safeMoney(val: any): string {
 export default function AdminFinanceiro() {
   const orders = useOrderStore((s) => s.orders);
   const expenses = useExpenseStore((s) => s.expenses);
+  const entradasTodas = useEntradasStore((s) => s.entradas);
   const products = useProductStore((s) => s.products);
   const categories = useProductStore((s) => s.categories);
   const customers = useCustomerStore((s) => s.customers);
@@ -71,6 +66,7 @@ export default function AdminFinanceiro() {
   const [showDespesaModal, setShowDespesaModal] = useState(false);
   const [filtroCategoriaDesp, setFiltroCategoriaDesp] = useState("Todas");
   const [filtroStatusDesp, setFiltroStatusDesp] = useState("Todos");
+  const [despSelecionada, setDespSelecionada] = useState<Expense | null>(null);
   const [pageDespesas, setPageDespesas] = useState(1);
   const [pagePedidos, setPagePedidos] = useState(1);
   const [mesAtual, setMesAtual] = useState(new Date().getMonth());
@@ -112,7 +108,10 @@ export default function AdminFinanceiro() {
   const totalEntradas = totalFinReceitas;
   const pedidosConcluidos = ordersPagosPeriodo;
 
-  const despMes = useMemo(() => expenses.filter((e) => e.data && e.data.slice(0, 7) === mesAtualStr), [expenses, mesAtualStr]);
+  const despMes = useMemo(
+    () => expenses.filter((e) => ((e.vencimento || e.data) || "").slice(0, 7) === mesAtualStr),
+    [expenses, mesAtualStr]
+  );
   const totalSaidas = despMes.reduce((s, e) => s + (Number(e.valor) || 0), 0);
   const lucroLiquido = totalEntradas - totalSaidas;
 
@@ -220,12 +219,37 @@ export default function AdminFinanceiro() {
   const maxSaida = Math.max(...distribuicoesSaidas.map((d) => d.value), 1);
 
   const despMesFiltradas = useMemo(() => {
-    return despMes.filter((e) => {
-      if (filtroCategoriaDesp !== "Todas" && e.categoria !== filtroCategoriaDesp) return false;
-      if (filtroStatusDesp !== "Todos" && e.status !== filtroStatusDesp) return false;
-      return true;
-    });
+    return despMes
+      .filter((e) => {
+        if (filtroCategoriaDesp !== "Todas" && e.categoria !== filtroCategoriaDesp) return false;
+        if (filtroStatusDesp !== "Todos" && e.status !== filtroStatusDesp) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const va = a.vencimento || a.data;
+        const vb = b.vencimento || b.data;
+        if (va !== vb) return va.localeCompare(vb);
+        return (b.createdAt || "").localeCompare(a.createdAt || "");
+      });
   }, [despMes, filtroCategoriaDesp, filtroStatusDesp]);
+
+  const resumoDespesas = useMemo(() => {
+    const r = { total: 0, pago: 0, pendente: 0, pagas: 0, pendentes: 0, vencidas: 0 };
+    despMesFiltradas.forEach((e) => {
+      const v = Number(e.valor) || 0;
+      r.total += v;
+      if (e.status === "Pago") {
+        r.pago += v;
+        r.pagas++;
+      } else {
+        r.pendente += v;
+        r.pendentes++;
+        const vd = (e.vencimento || e.data) || "";
+        if (vd && vd < todayStr) r.vencidas++;
+      }
+    });
+    return r;
+  }, [despMesFiltradas, todayStr]);
 
   const totalPaginasDespesas = Math.ceil(despMesFiltradas.length / PAGE_SIZE) || 1;
   const pageDespesasSafe = Math.min(pageDespesas, totalPaginasDespesas);
@@ -240,7 +264,8 @@ export default function AdminFinanceiro() {
     setAnoAtual(newYear);
   }
 
-  const { markAsPaid, deleteExpense } = useExpenseStore.getState();
+  const despAtual = despSelecionada ? expenses.find((e) => e.id === despSelecionada.id) ?? null : null;
+  const entradaSel = despAtual && despAtual.entradaId ? entradasTodas.find((e) => e.id === despAtual.entradaId) : undefined;
 
   const periodos: { key: Periodo; label: string }[] = [
     { key: "dia", label: "Dia" },
@@ -294,36 +319,44 @@ export default function AdminFinanceiro() {
 
       {/* ═══════ KPI CARDS ═══════ */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Total Entradas</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">Total Entradas</p>
           <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(totalEntradas)}</p>
           <p className="mt-1 text-xs text-neutral-500">{pedidosConcluidos.length} pedidos concluidos</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Total Saidas</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">Total Saidas</p>
           <p className="mt-2 text-3xl font-bold text-red-400">R$ {safeMoney(totalSaidas)}</p>
-          <p className="mt-1 text-xs text-neutral-500">{despMes.filter((e) => e.status === "Pago").length} despesas pagas</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {despMes.filter((e) => e.status === "Pago").length} pagas · {despMes.filter((e) => e.status !== "Pago").length} pendentes
+          </p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Lucro Liquido</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">Lucro Liquido</p>
           <p className={classNames("mt-2 text-3xl font-bold", lucroLiquido >= 0 ? "text-emerald-400" : "text-red-400")}>
             R$ {safeMoney(lucroLiquido)}
           </p>
           <p className="mt-1 text-xs text-neutral-500">Lucro do mes</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Faturamento Previsto</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">Faturamento Previsto</p>
           <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(valorPrevisto)}</p>
           <p className="mt-1 text-xs text-neutral-500">{pendentes.length} agendamentos pendentes</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">TOTAL A RECEBER (FIADOS)</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">TOTAL A RECEBER (FIADOS)</p>
           <p className="mt-2 text-3xl font-bold text-emerald-400">R$ {safeMoney(totalFiadoAberto)}</p>
           <p className="mt-1 text-xs text-neutral-500">{qtdClientesDevendo} clientes devendo</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">CUSTO DE BRINDES (FIDELIDADE)</p>
-          <p className="mt-2 text-3xl font-bold text-[#8B1D22] dark:text-red-500">R$ {safeMoney(custoBrindes)}</p>
+        <div className="relative overflow-hidden rounded-xl border-[1.5px] border-wine-500/30 bg-neutral-900 p-5">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[#8B1D22] dark:bg-wine-500" />
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-wine-400">CUSTO DE BRINDES (FIDELIDADE)</p>
+          <p className="mt-2 text-3xl font-bold text-[#8B1D22] dark:text-wine-400">R$ {safeMoney(custoBrindes)}</p>
           <p className="mt-1 text-xs text-neutral-500">{qtdResgates} resgatado{qtdResgates === 1 ? "" : "s"} no período</p>
         </div>
       </div>
@@ -402,7 +435,17 @@ export default function AdminFinanceiro() {
       {/* ═══════ DESPESAS DO MES ═══════ */}
       <div className="rounded-xl border border-neutral-800 bg-neutral-900">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-6 py-4">
-          <h3 className="text-sm font-semibold text-white">Despesas do Mes</h3>
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+              Despesas do Mes
+              <span className="rounded-full border border-wine-500/30 bg-wine-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-wine-400">
+                por vencimento
+              </span>
+            </h3>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              A vista fica no mes da compra · cada parcela aparece no mes do seu vencimento
+            </p>
+          </div>
           <div className="flex gap-2">
             <select value={filtroCategoriaDesp} onChange={(e) => { setFiltroCategoriaDesp(e.target.value); setPageDespesas(1); }}
               className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-white outline-none focus:border-wine-500">
@@ -418,74 +461,128 @@ export default function AdminFinanceiro() {
             </select>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-neutral-800 bg-neutral-900/50 px-6 py-3 text-xs text-neutral-400">
+          <span>
+            <b className="text-white">{resumoDespesas.pagas + resumoDespesas.pendentes}</b> despesa{(resumoDespesas.pagas + resumoDespesas.pendentes) === 1 ? "" : "s"}
+          </span>
+          <span className="font-semibold text-red-400">Total R$ {safeMoney(resumoDespesas.total)}</span>
+          <span className="text-emerald-400">
+            Pago R$ {safeMoney(resumoDespesas.pago)} ({resumoDespesas.pagas})
+          </span>
+          <span className="text-amber-400">
+            Pendente R$ {safeMoney(resumoDespesas.pendente)} ({resumoDespesas.pendentes})
+          </span>
+          {resumoDespesas.vencidas > 0 && (
+            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-semibold text-red-400">
+              {resumoDespesas.vencidas} vencida{resumoDespesas.vencidas === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-wider text-neutral-500">
                 <th className="px-6 py-3">Descricao</th>
-                <th className="px-6 py-3">Categoria</th>
                 <th className="px-6 py-3 text-right">Valor (R$)</th>
-                <th className="px-6 py-3">Data</th>
-                <th className="px-6 py-3 text-center">Status</th>
-                <th className="px-6 py-3 text-center">Acoes</th>
+                <th className="px-6 py-3">Vencimento</th>
+                <th className="px-6 py-3 text-center">Detalhes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/50">
               {despMesPaginadas.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-neutral-500">Nenhuma despesa registrada neste mes.</td>
+                  <td colSpan={4} className="px-6 py-8 text-center text-neutral-500">Nenhuma despesa com vencimento neste mes.</td>
                 </tr>
               ) : (
                 despMesPaginadas.map((desp) => {
-                  const dataDesp = new Date(desp.data + "T00:00:00");
+                  const dataVencimento = desp.vencimento || desp.data;
+                  const dataDesp = new Date(dataVencimento + "T00:00:00");
                   const hoje = new Date();
                   const diffDias = Math.ceil((dataDesp.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
                   const isVencida = diffDias < 0 && desp.status !== "Pago";
-                  const diasLabel = isVencida ? `(${Math.abs(diffDias)}d atraso)` : diffDias >= 0 ? `(em ${diffDias}d)` : "";
+                  const diasLabel = isVencida
+                    ? `${Math.abs(diffDias)}d atraso`
+                    : diffDias < 0
+                    ? ""
+                    : diffDias === 0
+                    ? "hoje"
+                    : `em ${diffDias}d`;
+                  const ehEntrada = Boolean(desp.entradaId);
+                  const mParcela = desp.descricao.match(/parcela\s+(\d+)\s*\/\s*(\d+)/i);
+                  const ehParcela = ehEntrada && (Boolean(mParcela) || dataVencimento !== desp.data);
+                  const chipLabel = mParcela ? `${mParcela[1]}/${mParcela[2]}` : ehParcela ? "Parcela" : "A Vista";
 
                   return (
-                    <tr key={desp.id} className="transition-colors hover:bg-neutral-800/30">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                    <tr
+                      key={desp.id}
+                      onClick={() => setDespSelecionada(desp)}
+                      className={classNames(
+                        "cursor-pointer transition-colors",
+                        isVencida ? "bg-red-500/10" : "hover:bg-neutral-800/30"
+                      )}
+                    >
+                      <td className={classNames("px-6 py-4", isVencida && "border-l-2 border-red-500/30")}>
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className={classNames("h-2 w-2 rounded-full", CATEGORIA_COLORS[desp.categoria] || "bg-neutral-500")} />
                           <span className="font-medium text-white">{desp.descricao}</span>
+                          {ehEntrada && (
+                            <span
+                              className={classNames(
+                                "rounded-full border px-1.5 py-0.5 text-[10px] font-bold",
+                                ehParcela
+                                  ? "border-amber-500/30 bg-amber-500/15 text-amber-400"
+                                  : "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                              )}
+                            >
+                              {chipLabel}
+                            </span>
+                          )}
+                          <span
+                            className={classNames(
+                              "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                              STATUS_COLORS[desp.status]
+                            )}
+                          >
+                            {desp.status}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="rounded-full bg-neutral-800 px-2.5 py-0.5 text-[10px] font-semibold text-neutral-400">
-                          {desp.categoria}
-                        </span>
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-bold text-red-400">
                         - R$ {safeMoney(desp.valor)}
                       </td>
                       <td className="px-6 py-4 text-sm text-neutral-300">
                         {dataDesp.toLocaleDateString("pt-BR")} {diasLabel && <span className={classNames("text-xs", isVencida ? "text-red-400" : "text-neutral-500")}>{diasLabel}</span>}
+                        {desp.vencimento && desp.vencimento !== desp.data && (
+                          <span className="block text-[10px] text-neutral-500">compra {new Date(desp.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={classNames("rounded-full border px-2.5 py-0.5 text-[10px] font-semibold", STATUS_COLORS[desp.status])}>
-                          {desp.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {desp.status !== "Pago" && (
-                            <button onClick={() => markAsPaid(desp.id)}
-                              className="rounded-md bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-500/25">
-                              Pago
-                            </button>
-                          )}
-                          <button onClick={() => deleteExpense(desp.id)}
-                            className="rounded-md bg-red-500/15 px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/25">
-                            X
-                          </button>
-                        </div>
+                        <svg
+                          className="mx-auto h-4 w-4 text-neutral-500"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          aria-label="Ver detalhes"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
+            {despMesFiltradas.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-neutral-800 bg-neutral-900/50">
+                  <td className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-neutral-400">
+                    Total ({despMesFiltradas.length} despesa{despMesFiltradas.length === 1 ? "" : "s"})
+                  </td>
+                  <td className="px-6 py-3 text-right text-sm font-bold text-red-400">- R$ {safeMoney(resumoDespesas.total)}</td>
+                  <td colSpan={2} className="px-6 py-3" />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         {totalPaginasDespesas > 1 && (
@@ -612,6 +709,11 @@ export default function AdminFinanceiro() {
           </div>
         );
       })()}
+
+      {/* ═══════ GAVETA DETALHES ═══════ */}
+      {despAtual && (
+        <DespesaDetailsDrawer desp={despAtual} entrada={entradaSel} onClose={() => setDespSelecionada(null)} />
+      )}
 
       {/* ═══════ MODAL ═══════ */}
       {showDespesaModal && <LaunchDespesaModal onClose={() => setShowDespesaModal(false)} />}

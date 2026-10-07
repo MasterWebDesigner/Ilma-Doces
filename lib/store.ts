@@ -406,6 +406,23 @@ export const EXPENSE_CATEGORIES = [
   "Outros",
 ];
 
+export const EXPENSE_STATUS_COLORS: Record<string, string> = {
+  Pago: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  Pendente: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  "Em Atraso": "bg-red-500/15 text-red-400 border-red-500/30",
+};
+
+export const EXPENSE_CATEGORIA_COLORS: Record<string, string> = {
+  Insumos: "bg-blue-500",
+  Fixos: "bg-amber-500",
+  Embalacoes: "bg-purple-500",
+  Transporte: "bg-cyan-500",
+  Equipe: "bg-emerald-500",
+  Marketing: "bg-[#8B1D22]",
+  "Custos de Brindes / Fidelidade": "bg-red-700",
+  Outros: "bg-neutral-500",
+};
+
 interface ExpenseState {
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, "id" | "createdAt">) => void;

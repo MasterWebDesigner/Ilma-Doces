@@ -213,7 +213,7 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
             <button
               onClick={fechar}
               aria-label="Fechar"
-              className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-white"
+              className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-slate-900 dark:hover:text-white"
             >
               ✕
             </button>
