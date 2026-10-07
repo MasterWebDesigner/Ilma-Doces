@@ -65,6 +65,7 @@ html:not(.dark) .admin-shell {
 
 /* Canvas / shells */
 html:not(.dark) .admin-shell .bg-neutral-950,
+html:not(.dark) .admin-shell .bg-neutral-950\/40,
 html:not(.dark) .admin-shell .bg-neutral-950\/50,
 html:not(.dark) .admin-shell .bg-neutral-950\/60 {
   background-color: #f9f8f6 !important;
@@ -416,6 +417,7 @@ html:not(.dark) .admin-shell .file\:text-white::file-selector-button {
 html:not(.dark) .admin-shell .bg-\[\#8B1D22\] .text-white,
 html:not(.dark) .admin-shell .bg-\[\#8B1D22\].text-white,
 html:not(.dark) .admin-shell .hover\:bg-\[\#8B1D22\]:hover .text-white,
+html:not(.dark) .admin-shell .hover\:bg-\[\#8B1D22\]:hover.hover\:text-white:hover,
 html:not(.dark) .admin-shell aside .text-white,
 html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\],
 html:not(.dark) .admin-shell aside.bg-\[\#8B1D22\] .text-white\/70,

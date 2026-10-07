@@ -47,6 +47,8 @@ export default function AdminEntradas() {
   const estornarEntrada = useEntradasStore((s) => s.estornarEntrada);
   const salvarFornecedor = useEntradasStore((s) => s.salvarFornecedor);
   const expenses = useExpenseStore((s) => s.expenses);
+  const markAsPaid = useExpenseStore((s) => s.markAsPaid);
+  const updateExpense = useExpenseStore((s) => s.updateExpense);
 
   const [fornecedor, setFornecedor] = useState("");
   const [novoFornecedor, setNovoFornecedor] = useState(false);
@@ -834,9 +836,29 @@ export default function AdminEntradas() {
                                           {p.numero}x — vence {p.vencimento ? p.vencimento.split("-").reverse().join("/") : "—"}
                                         </span>
                                         <span className="flex items-center gap-2">
-                                          <span className={classNames("rounded-full border px-2 py-0.5 text-[10px] font-semibold", statusBadge(status))}>
-                                            {status}
-                                          </span>
+                                          {desp ? (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                status === "Pago"
+                                                  ? updateExpense(desp.id, { status: "Pendente" })
+                                                  : markAsPaid(desp.id)
+                                              }
+                                              title={status === "Pago" ? "Clique para reabrir a parcela" : "Clique para marcar como paga"}
+                                              className={classNames(
+                                                "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold text-white transition-colors",
+                                                status === "Pago"
+                                                  ? "border-emerald-600 bg-emerald-600 hover:bg-emerald-700"
+                                                  : "border-[#8B1D22] bg-[#8B1D22] hover:bg-[#721519]"
+                                              )}
+                                            >
+                                              {status}
+                                            </button>
+                                          ) : (
+                                            <span className={classNames("rounded-full border px-2 py-0.5 text-[10px] font-semibold", statusBadge(status))}>
+                                              {status}
+                                            </span>
+                                          )}
                                           <span className="font-bold text-white">R$ {money(p.valor)}</span>
                                         </span>
                                       </div>
