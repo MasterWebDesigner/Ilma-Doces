@@ -85,7 +85,7 @@ export default function AdminEntradas() {
     [itensNum, frete]
   );
 
-  const formaPagamento = modo === "avista" ? formaAvista : tipoPrazo === "boleto" ? "Boleto" : tipoPrazo === "carne" ? "Cartão de Crédito" : "Personalizado";
+  const formaPagamento = modo === "avista" ? formaAvista : tipoPrazo === "boleto" ? "Boleto" : tipoPrazo === "carne" ? "Cartão" : "Personalizado";
 
   const primeiroEfetivo = primeiroTocado
     ? primeiroVencimento
@@ -237,6 +237,7 @@ export default function AdminEntradas() {
         frete: freteNum,
         itens: itensNum,
         formaPagamento,
+        aVista: modo === "avista",
         parcelas: parcelas.map((p) => ({ vencimento: p.vencimento, valor: p.valor })),
       });
       setItens([{ ...EMPTY_ITEM }]);
@@ -553,7 +554,7 @@ export default function AdminEntradas() {
                 <div className="flex gap-2">
                   {([
                     { key: "boleto", label: "Boleto" },
-                    { key: "carne", label: "Cartão de Crédito" },
+                    { key: "carne", label: "Cartão" },
                     { key: "custom", label: "Datas" },
                   ] as const).map((t) => (
                     <button

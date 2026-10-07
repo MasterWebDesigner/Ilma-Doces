@@ -134,6 +134,7 @@ export interface EntradaMercadoria {
   frete: number;
   total: number;
   formaPagamento: string;
+  aVista?: boolean;
   parcelas: EntradaParcela[];
   criadoEm: string;
   despesaIds: string[];

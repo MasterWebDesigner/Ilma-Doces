@@ -28,6 +28,7 @@ export interface DadosEntrada {
   frete: number;
   itens: { insumoId: string; brandId: string; qtd: number; custoUnitario: number }[];
   formaPagamento: string;
+  aVista: boolean;
   parcelas: { vencimento: string; valor: number }[];
 }
 
@@ -104,6 +105,7 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
             vencimento: p.vencimento,
             entradaId,
             criadoEm,
+            status: dados.aVista ? "Pago" : "Pendente",
           }),
         };
       });
@@ -117,6 +119,7 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
         frete,
         total,
         formaPagamento: dados.formaPagamento,
+        aVista: dados.aVista,
         parcelas,
         criadoEm,
         despesaIds: novasDespesas.map((d) => d.id),
@@ -171,15 +174,19 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
         const snap = await t.get(ref);
         if (!snap.exists()) throw new Error("Entrada nao encontrada.");
         const entrada = { id: snap.id, ...(snap.data() as Omit<EntradaMercadoria, "id">) } as EntradaMercadoria;
+        const ehAvista =
+          entrada.aVista ?? (entrada.parcelas.length === 1 && entrada.parcelas[0]?.vencimento === entrada.data);
 
-        for (let i = 0; i < entrada.despesaIds.length; i++) {
-          const despSnap = await t.get(doc(db, "despesas", entrada.despesaIds[i]));
-          if (despSnap.exists()) {
-            const desp = despSnap.data() as Partial<Expense>;
-            if (desp.status === "Pago") {
-              throw new Error(
-                `A parcela ${i + 1} de ${entrada.despesaIds.length} ja esta paga. Apague a despesa no Financeiro (botao X) antes de estornar a entrada.`
-              );
+        if (!ehAvista) {
+          for (let i = 0; i < entrada.despesaIds.length; i++) {
+            const despSnap = await t.get(doc(db, "despesas", entrada.despesaIds[i]));
+            if (despSnap.exists()) {
+              const desp = despSnap.data() as Partial<Expense>;
+              if (desp.status === "Pago") {
+                throw new Error(
+                  `A parcela ${i + 1} de ${entrada.despesaIds.length} ja esta paga. Apague a despesa no Financeiro (botao X) antes de estornar a entrada.`
+                );
+              }
             }
           }
         }

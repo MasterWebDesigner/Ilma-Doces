@@ -216,6 +216,7 @@ export function montarDadosEntrada(e: EntradaMercadoria) {
     frete: round2(e.frete),
     total: round2(e.total),
     formaPagamento: e.formaPagamento,
+    aVista: e.aVista ?? false,
     parcelas: e.parcelas.map((p) => ({
       numero: p.numero,
       vencimento: p.vencimento,
@@ -234,6 +235,7 @@ export function montarDadosDespesaEntrada(params: {
   vencimento: string;
   entradaId: string;
   criadoEm: string;
+  status?: "Pago" | "Pendente";
 }): Omit<Expense, "id"> {
   return {
     descricao: params.descricao,
@@ -242,7 +244,7 @@ export function montarDadosDespesaEntrada(params: {
     data: params.data,
     vencimento: params.vencimento,
     entradaId: params.entradaId,
-    status: "Pendente",
+    status: params.status ?? "Pendente",
     createdAt: params.criadoEm,
   };
 }
