@@ -109,6 +109,26 @@ await deveNegar("cria insumo sem sessao", () =>
     precoCustoInicial: 0,
   })
 );
+await deveNegar("le a colecao entradas-mercadoria", () => getDocs(collection(db, "entradas-mercadoria")));
+await deveNegar("le a colecao fornecedores", () => getDocs(collection(db, "fornecedores")));
+await deveNegar("cria entrada de mercadoria sem sessao", () =>
+  setDoc(doc(db, "entradas-mercadoria", "t-entrada-1"), {
+    fornecedor: "Fornecedor Teste",
+    data: "2026-10-06",
+    itens: [{ insumoId: "t-insumo-1", nome: "Insumo Teste", brandId: "", qtd: 2, custoUnitario: 5 }],
+    subtotal: 10,
+    frete: 0,
+    total: 10,
+    formaPagamento: "Pix",
+    parcelas: [{ numero: 1, vencimento: "2026-10-06", valor: 10 }],
+    criadoEm: new Date().toISOString(),
+    despesaIds: [],
+    loteIds: [],
+  })
+);
+await deveNegar("cria fornecedor sem sessao", () =>
+  setDoc(doc(db, "fornecedores", "t-fornecedor-1"), { nome: "Fornecedor Teste" })
+);
 await devePermitir("le a colecao produtos", () => getDocs(collection(db, "produtos")));
 await devePermitir("le a colecao categorias", () => getDocs(collection(db, "categorias")));
 await devePermitir("le a colecao marcas", () => getDocs(collection(db, "marcas")));
@@ -184,6 +204,16 @@ await deveNegar("registra despesa comum", () =>
     categoria: "Custos Fixos",
     valor: 1000,
     data: "2026-09-30",
+    status: "Pendente",
+  })
+);
+await deveNegar("cria despesa de insumos sem sessao", () =>
+  setDoc(doc(db, "despesas", "t-desp-entrada"), {
+    descricao: "Compra Fornecedor Teste",
+    categoria: "Insumos",
+    valor: 10,
+    data: "2026-10-06",
+    vencimento: "2026-10-06",
     status: "Pendente",
   })
 );
@@ -281,6 +311,46 @@ await devePermitir("batch atomico estoque (insumo + lote)", async () => {
     quantidadeRestante: 3,
     precoUnitario: 1.5,
   });
+  await batch.commit();
+});
+await devePermitir("le a colecao entradas-mercadoria", () => getDocs(collection(db, "entradas-mercadoria")));
+await devePermitir("le a colecao fornecedores", () => getDocs(collection(db, "fornecedores")));
+await devePermitir("grava entrada de mercadoria autenticada", () =>
+  setDoc(doc(db, "entradas-mercadoria", "t-entrada-1"), {
+    fornecedor: "Fornecedor Teste",
+    data: "2026-10-06",
+    itens: [{ insumoId: "t-insumo-1", nome: "Insumo Teste", brandId: "", qtd: 2, custoUnitario: 5 }],
+    subtotal: 10,
+    frete: 0,
+    total: 10,
+    formaPagamento: "Pix",
+    parcelas: [{ numero: 1, vencimento: "2026-10-06", valor: 10 }],
+    criadoEm: new Date().toISOString(),
+    despesaIds: ["t-desp-entrada"],
+    loteIds: ["t-lote-entrada"],
+  })
+);
+await devePermitir("batch atomico entrada (despesa + lote + fornecedor)", async () => {
+  const batch = writeBatch(db);
+  batch.set(doc(db, "despesas", "t-desp-entrada"), {
+    descricao: "Compra Fornecedor Teste",
+    categoria: "Insumos",
+    valor: 10,
+    data: "2026-10-06",
+    vencimento: "2026-10-06",
+    entradaId: "t-entrada-1",
+    status: "Pendente",
+    createdAt: new Date().toISOString(),
+  });
+  batch.set(doc(db, "lotes", "t-lote-entrada"), {
+    insumoId: "t-insumo-1",
+    brandId: "",
+    dataEntrada: "2026-10-06",
+    quantidadeInicial: 2,
+    quantidadeRestante: 2,
+    precoUnitario: 5,
+  });
+  batch.set(doc(db, "fornecedores", "t-fornecedor-1"), { nome: "Fornecedor Teste" }, { merge: true });
   await batch.commit();
 });
 await devePermitir("cria pedido confirmado", () =>
@@ -388,6 +458,10 @@ for (const [col, id] of [
   ["insumo-marcas", "t-vinculo-1"],
   ["lotes", "t-lote-1"],
   ["lotes", "t-lote-2"],
+  ["lotes", "t-lote-entrada"],
+  ["entradas-mercadoria", "t-entrada-1"],
+  ["despesas", "t-desp-entrada"],
+  ["fornecedores", "t-fornecedor-1"],
 ]) {
   try {
     await deleteDoc(doc(db, col, id));

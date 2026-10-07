@@ -117,10 +117,11 @@ export default function AdminConfiguracoes() {
   }
 
   async function handleClearFinanceiro() {
-    if (!confirm("Tem certeza? Todo o histórico financeiro e despesas serão removidos.")) return;
+    if (!confirm("Tem certeza? Todo o histórico financeiro, despesas e entradas de mercadoria serão removidos.")) return;
     try {
       await apiRequest("POST", "/admin/limpar-sistema", { collection: "financeiro" });
       await apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" });
+      await apiRequest("POST", "/admin/limpar-sistema", { collection: "entradas-mercadoria" });
       localStorage.removeItem("ilma-financeiro-store");
       alert("Financeiro limpo com sucesso!");
       window.location.reload();
@@ -130,7 +131,7 @@ export default function AdminConfiguracoes() {
   }
 
   async function handleClearAll() {
-    if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro, Despesas e Fidelidade) e zerar a numeração de pedidos? Esta ação é irreversível!")) return;
+    if (!confirm("⚠️ ATENÇÃO: Deseja apagar TUDO do sistema (Pedidos, Clientes, Credores, Financeiro, Despesas, Fidelidade e Entradas de Mercadoria) e zerar a numeração de pedidos? Esta ação é irreversível!")) return;
     try {
       await Promise.all([
         apiRequest("POST", "/admin/limpar-sistema", { collection: "pedidos" }),
@@ -140,6 +141,8 @@ export default function AdminConfiguracoes() {
         apiRequest("POST", "/admin/limpar-sistema", { collection: "despesas" }),
         apiRequest("POST", "/admin/limpar-sistema", { collection: "fidelidade" }),
         apiRequest("POST", "/admin/limpar-sistema", { collection: "contadores" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "entradas-mercadoria" }),
+        apiRequest("POST", "/admin/limpar-sistema", { collection: "fornecedores" }),
       ]);
       localStorage.clear();
       alert("Sistema limpo com sucesso!");

@@ -97,6 +97,8 @@ export interface Expense {
   categoria: string;
   valor: number;
   data: string;
+  vencimento?: string;
+  entradaId?: string;
   status: "Pago" | "Pendente" | "Em Atraso";
   createdAt: string;
 }
@@ -106,6 +108,36 @@ export interface Brand {
   id: string;
   nome: string;
   status: "Ativa" | "Inativa";
+}
+
+// ──────────────── ENTRADA DE MERCADORIA ────────────────
+export interface EntradaItem {
+  insumoId: string;
+  nome: string;
+  brandId: string;
+  qtd: number;
+  custoUnitario: number;
+}
+
+export interface EntradaParcela {
+  numero: number;
+  vencimento: string;
+  valor: number;
+}
+
+export interface EntradaMercadoria {
+  id: string;
+  fornecedor: string;
+  data: string;
+  itens: EntradaItem[];
+  subtotal: number;
+  frete: number;
+  total: number;
+  formaPagamento: string;
+  parcelas: EntradaParcela[];
+  criadoEm: string;
+  despesaIds: string[];
+  loteIds: string[];
 }
 
 // ──────────────── FICHA TECNICA ────────────────

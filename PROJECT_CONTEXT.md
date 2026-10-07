@@ -17,6 +17,7 @@ Este documento descreve a arquitetura atual, rotas do App Router, estrutura de d
 - **`/admin/clientes`** (`app/admin/clientes/page.tsx`): Gestão de clientes, histórico unificado de pedidos e fiados, seção **Fidelidade** (acumulado só dos itens das categorias permitidas dos pedidos concluídos, brindes disponíveis = `floor(saldo/meta)`, meta global editável, modal de resgate com baixa de estoque e despesa automática, edição manual de saldo com histórico de eventos e botão "Zerar saldo").
 - **`/admin/produtos`** (`app/admin/produtos/page.tsx`): Gestão de itens do cardápio, upload/URLs de fotos, gerenciar marcas e gerenciar categorias.
 - **`/admin/estoque`** (`app/admin/estoque/page.tsx`): Controle de lotes de insumos com Preço Médio Ponderado (PEPS).
+- **`/admin/entradas`** (`app/admin/entradas/page.tsx`): Entrada de Mercadoria — compra de fornecedor à vista (Pix/Dinheiro/Cartão) ou prazo (Boleto 30/60/90 · Carnê · datas personalizadas) que grava em **um único `writeBatch`** a compra, as despesas parceladas (categoria `"Insumos"`, `data` = compra p/ DRE e `vencimento` = parcela p/ caixa) e os lotes de estoque (frete rateado proporcional no custo do lote); estorno bloqueado se alguma parcela estiver paga.
 - **`/admin/financeiro`** (`app/admin/financeiro/page.tsx`): Módulo financeiro, receitas, despesas e fluxo de caixa.
 - **`/admin/credores`** (`app/admin/credores/page.tsx`): Gestão de credores e fiados, abates parciais, reabertura de dívidas (estorno) e cobrança via WhatsApp.
 - **`/admin/precificacao`** (`app/admin/precificacao/page.tsx`): Fichas técnicas e precificação de produtos.
@@ -101,7 +102,16 @@ O sistema opera com sincronização em tempo real (Firebase Firestore / Zustand 
 
 ### `despesas`
 - `id`, `descricao`, `categoria` (inclui `"Custos de Brindes / Fidelidade"`), `valor`, `data` (YYYY-MM-DD), `status` (`"Pago" | "Pendente" | "Em Atraso"`), `createdAt`
+- `vencimento?`: string (YYYY-MM-DD — vencimento da parcela quando veio de uma Entrada de Mercadoria; o Financeiro usa essa data para calcular atraso)
+- `entradaId?`: string (vincula a despesa à compra em `entradas-mercadoria`)
 - Lançadas automaticamente a cada resgate de gelinho no painel (custo = `precoCustoInicial` do sabor)
+
+### `entradas-mercadoria`
+- `id`, `fornecedor`, `data` (YYYY-MM-DD da compra), `itens` (array de `EntradaItem`: `insumoId`, `nome`, `brandId`, `qtd`, `custoUnitario`), `subtotal`, `frete`, `total`, `formaPagamento`, `parcelas` (array de `EntradaParcela`: `numero`, `vencimento`, `valor`), `criadoEm`, `despesaIds`, `loteIds`
+- Gravada junto de `despesas` e `lotes` em atomicidade total (`lib/entradasStore.ts`); estorno via `runTransaction` só libera se nenhuma despesa vinculada estiver `Pago`
+
+### `fornecedores`
+- `id` (slug do nome), `nome` — apenas autocomplete da tela de Entrada de Mercadoria
 
 ### `financeiro`
 - `id`: string

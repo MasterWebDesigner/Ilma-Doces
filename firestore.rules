@@ -108,6 +108,15 @@ service cloud.firestore {
       allow read, write: if autenticado();
     }
 
+    // ── Entrada de mercadoria: compras de insumos e fornecedores ───────
+    match /entradas-mercadoria/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /fornecedores/{id} {
+      allow read, write: if autenticado();
+    }
+
     match /fichas_tecnicas/{id} {
       allow read, write: if autenticado();
     }
