@@ -15,6 +15,7 @@ import { useEntradasStore } from "@/lib/entradasStore";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import LaunchDespesaModal from "@/components/admin/LaunchDespesaModal";
 import DespesaDetailsDrawer from "@/components/admin/DespesaDetailsDrawer";
+import BrindesDrawer from "@/components/admin/BrindesDrawer";
 import { classNames, compararTexto, getLocalDateStr, getLocalDateStrFromISO, getLocalMonthStr, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, sinalRecebidoDoPedido, isFiadoPendente, saldoPendenteDoPedido } from "@/lib/faturamento";
 import type { Expense } from "@/types/database";
@@ -22,7 +23,9 @@ import type { Expense } from "@/types/database";
 type Periodo = "dia" | "mes" | "ano";
 
 const PAGE_SIZE = 15;
+const PAGE_SIZE_DESPESAS = 10;
 const CATEGORIA_BRINDE = "Custos de Brindes / Fidelidade";
+const ID_LINHA_BRINDES = "__brindes__";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -67,6 +70,7 @@ export default function AdminFinanceiro() {
   const [filtroCategoriaDesp, setFiltroCategoriaDesp] = useState("Todas");
   const [filtroStatusDesp, setFiltroStatusDesp] = useState("Todos");
   const [despSelecionada, setDespSelecionada] = useState<Expense | null>(null);
+  const [brindeDrawerAberta, setBrindeDrawerAberta] = useState(false);
   const [pageDespesas, setPageDespesas] = useState(1);
   const [pagePedidos, setPagePedidos] = useState(1);
   const [mesAtual, setMesAtual] = useState(new Date().getMonth());
@@ -233,6 +237,23 @@ export default function AdminFinanceiro() {
       });
   }, [despMes, filtroCategoriaDesp, filtroStatusDesp]);
 
+  const { linhasDespesas, brindesFiltrados } = useMemo(() => {
+    const brindes = despMesFiltradas.filter((e) => e.categoria === CATEGORIA_BRINDE);
+    const outras = despMesFiltradas.filter((e) => e.categoria !== CATEGORIA_BRINDE);
+    if (brindes.length === 0) return { linhasDespesas: despMesFiltradas, brindesFiltrados: [] as Expense[] };
+    const agregada: Expense = {
+      id: ID_LINHA_BRINDES,
+      descricao: "Brindes / Fidelidade",
+      categoria: CATEGORIA_BRINDE,
+      valor: brindes.reduce((s, e) => s + (Number(e.valor) || 0), 0),
+      data: brindes[0]?.data || "",
+      vencimento: "",
+      status: brindes.every((e) => e.status === "Pago") ? "Pago" : "Pendente",
+      createdAt: "",
+    };
+    return { linhasDespesas: [agregada, ...outras], brindesFiltrados: brindes };
+  }, [despMesFiltradas]);
+
   const resumoDespesas = useMemo(() => {
     const r = { total: 0, pago: 0, pendente: 0, pagas: 0, pendentes: 0, vencidas: 0 };
     despMesFiltradas.forEach((e) => {
@@ -251,9 +272,9 @@ export default function AdminFinanceiro() {
     return r;
   }, [despMesFiltradas, todayStr]);
 
-  const totalPaginasDespesas = Math.ceil(despMesFiltradas.length / PAGE_SIZE) || 1;
+  const totalPaginasDespesas = Math.ceil(linhasDespesas.length / PAGE_SIZE_DESPESAS) || 1;
   const pageDespesasSafe = Math.min(pageDespesas, totalPaginasDespesas);
-  const despMesPaginadas = despMesFiltradas.slice((pageDespesasSafe - 1) * PAGE_SIZE, pageDespesasSafe * PAGE_SIZE);
+  const despMesPaginadas = linhasDespesas.slice((pageDespesasSafe - 1) * PAGE_SIZE_DESPESAS, pageDespesasSafe * PAGE_SIZE_DESPESAS);
 
   function navigateMonth(delta: number) {
     let newMonth = mesAtual + delta;
@@ -495,6 +516,48 @@ export default function AdminFinanceiro() {
                 </tr>
               ) : (
                 despMesPaginadas.map((desp) => {
+                  if (desp.id === ID_LINHA_BRINDES) {
+                    return (
+                      <tr
+                        key={desp.id}
+                        onClick={() => setBrindeDrawerAberta(true)}
+                        className="cursor-pointer transition-colors hover:bg-neutral-800/30"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={classNames("h-2 w-2 rounded-full", CATEGORIA_COLORS[desp.categoria] || "bg-neutral-500")} />
+                            <span className="font-medium text-white">{desp.descricao}</span>
+                            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+                              {brindesFiltrados.length} resgate{brindesFiltrados.length === 1 ? "" : "s"}
+                            </span>
+                            <span
+                              className={classNames(
+                                "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                                STATUS_COLORS[desp.status]
+                              )}
+                            >
+                              {desp.status}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm font-bold text-red-400">
+                          - R$ {safeMoney(desp.valor)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-neutral-500">no mes</td>
+                        <td className="px-6 py-4 text-center">
+                          <svg
+                            className="mx-auto h-4 w-4 text-neutral-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            aria-label="Ver brindes"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </td>
+                      </tr>
+                    );
+                  }
                   const dataVencimento = desp.vencimento || desp.data;
                   const dataDesp = new Date(dataVencimento + "T00:00:00");
                   const hoje = new Date();
@@ -709,6 +772,15 @@ export default function AdminFinanceiro() {
           </div>
         );
       })()}
+
+      {/* ═══════ GAVETA BRINDES ═══════ */}
+      {brindeDrawerAberta && (
+        <BrindesDrawer
+          brindes={brindesFiltrados}
+          onClose={() => setBrindeDrawerAberta(false)}
+          onSelect={(d) => setDespSelecionada(d)}
+        />
+      )}
 
       {/* ═══════ GAVETA DETALHES ═══════ */}
       {despAtual && (
