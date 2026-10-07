@@ -12,6 +12,7 @@ import { quandoAutenticado } from "./authSync";
 import { assinarColecao } from "./retrySnapshot";
 import { notifyError } from "./notifications";
 import { SEED_STOCK, SEED_LINKS } from "./seedData";
+import { obterPrecoMedioInsumo } from "./precoMedio";
 import {
   BATCH_KEY,
   STOCK_KEY,
@@ -170,6 +171,7 @@ export async function migrarEstoqueSePreciso(): Promise<void> {
     const jaMigrado = Boolean(localStorage.getItem(ESTOQUE_MIGRADO_KEY));
     const ehEmulador = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1";
     if (jaMigrado && !ehEmulador) return;
+    const lotesLocais = loadBatchesData<Batch>();
     limparLotesUmaVez();
     const remotos = await getDocs(collection(db, "insumos"));
     if (!remotos.empty) {
@@ -178,11 +180,10 @@ export async function migrarEstoqueSePreciso(): Promise<void> {
     }
     const insumos = insumosDeOrigem();
     const vinculos = vinculosDeOrigem();
-    const lotes = loadBatchesData<Batch>();
     const pares: Array<[DocumentReference, any]> = [
       ...insumos.map((i): [DocumentReference, any] => [doc(db, "insumos", i.id), montarDadosInsumo(i)]),
       ...vinculos.map((v): [DocumentReference, any] => [doc(db, "insumo-marcas", v.id), montarDadosVinculo(v)]),
-      ...lotes.map((l): [DocumentReference, any] => [doc(db, "lotes", l.id), montarDadosLote(l)]),
+      ...lotesLocais.map((l): [DocumentReference, any] => [doc(db, "lotes", l.id), montarDadosLote(l)]),
     ];
     await gravarParesEmLotes(pares);
     localStorage.setItem(ESTOQUE_MIGRADO_KEY, "1");
@@ -260,6 +261,7 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
     setDoc(doc(db, "lotes", lote.id), montarDadosLote(lote)).catch(() => {
       notifyError("Erro", "Nao foi possivel registrar a entrada de estoque.");
     });
+    sincronizarPrecoMedioInsumo(dados.insumoId);
   },
 
   baixarEstoque: (insumoId, quantidade, brandId) => {
@@ -310,6 +312,7 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
     escrita.commit().catch(() => {
       notifyError("Erro", "Nao foi possivel remover o vinculo da marca.");
     });
+    sincronizarPrecoMedioInsumo(sb.stockItemId);
   },
 
   removerVinculosDaMarca: (brandId) => {
@@ -326,6 +329,7 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
     escrita.commit().catch(() => {
       notifyError("Erro", "Nao foi possivel remover os vinculos da marca.");
     });
+    [...new Set(vinculosAlvo.map((v) => v.stockItemId))].forEach(sincronizarPrecoMedioInsumo);
   },
 
   resetarEstoque: async () => {
@@ -357,6 +361,24 @@ export const useEstoqueStore = create<EstoqueState>()((set, get) => ({
     }
   },
 }));
+
+// ═══════════ PRECO MEDIO PERSISTENTE ═══════════
+
+export function sincronizarPrecoMedioInsumo(insumoId: string): void {
+  const { lotes, insumos } = useEstoqueStore.getState();
+  const insumo = insumos.find((i) => i.id === insumoId);
+  if (!insumo) return;
+  const media = obterPrecoMedioInsumo(lotes, insumoId);
+  if (!(media > 0)) return;
+  const valor = Math.round(media * 1000) / 1000;
+  if (Math.abs(valor - (insumo.precoCustoInicial ?? 0)) < 0.0005) return;
+  useEstoqueStore.setState((s) => ({
+    insumos: s.insumos.map((i) => (i.id === insumoId ? { ...i, precoCustoInicial: valor } : i)),
+  }));
+  setDoc(doc(db, "insumos", insumoId), { precoCustoInicial: valor }, { merge: true }).catch(() => {
+    notifyError("Erro", "Nao foi possivel atualizar o preco medio do insumo.");
+  });
+}
 
 // ═══════════ BACKUP LOCAL ═══════════
 

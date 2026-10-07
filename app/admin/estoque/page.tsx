@@ -596,7 +596,7 @@ export default function AdminEstoque() {
               <div>
                 <label className="mb-1 block text-xs font-medium text-neutral-400">Preco Custo Inicial (R$ / {form.unit})</label>
                 <input type="number" step="0.001" min="0" value={form.precoCustoInicial || ""} onChange={(e) => setForm({ ...form, precoCustoInicial: parseFloat(e.target.value) || 0 })} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3.5 py-2.5 text-sm text-white focus:border-wine-500 focus:outline-none" placeholder="0.000" />
-                <p className="mt-1 text-[10px] text-neutral-600">Usado como preco medio quando nao ha entradas registradas.</p>
+                <p className="mt-1 text-[10px] text-neutral-600">Usado como preco medio quando nao ha entradas registradas. Atualizado automaticamente apos cada entrada.</p>
               </div>
               <p className="text-[10px] text-neutral-600">Adicione marcas ao insumo apos o cadastro. O custo unitario e a media simples das 5 ultimas entradas (inclusive com estoque zerado, para a precificacao).</p>
               <div className="flex gap-3 pt-2">

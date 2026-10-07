@@ -17,10 +17,11 @@ function lote(
 }
 
 describe("obterPrecoMedio", () => {
-  it("returns 0 when there are no entries (no batches)", () => {
-    expect(obterPrecoMedio("si-01", [], 9.5)).toBe(0);
+  it("falls back to precoCustoInicial when there are no entries", () => {
+    expect(obterPrecoMedio("si-01", [], 9.5)).toBe(9.5);
+    expect(obterPrecoMedio("si-01", [], 0)).toBe(0);
     expect(obterPrecoMedio("si-01", [])).toBe(0);
-    expect(obterPrecoMedioInsumo([], "si-01", 9.5)).toBe(0);
+    expect(obterPrecoMedioInsumo([], "si-01", 9.5)).toBe(9.5);
   });
 
   it("averages only the 5 newest by date", () => {

@@ -4,7 +4,7 @@ import { db } from "./firebase";
 import { quandoAutenticado } from "./authSync";
 import { assinarColecao } from "./retrySnapshot";
 import { notifyError, notifySuccess } from "./notifications";
-import { useEstoqueStore, montarDadosLote, type Batch } from "./estoqueStore";
+import { useEstoqueStore, montarDadosLote, sincronizarPrecoMedioInsumo, type Batch } from "./estoqueStore";
 import { useExpenseStore } from "./store";
 import {
   custoUnitarioComFrete,
@@ -146,6 +146,7 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
       useEstoqueStore.setState({
         lotes: [...lotesAtuais, ...novosLotes.filter((l) => !lotesAtuais.some((x) => x.id === l.id))],
       });
+      [...new Set(dados.itens.map((i) => i.insumoId))].forEach(sincronizarPrecoMedioInsumo);
       const despAtuais = useExpenseStore.getState().expenses;
       useExpenseStore.setState({
         expenses: [...novasDespesas.filter((d) => !despAtuais.some((x) => x.id === d.id)), ...despAtuais],
@@ -195,6 +196,7 @@ export const useEntradasStore = create<EntradasState>()((set, get) => ({
         useEstoqueStore.setState({
           lotes: useEstoqueStore.getState().lotes.filter((l) => !entrada.loteIds.includes(l.id)),
         });
+        [...new Set(entrada.itens.map((i) => i.insumoId))].forEach(sincronizarPrecoMedioInsumo);
         useExpenseStore.setState({
           expenses: useExpenseStore.getState().expenses.filter((e) => !entrada.despesaIds.includes(e.id)),
         });
