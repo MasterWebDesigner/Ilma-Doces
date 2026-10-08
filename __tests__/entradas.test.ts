@@ -163,6 +163,13 @@ describe("geradores de parcelas", () => {
     expect(p.reduce((s, x) => s + x.valor, 0)).toBeCloseTo(90, 10);
   });
 
+  it("parcelasMensaisApartirDe aceita uma unica parcela no carne", () => {
+    const p = parcelasMensaisApartirDe(90, "2026-11-05", 1);
+    expect(p).toHaveLength(1);
+    expect(p[0].vencimento).toBe("2026-11-05");
+    expect(p[0].valor).toBeCloseTo(90, 10);
+  });
+
   it("somaParcelasConfere aceita diferenca de centavos e nega o resto", () => {
     expect(somaParcelasConfere(100, [{ valor: 50 }, { valor: 50.01 }])).toBe(true);
     expect(somaParcelasConfere(100, [{ valor: 50 }, { valor: 49.9 }])).toBe(false);

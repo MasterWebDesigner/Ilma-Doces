@@ -642,10 +642,10 @@ export default function AdminEntradas() {
                     <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-neutral-500">Numero de parcelas (mensais)</label>
                     <input
                       type="number"
-                      min="2"
+                      min="1"
                       max="24"
                       value={nCarne}
-                      onChange={(e) => setNCarne(Math.min(24, Math.max(2, Number(e.target.value) || 2)))}
+                      onChange={(e) => setNCarne(Math.min(24, Math.max(1, Number(e.target.value) || 1)))}
                       className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-wine-500"
                     />
                   </div>
