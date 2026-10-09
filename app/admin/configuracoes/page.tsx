@@ -11,6 +11,17 @@ import {
 } from "@/lib/storeConfig";
 import { MensagensWhatsappCard } from "@/components/admin/MensagensWhatsappCard";
 
+const ABAS = [
+  { id: "negocio", label: "Meu Negócio" },
+  { id: "agenda", label: "Agenda e Horários" },
+  { id: "agendamento", label: "Agendamento Online" },
+  { id: "pagamentos", label: "Pagamentos e Taxas" },
+  { id: "notas", label: "Notas fiscais" },
+  { id: "whatsapp", label: "WhatsApp" },
+] as const;
+
+type AbaId = (typeof ABAS)[number]["id"];
+
 function loadSettings(): StoreSettings {
   return getStoreConfig();
 }
@@ -19,6 +30,7 @@ export default function AdminConfiguracoes() {
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [newTimeSlot, setNewTimeSlot] = useState("");
+  const [aba, setAba] = useState<AbaId>("negocio");
 
   useEffect(() => {
     setSettings(loadSettings());
@@ -155,9 +167,17 @@ export default function AdminConfiguracoes() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Configuracoes</h1>
-          <p className="mt-1 text-sm text-neutral-400">Gerencie as configuracoes da loja.</p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-700 bg-neutral-800">
+            <svg className="h-5 w-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Configurações</h1>
+            <p className="mt-0.5 text-sm text-neutral-400">Gerencie as informações e preferências do sistema</p>
+          </div>
         </div>
         <button
           onClick={handleSave}
@@ -167,7 +187,27 @@ export default function AdminConfiguracoes() {
         </button>
       </div>
 
-      {/* Dados da Loja */}
+      {/* Abas */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-1.5">
+        <nav className="flex flex-wrap gap-1">
+          {ABAS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setAba(t.id)}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all ${
+                aba === t.id
+                  ? "bg-neutral-950 text-white shadow-sm ring-1 ring-neutral-700"
+                  : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Meu Negócio — Dados da Loja */}
+      {aba === "negocio" && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
           <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
@@ -204,27 +244,16 @@ export default function AdminConfiguracoes() {
           <textarea value={settings.welcomeMessage} onChange={(e) => setSettings((s) => ({ ...s, welcomeMessage: e.target.value }))} rows={2} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500 resize-none" placeholder="Mensagem exibida no inicio do cardapio..." />
         </div>
       </div>
+      )}
 
-      {/* Entrega e Horarios */}
+      {/* Agenda e Horários */}
+      {aba === "agenda" && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
           <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          Entrega e Horarios
+          Agenda e Horários
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Taxa de Entrega (R$)</label>
-            <input type="number" step="0.01" min="0" value={settings.deliveryFee} onChange={(e) => setSettings((s) => ({ ...s, deliveryFee: parseFloat(e.target.value) || 0 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Antecedencia Minima (horas)</label>
-            <input type="number" min="1" value={settings.minAdvanceHours} onChange={(e) => setSettings((s) => ({ ...s, minAdvanceHours: parseInt(e.target.value) || 24 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Margem de Preparo para Hoje (min)</label>
-            <input type="number" min="0" step="5" value={settings.margemPreparoMinutos} onChange={(e) => setSettings((s) => ({ ...s, margemPreparoMinutos: Math.max(0, parseInt(e.target.value) || 0) }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
-            <p className="mt-1 text-[10px] text-neutral-500">Bloqueia horarios de hoje anteriores ao atual + esta margem.</p>
-          </div>
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horario de Abertura</label>
             <input type="time" value={settings.openingHour} onChange={(e) => setSettings((s) => ({ ...s, openingHour: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
@@ -254,14 +283,42 @@ export default function AdminConfiguracoes() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Pagamento */}
+      {/* Agendamento Online */}
+      {aba === "agendamento" && (
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          Agendamento Online
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Antecedencia Minima (horas)</label>
+            <input type="number" min="1" value={settings.minAdvanceHours} onChange={(e) => setSettings((s) => ({ ...s, minAdvanceHours: parseInt(e.target.value) || 24 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+            <p className="mt-1 text-[10px] text-neutral-500">Pedido minimo com esta antecedencia da data de retirada/entrega.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Margem de Preparo para Hoje (min)</label>
+            <input type="number" min="0" step="5" value={settings.margemPreparoMinutos} onChange={(e) => setSettings((s) => ({ ...s, margemPreparoMinutos: Math.max(0, parseInt(e.target.value) || 0) }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+            <p className="mt-1 text-[10px] text-neutral-500">Bloqueia horarios de hoje anteriores ao atual + esta margem.</p>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Pagamentos e Taxas */}
+      {aba === "pagamentos" && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
           <svg className="h-4 w-4 text-wine-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
-          Pagamento
+          Pagamentos e Taxas
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Taxa de Entrega (R$)</label>
+            <input type="number" step="0.01" min="0" value={settings.deliveryFee} onChange={(e) => setSettings((s) => ({ ...s, deliveryFee: parseFloat(e.target.value) || 0 }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" />
+          </div>
           <div>
             <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Chave PIX</label>
             <input type="text" value={settings.pixKey} onChange={(e) => setSettings((s) => ({ ...s, pixKey: e.target.value }))} className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-sm text-white outline-none focus:border-wine-500" placeholder="CPF, e-mail, celular ou chave aleatoria" />
@@ -280,11 +337,12 @@ export default function AdminConfiguracoes() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Fidelidade e Brindes */}
+      {aba === "pagamentos" && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
-          <span aria-hidden>🎁</span>
           Fidelidade e Brindes
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -321,19 +379,22 @@ export default function AdminConfiguracoes() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Mensagens WhatsApp */}
+      {aba === "whatsapp" && (
       <MensagensWhatsappCard
         mensagens={settings.mensagensWhatsapp || []}
         onChange={(mensagens) => setSettings((s) => ({ ...s, mensagensWhatsapp: mensagens }))}
         onSave={handleSave}
       />
+      )}
 
       {/* Posts do Instagram */}
+      {aba === "negocio" && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
-            <span aria-hidden>📸</span>
             Posts do Instagram
           </h2>
           <button
@@ -417,6 +478,19 @@ export default function AdminConfiguracoes() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Notas fiscais */}
+      {aba === "notas" && (
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-300">
+          Notas fiscais
+        </h2>
+        <p className="rounded-lg border border-dashed border-neutral-700 px-4 py-8 text-center text-xs text-neutral-500">
+          Configurações de emissão de notas fiscais estarão disponíveis em breve.
+        </p>
+      </div>
+      )}
 
       {/* Zona de Perigo */}
       <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6">
