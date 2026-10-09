@@ -33,9 +33,9 @@ export function normalizarChavePix(chave: string): string {
   const limpa = (chave || "").replace(/\s+/g, "");
   if (!limpa) return "";
   const digitos = limpa.replace(/[^\d]/g, "");
-  if (digitos.length === 11 && digitos[2] === "9" && /^[\d\s().+-]+$/.test(limpa)) {
-    return `55${digitos}`;
-  }
+  const soFormatacaoNumerica = /^[\d\s().+-]+$/.test(limpa);
+  if (soFormatacaoNumerica && digitos.length === 11 && digitos[2] === "9") return `+55${digitos}`;
+  if (soFormatacaoNumerica && digitos.length === 13 && digitos.startsWith("55") && digitos[4] === "9") return `+${digitos}`;
   return limpa;
 }
 

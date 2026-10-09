@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { cidadeDoEndereco, crc16Pix, montarPixPayload, normalizarChavePix, normalizarTextoPix } from "@/lib/pix";
 
 describe("normalizarChavePix", () => {
-  it("prefixa o DDI 55 em telefone celular BR de 11 digitos", () => {
-    expect(normalizarChavePix("11940334360")).toBe("5511940334360");
-    expect(normalizarChavePix("11 94033-4360")).toBe("5511940334360");
+  it("formata telefone celular com +55 (DDI + DDD + numero)", () => {
+    expect(normalizarChavePix("11940334360")).toBe("+5511940334360");
+    expect(normalizarChavePix("11 94033-4360")).toBe("+5511940334360");
+    expect(normalizarChavePix("(11) 94033-4360")).toBe("+5511940334360");
   });
 
-  it("nao mexe em chave com DDI, CPF, e-mail, chave aleatoria ou vazia", () => {
-    expect(normalizarChavePix("5511940334360")).toBe("5511940334360");
+  it("normaliza telefone ja com DDI ou sinal de adicao para +55", () => {
+    expect(normalizarChavePix("5511940334360")).toBe("+5511940334360");
+    expect(normalizarChavePix("+5511940334360")).toBe("+5511940334360");
+  });
+
+  it("nao mexe em CPF, e-mail, chave aleatoria ou vazia", () => {
     expect(normalizarChavePix("12345678901")).toBe("12345678901");
     expect(normalizarChavePix("loja@email.com")).toBe("loja@email.com");
     expect(normalizarChavePix("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")).toBe(
@@ -87,6 +92,19 @@ describe("montarPixPayload", () => {
 
   it("cai na cidade padrao quando endereco nao informa", () => {
     expect(montarPixPayload({ ...dados, cidade: "" })).toContain("SAO PAULO");
+  });
+
+  it("gera payload completo com telefone +55 no formato E.164, terminando no CRC16", () => {
+    const p = montarPixPayload({
+      chave: "11940334360",
+      nome: "Ilma Doces",
+      cidade: "Sao Paulo",
+      valor: 89.9,
+      txid: "ILMATEST123",
+    });
+    expect(p).toContain("0114+5511940334360");
+    expect(p).toMatch(/^000201.*6304[0-9A-F]{4}$/);
+    expect(p.endsWith(crc16Pix(p.slice(0, -4)))).toBe(true);
   });
 
   it("retorna vazio sem chave ou com valor invalido", () => {

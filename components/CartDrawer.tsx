@@ -7,7 +7,9 @@ import { formatCurrency, formatItemQty, formatWeightKg } from "@/lib/utils";
 import { formatarMix, saboresDoCombo, todosCompletos } from "@/lib/combo";
 import ComboPicker from "@/components/ComboPicker";
 import { openWhatsApp } from "@/lib/whatsapp";
-import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
+import { useNotificationStore, playNotificationSound, notifyInfo } from "@/lib/notifications";
+import { QRCodeSVG } from "qrcode.react";
+import { montarPixPayload, normalizarChavePix, cidadeDoEndereco } from "@/lib/pix";
 import { useStoreConfig, DEFAULT_SETTINGS } from "@/lib/storeConfig";
 import {
   paidSubtotal,
@@ -40,6 +42,36 @@ function hojeISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function PixQrCard({ payload, chave, valor, onCopiar }: { payload: string; chave: string; valor: number; onCopiar: () => void }) {
+  return (
+    <>
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pix QR Code</p>
+        <div className="rounded-lg bg-white p-2">
+          <QRCodeSVG value={payload} size={200} level="L" bgColor="#ffffff" fgColor="#171717" />
+        </div>
+        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(valor)}</span>
+      </div>
+      <textarea
+        readOnly
+        rows={3}
+        value={payload}
+        onFocus={(e) => e.target.select()}
+        className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1.5 font-mono text-[10px] leading-4 break-all text-neutral-500 outline-none dark:border-neutral-800 dark:bg-neutral-950"
+      />
+      <p className="text-center text-[10px] text-neutral-500">Chave: {chave}</p>
+      <button
+        type="button"
+        onClick={onCopiar}
+        className="w-full rounded-lg border px-3 py-2 text-xs font-bold transition-all hover:opacity-80"
+        style={{ borderColor: WINE, color: WINE, backgroundColor: `${WINE}14` }}
+      >
+        Copiar Pix Copia e Cola
+      </button>
+    </>
+  );
+}
+
 export default function CartDrawer() {
   const { items, isOpen, setOpen, removeItem, updateQuantity, updateMix, updateNotes, setBrinde, clearBrinde, clearCart } = useCartStore();
   const config = useStoreConfig();
@@ -59,6 +91,8 @@ export default function CartDrawer() {
   const [timeValue, setTimeValue] = useState("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("retirada");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [pixSalt] = useState(() => Date.now().toString(36).toUpperCase());
+  const [pixGerado, setPixGerado] = useState(false);
   const [trocoValue, setTrocoValue] = useState("");
   const [addrStreet, setAddrStreet] = useState("");
   const [addrNumber, setAddrNumber] = useState("");
@@ -98,6 +132,44 @@ export default function CartDrawer() {
   const valorEntrada = pedidoExigeSinal ? valorSinalPedido(totalGeral) : 0;
   const valorRestante = Math.max(0, totalGeral - valorEntrada);
   const detalheSinalConfirmado = confirmedOrder ? detalheSinalPedido(confirmedOrder) : null;
+  const chavePixFinal = config.chavePix || config.pixKey;
+  const pixValor = pedidoExigeSinal ? valorEntrada : totalGeral;
+
+  function gerarPayloadPix(valor: number, txidBase: string): string {
+    if (!chavePixFinal || !(valor > 0)) return "";
+    return montarPixPayload({
+      chave: chavePixFinal,
+      nome: config.storeName,
+      cidade: cidadeDoEndereco(config.storeAddress),
+      valor,
+      txid: txidBase.slice(0, 25),
+    });
+  }
+
+  const pixPayload = useMemo(() => {
+    if (!pixGerado) return "";
+    return gerarPayloadPix(pixValor, "ILMA" + pixSalt + Math.round(pixValor * 100).toString(36).toUpperCase());
+  }, [pixGerado, pixValor, chavePixFinal, config.storeName, config.storeAddress, pixSalt]);
+
+  const pixPayloadConfirmado = useMemo(() => {
+    if (!confirmedOrder) return "";
+    const valor = detalheSinalConfirmado?.exigido
+      ? detalheSinalConfirmado.valor
+      : confirmedOrder.paymentMethod === "pix"
+        ? confirmedOrder.total
+        : 0;
+    return gerarPayloadPix(valor, "ILMA" + (confirmedOrder.orderNumber || confirmedOrder.id).replace(/[^A-Za-z0-9]/g, ""));
+  }, [confirmedOrder, detalheSinalConfirmado, chavePixFinal, config.storeName, config.storeAddress]);
+
+  const chavePixVisivel = normalizarChavePix(chavePixFinal);
+
+  function copiarPixCopiaECola(payload: string) {
+    if (!payload) return;
+    navigator.clipboard
+      .writeText(payload)
+      .then(() => notifyInfo("Pix Copia e Cola", "Código copiado! Cole no app do banco para pagar."))
+      .catch(() => notifyInfo("Pix Copia e Cola", "Não foi possível copiar automaticamente."));
+  }
   const contatoLoja = config.whatsappLoja || config.storePhone;
   const flavors = useMemo(
     () => availableBrindeFlavors(products, categories),
@@ -164,6 +236,7 @@ export default function CartDrawer() {
     setTimeValue("");
     setDeliveryType("retirada");
     setPaymentMethod("pix");
+    setPixGerado(false);
     setTrocoValue("");
     setAddrStreet("");
     setAddrNumber("");
@@ -1032,6 +1105,34 @@ export default function CartDrawer() {
                     />
                   </div>
                 )}
+                {paymentMethod === "pix" && (
+                  <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                    {!chavePixFinal ? (
+                      <p className="rounded-lg border border-amber-400/40 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-600/40 dark:bg-amber-950/40 dark:text-amber-300">
+                        Pagamento por Pix disponível em breve. Por enquanto, escolha outra forma de pagamento.
+                      </p>
+                    ) : !pixGerado ? (
+                      <button
+                        type="button"
+                        onClick={() => setPixGerado(true)}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/50 bg-emerald-50 px-3 py-3 text-xs font-bold text-emerald-700 transition-all hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                      >
+                        Gerar Pix{pedidoExigeSinal ? " da Entrada (50%)" : ""} — {formatCurrency(pixValor)}
+                      </button>
+                    ) : pixPayload ? (
+                      <PixQrCard
+                        payload={pixPayload}
+                        chave={chavePixVisivel}
+                        valor={pixValor}
+                        onCopiar={() => copiarPixCopiaECola(pixPayload)}
+                      />
+                    ) : (
+                      <p className="rounded-lg border border-amber-400/40 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-600/40 dark:bg-amber-950/40 dark:text-amber-300">
+                        Não foi possível gerar o Pix para valor zero. Confira os itens do pedido.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Sinal de 50% */}
@@ -1106,24 +1207,39 @@ export default function CartDrawer() {
               {detalheSinalConfirmado?.exigido && (
                 <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
                   <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                    Pedido recebido! Para iniciar a produção, realize o pagamento da entrada de 50% ({formatCurrency(detalheSinalConfirmado.valor)}). A Ilma entrará em contato para alinhar os detalhes e enviar a chave Pix, ou você pode{" "}
-                    {contatoLoja.replace(/\D/g, "") ? (
-                      <a
-                        href={urlWaMe(contatoLoja, "")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline hover:text-amber-900 dark:hover:text-amber-200"
-                      >
-                        chamar no WhatsApp
-                      </a>
-                    ) : (
-                      "chamar no WhatsApp"
+                    {detalheSinalConfirmado.pago
+                      ? `Pedido recebido! A entrada de 50% (${formatCurrency(detalheSinalConfirmado.valor)}) já foi registrada.`
+                      : pixPayloadConfirmado
+                        ? `Pedido recebido! Para iniciar a produção, realize o pagamento da entrada de 50% (${formatCurrency(detalheSinalConfirmado.valor)}) pelo Pix abaixo. Qualquer dúvida, chame no WhatsApp.`
+                        : `Pedido recebido! Para iniciar a produção, realize o pagamento da entrada de 50% (${formatCurrency(detalheSinalConfirmado.valor)}). A Ilma entrará em contato para alinhar os detalhes e enviar a chave Pix, ou você pode `}
+                    {!detalheSinalConfirmado.pago && !pixPayloadConfirmado && (
+                      contatoLoja.replace(/\D/g, "") ? (
+                        <a
+                          href={urlWaMe(contatoLoja, "")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-amber-900 dark:hover:text-amber-200"
+                        >
+                          chamar no WhatsApp
+                        </a>
+                      ) : (
+                        "chamar no WhatsApp"
+                      )
                     )}
-                    .
                   </p>
                   <p className="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
                     Status do pedido: Pendente — entrada {detalheSinalConfirmado.pago ? "paga" : "aguardando pagamento"}.
                   </p>
+                  {!detalheSinalConfirmado.pago && pixPayloadConfirmado && (
+                    <div className="mt-3 space-y-2 rounded-xl border border-amber-400/40 bg-white/70 p-3 dark:bg-neutral-950/40">
+                      <PixQrCard
+                        payload={pixPayloadConfirmado}
+                        chave={chavePixVisivel}
+                        valor={detalheSinalConfirmado.valor}
+                        onCopiar={() => copiarPixCopiaECola(pixPayloadConfirmado)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1172,6 +1288,17 @@ export default function CartDrawer() {
                   </div>
                 </div>
               </div>
+
+              {!detalheSinalConfirmado?.exigido && confirmedOrder.paymentMethod === "pix" && pixPayloadConfirmado && (
+                <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <PixQrCard
+                    payload={pixPayloadConfirmado}
+                    chave={chavePixVisivel}
+                    valor={confirmedOrder.total}
+                    onCopiar={() => copiarPixCopiaECola(pixPayloadConfirmado)}
+                  />
+                </div>
+              )}
 
               <p className="text-center text-xs text-neutral-500">
                 A Ilma irá confirmar a disponibilidade e o horário pelo WhatsApp.

@@ -663,15 +663,16 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                             Pix QR Code — valor da venda
                           </p>
                           <div className="rounded-lg bg-white p-2">
-                            <QRCodeSVG value={pixPayload} size={168} level="M" bgColor="#ffffff" fgColor="#171717" />
+                            <QRCodeSVG value={pixPayload} size={200} level="L" bgColor="#ffffff" fgColor="#171717" />
                           </div>
                           <span className="text-lg font-bold text-emerald-400">{formatCurrency(total)}</span>
                         </div>
-                        <input
+                        <textarea
                           readOnly
+                          rows={3}
                           value={pixPayload}
                           onFocus={(e) => e.target.select()}
-                          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-500 outline-none"
+                          className="w-full resize-none rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 font-mono text-[10px] leading-4 break-all text-neutral-500 outline-none"
                         />
                         <p className="text-center text-[10px] text-neutral-600">
                           Chave: {normalizarChavePix(chavePixFinal)}
