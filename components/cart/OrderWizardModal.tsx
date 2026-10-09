@@ -5,7 +5,7 @@ import { useCartStore, useOrderStore } from "@/lib/store";
 import { formatCurrency, classNames } from "@/lib/utils";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { mascaraTelefone, higienizarTelefone, formatarTelefone, estadoTelefone, MENSAGEM_WHATSAPP_INVALIDO } from "@/lib/phone";
-import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
+import { useNotificationStore, playNotificationSound, notifyError } from "@/lib/notifications";
 import { useStoreConfig } from "@/lib/storeConfig";
 
 const DELIVERY_FEE = 0;
@@ -156,18 +156,23 @@ export default function OrderWizardModal() {
 
     const normalizedPhone = higienizarTelefone(form.customerPhone) || "";
 
-    await useOrderStore.getState().addOrder({
-      customerName: form.customerName,
-      customerPhone: normalizedPhone,
-      items: orderItems as any,
-      total,
-      deliveryType: "retirada",
-      scheduledDate: form.date || undefined,
-      scheduledTime: form.time || undefined,
-      paymentMethod: form.paymentMethod,
-      generalNotes: form.generalNotes || undefined,
-      origem: "site",
-    });
+    try {
+      await useOrderStore.getState().addOrder({
+        customerName: form.customerName,
+        customerPhone: normalizedPhone,
+        items: orderItems as any,
+        total,
+        deliveryType: "retirada",
+        scheduledDate: form.date || undefined,
+        scheduledTime: form.time || undefined,
+        paymentMethod: form.paymentMethod,
+        generalNotes: form.generalNotes || undefined,
+        origem: "site",
+      });
+    } catch (err) {
+      notifyError("Erro", err instanceof Error ? err.message : "Não foi possível salvar o pedido no servidor.");
+      return;
+    }
 
     useNotificationStore.getState().addNotification({
       title: "Novo Pedido!",

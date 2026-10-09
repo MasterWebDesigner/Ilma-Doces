@@ -864,11 +864,10 @@ export const useOrderStore = create<OrderState>()(
               status: "Nova",
             }), { merge: true });
           }
-          batch.commit().catch(() => {
-            notifyError("Erro", "Não foi possível salvar o pedido no servidor.");
-          });
+          await batch.commit();
         } catch (err) {
-          notifyError("Erro", "Não foi possível criar o pedido.");
+          notifyError("Erro", "Não foi possível salvar o pedido no servidor.");
+          throw new Error("Não foi possível salvar o pedido no servidor. Verifique a conexão e tente novamente.");
         }
 
         set((s) => ({ orders: [order, ...s.orders] }));

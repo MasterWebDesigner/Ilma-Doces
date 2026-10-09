@@ -88,20 +88,26 @@ export default function AdminPedidos() {
     const total = itensManual.reduce((sum, i) => sum + itemLineTotal(i), 0);
     const sinalNum = parseFloat(valorSinalManual.replace(",", ".")) || 0;
 
-    const newOrder = await addOrder({
-      customerName: cust.name,
-      customerPhone: cust.phone,
-      items: itensManual,
-      total,
-      deliveryType: "retirada",
-      scheduledDate,
-      scheduledTime,
-      paymentMethod,
-      generalNotes,
-      valorPagoSinal: sinalNum > 0 ? sinalNum : undefined,
-      formaPagamentoSinal: sinalNum > 0 ? formaSinalManual : undefined,
-      origem: "manual",
-    });
+    let newOrder;
+    try {
+      newOrder = await addOrder({
+        customerName: cust.name,
+        customerPhone: cust.phone,
+        items: itensManual,
+        total,
+        deliveryType: "retirada",
+        scheduledDate,
+        scheduledTime,
+        paymentMethod,
+        generalNotes,
+        valorPagoSinal: sinalNum > 0 ? sinalNum : undefined,
+        formaPagamentoSinal: sinalNum > 0 ? formaSinalManual : undefined,
+        origem: "manual",
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Não foi possível salvar o pedido no servidor.");
+      return;
+    }
 
     if (sinalNum > 0) {
       addTransaction({
