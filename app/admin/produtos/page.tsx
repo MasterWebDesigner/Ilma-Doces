@@ -7,6 +7,7 @@ import { obterPrecoMedioInsumo } from "@/lib/precoMedio";
 import { converterCustoFicha } from "@/lib/units";
 import { compararTexto } from "@/lib/utils";
 import { statusProduto, type StatusProduto } from "@/lib/produtoStatus";
+import { formatarSabores, parseSabores, saboresDoCombo, validarCombo } from "@/lib/combo";
 import { useEstoqueStore } from "@/lib/estoqueStore";
 import GelinhosPanel from "@/components/admin/GelinhosPanel";
 
@@ -28,7 +29,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   "cat-3": "bg-cyan-500/15 text-cyan-400",
 };
 
-const EMPTY_FORM = { name: "", category_id: "cat-1", description: "", price: 0, prepTime: "", imageUrl: "", status: "ativo" as StatusProduto, isCustomWeight: false, controlarEstoque: false, estoque: 0, estoqueMinimo: 5, estoqueCritico: 2, cardapioRapido: false };
+const SABORES_PADRAO_COMBO = [
+  "Brigadeiro Gourmet",
+  "Beijinho",
+  "Ninho com Morango",
+  "Ninho com Nutella",
+  "Amendoim",
+  "Maracujá",
+  "Belga",
+  "Uva",
+  "Flocos",
+  "Prestígio",
+];
+
+const EMPTY_FORM = { name: "", category_id: "cat-1", description: "", price: 0, prepTime: "", imageUrl: "", status: "ativo" as StatusProduto, isCustomWeight: false, controlarEstoque: false, estoque: 0, estoqueMinimo: 5, estoqueCritico: 2, cardapioRapido: false, comboAtivo: false, comboTotal: 50, comboSabores: formatarSabores(SABORES_PADRAO_COMBO), comboCategoriaId: "", comboPasso: 0 };
 
 export default function AdminProdutos() {
   const products = useProductStore((s) => s.products);
@@ -86,6 +100,7 @@ export default function AdminProdutos() {
   const [editCategoryName, setEditCategoryName] = useState("");
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState("");
+  const [uploadingCatId, setUploadingCatId] = useState<string | null>(null);
 
   const CATEGORY_NAME: Record<string, string> = Object.fromEntries(categories.map((c) => [c.id, c.name]));
 
@@ -107,22 +122,48 @@ export default function AdminProdutos() {
     const firstCat = [...categories].sort(
       (a, b) => (a.display_order ?? 999) - (b.display_order ?? 999)
     )[0];
-    setForm({ ...EMPTY_FORM, category_id: firstCat?.id ?? EMPTY_FORM.category_id });
+    const catDocinhos = categories.find((c) => c.name.trim().toLowerCase() === "docinhos");
+    setForm({ ...EMPTY_FORM, category_id: firstCat?.id ?? EMPTY_FORM.category_id, comboCategoriaId: catDocinhos?.id ?? "" });
     setModalOpen(true);
   }
   function openEdit(p: typeof products[0]) {
     setEditingId(p.id);
-    setForm({ name: p.name, category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: p.cardapioRapido ?? false });
+    setForm({ name: p.name, category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: p.cardapioRapido ?? false, comboAtivo: !!p.combo && p.combo.total > 0 && (p.combo.sabores.length > 0 || !!p.combo.categoriaId), comboTotal: p.combo?.total ?? 50, comboSabores: p.combo ? formatarSabores(p.combo.sabores) : formatarSabores(SABORES_PADRAO_COMBO), comboCategoriaId: p.combo?.categoriaId ?? "", comboPasso: p.combo?.passo ?? 0 });
     setModalOpen(true);
   }
   function openDuplicate(p: typeof products[0]) {
     setEditingId(null);
-    setForm({ name: p.name + " (Copia)", category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: false });
+    setForm({ name: p.name + " (Copia)", category_id: p.category_id, description: p.description ?? "", price: p.price, prepTime: "", imageUrl: p.image_url ?? "", status: statusProduto(p), isCustomWeight: p.isCustomWeight ?? false, controlarEstoque: p.controlarEstoque ?? false, estoque: p.estoque ?? 0, estoqueMinimo: p.estoqueMinimo ?? 5, estoqueCritico: p.estoqueCritico ?? 2, cardapioRapido: false, comboAtivo: !!p.combo && p.combo.total > 0 && (p.combo.sabores.length > 0 || !!p.combo.categoriaId), comboTotal: p.combo?.total ?? 50, comboSabores: p.combo ? formatarSabores(p.combo.sabores) : formatarSabores(SABORES_PADRAO_COMBO), comboCategoriaId: p.combo?.categoriaId ?? "", comboPasso: p.combo?.passo ?? 0 });
     setModalOpen(true);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const saboresCombo = form.comboAtivo
+      ? form.comboCategoriaId
+        ? saboresDoCombo({ total: form.comboTotal, sabores: [], categoriaId: form.comboCategoriaId }, products)
+        : parseSabores(form.comboSabores)
+      : [];
+    const passo = form.comboPasso > 0 ? form.comboPasso : undefined;
+    const comboBase = form.comboCategoriaId
+      ? { total: form.comboTotal, sabores: [], categoriaId: form.comboCategoriaId }
+      : { total: form.comboTotal, sabores: saboresCombo };
+    const combo = form.comboAtivo
+      ? passo
+        ? { ...comboBase, passo }
+        : comboBase
+      : null;
+    if (form.comboAtivo) {
+      const erroCombo = validarCombo(form.comboTotal, saboresCombo, passo);
+      if (erroCombo) {
+        alert(
+          form.comboCategoriaId
+            ? `${erroCombo} Confira se a categoria selecionada tem produtos ativos (fora combos).`
+            : erroCombo
+        );
+        return;
+      }
+    }
     if (editingId) {
       updateProduct(editingId, {
         name: form.name,
@@ -139,6 +180,7 @@ export default function AdminProdutos() {
         estoqueMinimo: form.estoqueMinimo,
         estoqueCritico: form.estoqueCritico,
         cardapioRapido: form.cardapioRapido,
+        combo,
       });
     } else {
       addProduct({
@@ -156,6 +198,7 @@ export default function AdminProdutos() {
         estoqueMinimo: form.estoqueMinimo,
         estoqueCritico: form.estoqueCritico,
         cardapioRapido: form.cardapioRapido,
+        combo,
       });
     }
     setModalOpen(false);
@@ -244,6 +287,23 @@ export default function AdminProdutos() {
     updateCategory(id, name);
     setEditingCategoryId(null);
     setEditCategoryName("");
+  }
+
+  function handleCategoryPhotoChange(e: React.ChangeEvent<HTMLInputElement>, id: string) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const cat = categories.find((c) => c.id === id);
+    if (!cat) return;
+    setUploadingCatId(id);
+    uploadImageFile(file)
+      .then((path) => updateCategory(id, cat.name, path))
+      .catch((err) => {
+        alert(err instanceof Error ? err.message : "Erro ao enviar a imagem.");
+      })
+      .finally(() => {
+        e.target.value = "";
+        setUploadingCatId(null);
+      });
   }
 
   function handleDeleteCategoryConfirm() {
@@ -432,6 +492,11 @@ export default function AdminProdutos() {
                   <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[9px] font-bold ${p.isCustomWeight ? "bg-amber-500/15 text-amber-400" : "bg-neutral-800 text-neutral-400"}`}>
                     {p.isCustomWeight ? "/kg" : "un"}
                   </span>
+                  {p.combo && p.combo.total > 0 && (
+                    <span className="ml-1.5 inline-block rounded border border-wine-500/30 bg-wine-500/15 px-1.5 py-0.5 text-[9px] font-bold text-wine-400">
+                      🎁 {p.combo.total} un
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-center">
                   <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusProduto(p) === "ativo" ? "bg-emerald-500/15 text-emerald-400" : statusProduto(p) === "esgotado" ? "bg-red-500/15 text-red-400" : "bg-neutral-700/60 text-neutral-400"}`}>
@@ -551,13 +616,97 @@ export default function AdminProdutos() {
                    {form.isCustomWeight
                      ? "No cardápio do site o cliente escolhe o peso (mín. 1 kg, passos de 0,5 kg) e o preço é aplicado por quilo — ex.: R$ 100,00/kg."
                      : "No cardápio do site o cliente adiciona a quantidade em unidades (1 un, 2 un...) pelo preço fixo cadastrado."}
-                 </p>
-               </div>
+                  </p>
+                </div>
                 <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 space-y-3">
-                  <div className="flex items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-3">
                     <input
                       type="checkbox"
-                      id="controlarEstoque"
+                      id="comboAtivo"
+                      checked={form.comboAtivo}
+                      onChange={(e) => setForm({ ...form, comboAtivo: e.target.checked })}
+                      className="h-4 w-4 rounded border-neutral-700 bg-neutral-900 text-wine-500 focus:ring-wine-500"
+                    />
+                    <span className="text-xs font-medium text-neutral-300">🎁 Combo (Caixa de Docinhos)</span>
+                  </label>
+                  {form.comboAtivo && (
+                    <>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Docinhos por caixa (total)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={form.comboTotal}
+                          onChange={(e) => setForm({ ...form, comboTotal: parseInt(e.target.value) || 0 })}
+                          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-wine-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Múltiplo por sabor (opcional)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.comboPasso}
+                          onChange={(e) => setForm({ ...form, comboPasso: parseInt(e.target.value) || 0 })}
+                          placeholder="0 = qualquer quantidade"
+                          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-wine-500"
+                        />
+                        <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+                          Ex.: caixa de 50 → informe 25 (cada sabor só em 0, 25 ou 50 — pode ser 50 do mesmo). Caixa de 4 → deixe em 0.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Sabores a partir de uma categoria (recomendado)</label>
+                        <select
+                          value={form.comboCategoriaId}
+                          onChange={(e) => setForm({ ...form, comboCategoriaId: e.target.value })}
+                          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-wine-500"
+                        >
+                          <option value="">— Usar lista manual de sabores —</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                        {form.comboCategoriaId ? (
+                          <div className="mt-2 rounded-lg border border-neutral-700 bg-neutral-900 p-2.5">
+                            <p className="mb-1.5 text-[10px] text-neutral-500">
+                              Sabores que o cliente verá (produtos da categoria, inclusive inativos — a loja prepara sob demanda):
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {products
+                                .filter((p) => p.category_id === form.comboCategoriaId && p.is_available !== false && !p.combo)
+                                .map((p) => (
+                                  <span key={p.id} className="rounded-full bg-wine-500/15 px-2 py-0.5 text-[10px] font-semibold text-wine-400">
+                                    {p.name}
+                                    {p.ativo === false && " (inativo)"}
+                                  </span>
+                                ))}
+                              {products.filter((p) => p.category_id === form.comboCategoriaId && p.is_available !== false && !p.combo).length === 0 && (
+                                <span className="text-[10px] font-semibold text-amber-400">Nenhum produto nesta categoria ainda — cadastre os sabores primeiro.</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <textarea
+                            value={form.comboSabores}
+                            onChange={(e) => setForm({ ...form, comboSabores: e.target.value })}
+                            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white outline-none focus:border-wine-500"
+                            rows={6}
+                            placeholder="Brigadeiro Gourmet&#10;Beijinho&#10;Ninho com Morango"
+                          />
+                        )}
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-neutral-500">
+                        O cliente escolhe o mix de sabores por caixa no cardápio, na Venda Rápida e nos pedidos. Com &quot;Múltiplo por sabor&quot; preenchido (ex.: 25 em caixa de 50), cada sabor só aceita quantidades múltiplas desse valor — pode ser 50 do mesmo sabor.
+                      </p>
+                    </>
+                  )}
+                </div>
+                 <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 space-y-3">
+                   <div className="flex items-center gap-3">
+                     <input
+                       type="checkbox"
+                       id="controlarEstoque"
                       checked={form.controlarEstoque}
                       onChange={(e) => setForm({ ...form, controlarEstoque: e.target.checked })}
                       className="h-4 w-4 rounded border-neutral-700 bg-neutral-900 text-wine-500 focus:ring-wine-500"
@@ -905,12 +1054,30 @@ export default function AdminProdutos() {
                         ) : (
                           <>
                             <div className="flex items-center gap-2.5">
+                              {c.image_url ? (
+                                <img src={c.image_url} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                              ) : (
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-xs text-neutral-500">📷</span>
+                              )}
                               <span className="text-sm font-medium text-white">{c.name}</span>
                               <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[9px] font-semibold text-neutral-400">
                                 {count} {count === 1 ? "item" : "itens"}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
+                              <label
+                                className={`cursor-pointer rounded-lg border border-neutral-700 px-2 py-1.5 text-xs font-semibold text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white ${uploadingCatId === c.id ? "opacity-50" : ""}`}
+                                title="Foto da categoria (escolher arquivo)"
+                              >
+                                {uploadingCatId === c.id ? "…" : "📷"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingCatId === c.id}
+                                  onChange={(e) => handleCategoryPhotoChange(e, c.id)}
+                                />
+                              </label>
                               <button
                                 onClick={() => { setEditingCategoryId(c.id); setEditCategoryName(c.name); setCategoryError(""); }}
                                 className="border border-[#8B1D22]/30 text-[#8B1D22] hover:bg-[#8B1D22]/10 bg-transparent rounded-lg px-3 py-1.5 text-xs font-semibold"

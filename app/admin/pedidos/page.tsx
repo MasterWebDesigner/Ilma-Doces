@@ -7,7 +7,8 @@ import { useCredoresStore } from "@/lib/credoresStore";
 import type { CompraItem } from "@/types/database";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
-import { compararTexto, formatCurrency, getLocalDateStr, getLocalDateStrFromISO, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, getLocalDateStrFromISO, paymentLabelOf } from "@/lib/utils";
+import { resumoItemPedido } from "@/lib/combo";
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
 import type { Order, PaymentMethod, CartItem } from "@/types/database";
@@ -238,7 +239,7 @@ export default function AdminPedidos() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">{order.customerName}</p>
                   <ResumoItens
-                    itens={order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)}
+                    itens={order.items.map((i) => resumoItemPedido(i.product.name, i.quantity, i.mix, i.product.isCustomWeight))}
                     className="mt-0.5 text-xs text-neutral-500"
                     classeItem="leading-5"
                   />

@@ -2,29 +2,36 @@
 
 import { useState } from "react";
 import { getCategoryEmoji } from "@/lib/mockData";
-import type { Product } from "@/types/database";
+import type { MixCaixa, Product } from "@/types/database";
 import { formatCurrency, formatItemQty, classNames } from "@/lib/utils";
 import { produtoVisivel, produtoEsgotado } from "@/lib/produtoStatus";
+import { criarMixVazio, ehCombo, saboresDoCombo, todosCompletos } from "@/lib/combo";
 import { useCartStore, useProductStore } from "@/lib/store";
+import ComboPicker from "@/components/ComboPicker";
 
 export default function CardapioPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [modalWeight, setModalWeight] = useState(1);
+  const [modalMixes, setModalMixes] = useState<MixCaixa[]>([]);
   const addItem = useCartStore((s) => s.addItem);
   const products = useProductStore((s) => s.products);
   const categories = useProductStore((s) => s.categories);
 
   const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+  const categoryImgById = new Map(categories.map((c) => [c.id, c.image_url ?? null]));
   const visibleCategories = categories.filter((cat) =>
     products.some((p) => p.category_id === cat.id && produtoVisivel(p))
   );
 
   function openProduct(product: Product) {
     setModalWeight(1);
+    setModalMixes(ehCombo(product) ? [criarMixVazio(saboresDoCombo(product.combo, products))] : []);
     setSelectedProduct(product);
   }
+
+  const saboresModal = selectedProduct && ehCombo(selectedProduct) ? saboresDoCombo(selectedProduct.combo, products) : [];
 
   const allProducts = products.filter((p) => {
     if (!produtoVisivel(p)) return false;
@@ -56,8 +63,9 @@ export default function CardapioPage() {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className="text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold uppercase transition-colors px-4 py-2 border border-neutral-200 rounded-md mr-2"
               >
+                {cat.image_url && <img src={cat.image_url} alt="" className="h-5 w-5 rounded object-cover" />}
                 {cat.name}
               </button>
             ))}
@@ -93,6 +101,12 @@ export default function CardapioPage() {
                           alt={product.name}
                           className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${isEsgotado ? "opacity-40 grayscale" : ""}`}
                         />
+                      ) : categoryImgById.get(product.category_id) ? (
+                        <img
+                          src={categoryImgById.get(product.category_id)!}
+                          alt=""
+                          className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${isEsgotado ? "opacity-40 grayscale" : ""}`}
+                        />
                       ) : (
                         <div className={`flex h-full items-center justify-center text-6xl ${isEsgotado ? "opacity-40 grayscale" : ""}`}>
                           {getCategoryEmoji(product.category_id, categoryById.get(product.category_id))}
@@ -126,12 +140,12 @@ export default function CardapioPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (isEsgotado) return;
-                        product.isCustomWeight ? openProduct(product) : addItem(product);
+                        ehCombo(product) || product.isCustomWeight ? openProduct(product) : addItem(product);
                       }}
                       disabled={isEsgotado}
                       className="rounded-full bg-wine-600 px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      {isEsgotado ? "Esgotado" : product.isCustomWeight ? "Escolher peso" : "Adicionar"}
+                      {isEsgotado ? "Esgotado" : ehCombo(product) ? "Montar caixa" : product.isCustomWeight ? "Escolher peso" : "Adicionar"}
                     </button>
                   </div>
                 </div>
@@ -164,12 +178,18 @@ export default function CardapioPage() {
 
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedProduct(null)}>
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white shadow-2xl dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
             <div className="relative aspect-[4/3] bg-neutral-100 dark:bg-neutral-800">
               {selectedProduct.image_url ? (
                 <img
                   src={selectedProduct.image_url}
                   alt={selectedProduct.name}
+                  className={`h-full w-full object-cover ${produtoEsgotado(selectedProduct) ? "opacity-40 grayscale" : ""}`}
+                />
+              ) : categoryImgById.get(selectedProduct.category_id) ? (
+                <img
+                  src={categoryImgById.get(selectedProduct.category_id)!}
+                  alt=""
                   className={`h-full w-full object-cover ${produtoEsgotado(selectedProduct) ? "opacity-40 grayscale" : ""}`}
                 />
               ) : (
@@ -230,6 +250,36 @@ export default function CardapioPage() {
                   )}
                 </div>
               )}
+              {ehCombo(selectedProduct) && selectedProduct.combo && (
+                <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">
+                      Monte sua caixa — {selectedProduct.combo.total} docinhos
+                    </label>
+                    <span className="shrink-0 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                      {modalMixes.length} caixa(s)
+                    </span>
+                  </div>
+                  {saboresModal.length >= 2 ? (
+                    <ComboPicker
+                      total={selectedProduct.combo.total}
+                      sabores={saboresModal}
+                      mixes={modalMixes}
+                      onChange={setModalMixes}
+                      passo={selectedProduct.combo.passo}
+                    />
+                  ) : (
+                    <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      Os sabores deste combo estão indisponíveis no momento. Fale com a loja.
+                    </p>
+                  )}
+                  {saboresModal.length >= 2 && !todosCompletos(modalMixes, selectedProduct.combo.total) && (
+                    <p className="mt-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                      Complete o mix de todas as caixas para adicionar ao carrinho.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="mt-5">
                 {produtoEsgotado(selectedProduct) ? (
                   <span className="block rounded-lg bg-neutral-200 px-5 py-3 text-center text-sm font-semibold text-neutral-500 dark:bg-neutral-800">
@@ -238,12 +288,19 @@ export default function CardapioPage() {
                 ) : (
                   <button
                     onClick={() => {
-                      addItem(selectedProduct, selectedProduct.isCustomWeight ? modalWeight : undefined);
+                      if (ehCombo(selectedProduct)) {
+                        addItem(selectedProduct, undefined, modalMixes);
+                      } else {
+                        addItem(selectedProduct, selectedProduct.isCustomWeight ? modalWeight : undefined);
+                      }
                       setSelectedProduct(null);
                     }}
-                    className="w-full rounded-lg bg-wine-600 px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    disabled={ehCombo(selectedProduct) && !todosCompletos(modalMixes, selectedProduct.combo?.total ?? 0)}
+                    className="w-full rounded-lg bg-wine-600 px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {selectedProduct.isCustomWeight
+                    {ehCombo(selectedProduct)
+                      ? `Adicionar ${modalMixes.length} caixa(s) — ${formatCurrency(selectedProduct.price * modalMixes.length)}`
+                      : selectedProduct.isCustomWeight
                       ? `Adicionar ${modalWeight.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg — ${formatCurrency(selectedProduct.price * modalWeight)}`
                       : "Adicionar ao Carrinho"}
                   </button>

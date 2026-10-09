@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useCustomerStore, useOrderStore, useProductStore, CAMPOS_SINAL_ESTORNADO, estornarTransacaoSinal } from "@/lib/store";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe, enviarMensagemStatus, mensagemAtiva } from "@/lib/whatsapp";
-import { compararTexto, formatCurrency, formatItemQty, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
+import { compararTexto, formatCurrency, getLocalDateStr, paymentLabelOf } from "@/lib/utils";
 import { itemLineTotal } from "@/lib/brinde";
 import { montarTransacaoSinal, valorSinalPedido, detalheSinalPedido, sinalRecebidoDoPedido } from "@/lib/faturamento";
-import type { CartItem, CompraItem, Order, PaymentMethod } from "@/types/database";
+import type { CartItem, CompraItem, MixCaixa, Order, PaymentMethod, Product } from "@/types/database";
+import { ajustarMixParaQuantidade, criarMixVazio, ehCombo, formatarMix, resumoItemPedido, saboresDoCombo, todosCompletos } from "@/lib/combo";
+import ComboPicker from "@/components/ComboPicker";
 
 export function RegistrarSinalModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const { updateOrderComTransacao } = useOrderStore();
@@ -124,9 +126,14 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
   const [generalNotes, setGeneralNotes] = useState(order.generalNotes || "");
   const [addProdId, setAddProdId] = useState("");
   const [addQty, setAddQty] = useState(1);
+  const [mixEditIdx, setMixEditIdx] = useState<number | null>(null);
+  const [mixEdicao, setMixEdicao] = useState<MixCaixa[]>([]);
+  const [comboAddProd, setComboAddProd] = useState<Product | null>(null);
+  const [comboAddMixes, setComboAddMixes] = useState<MixCaixa[]>([]);
 
   const addProd = products.find((p) => p.id === addProdId);
   const addingWeight = !!addProd?.isCustomWeight;
+  const addingCombo = ehCombo(addProd ?? ({} as Product));
 
   function applyItems(updated: CartItem[]) {
     setItems(updated);
@@ -138,8 +145,12 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
     const valid = isWeight
       ? Math.max(0.1, Math.round((qty || 0.1) * 10) / 10)
       : Math.max(1, Math.round(qty) || 1);
+    const atual = items[idx];
     const updated = [...items];
-    updated[idx] = { ...updated[idx], quantity: valid };
+    updated[idx] =
+      atual.mix && atual.mix.length > 0
+        ? { ...atual, quantity: valid, mix: ajustarMixParaQuantidade(atual.mix, valid) }
+        : { ...atual, quantity: valid };
     applyItems(updated);
   }
 
@@ -167,6 +178,47 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
     applyItems(updated);
     setAddProdId("");
     setAddQty(1);
+  }
+
+  function iniciarAddCombo() {
+    if (!addProd?.combo) return;
+    const sabores = saboresDoCombo(addProd.combo, products);
+    if (sabores.length < 2) {
+      alert(`${addProd.name} não tem sabores disponíveis (verifique a categoria do combo no cadastro).`);
+      return;
+    }
+    setComboAddMixes([criarMixVazio(sabores)]);
+    setComboAddProd(addProd);
+  }
+
+  function confirmarAddCombo() {
+    if (!comboAddProd) return;
+    const mixes = comboAddMixes;
+    const existing = items.find((i) => i.product.id === comboAddProd.id && !i.is_brinde);
+    const updated = existing
+      ? items.map((i) =>
+          i.product.id === comboAddProd.id && !i.is_brinde
+            ? { ...i, quantity: i.quantity + mixes.length, mix: [...(i.mix ?? []), ...mixes] }
+            : i
+        )
+      : [...items, { product: comboAddProd, quantity: mixes.length, mix: mixes }];
+    applyItems(updated);
+    setComboAddProd(null);
+    setAddProdId("");
+    setAddQty(1);
+  }
+
+  function iniciarEdicaoMix(idx: number) {
+    setMixEdicao(items[idx].mix ?? []);
+    setMixEditIdx(idx);
+  }
+
+  function salvarMix() {
+    if (mixEditIdx === null) return;
+    const updated = [...items];
+    updated[mixEditIdx] = { ...updated[mixEditIdx], quantity: mixEdicao.length, mix: mixEdicao };
+    applyItems(updated);
+    setMixEditIdx(null);
   }
 
   function handleSave() {
@@ -208,6 +260,23 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
                 <div key={idx} className="flex items-center justify-between gap-3 bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-white truncate">{item.product.name}</p>
+                    {item.mix && item.mix.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {item.mix.map((m, mi) => (
+                          <p key={mi} className="text-[10px] text-neutral-400">
+                            {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                            {formatarMix(m)}
+                          </p>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => iniciarEdicaoMix(idx)}
+                          className="text-[10px] font-semibold text-wine-400 hover:text-wine-300"
+                        >
+                          ✎ Editar mix
+                        </button>
+                      </div>
+                    )}
                     {item.is_brinde && (
                       <span className="inline-block mt-0.5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 border border-emerald-500/30">
                         🎁 BRINDE FIDELIDADE — R$ 0,00
@@ -221,7 +290,7 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
                   </div>
                   <div className="w-24 text-center">
                     <label className="block text-[9px] text-neutral-400 mb-0.5">
-                      {item.product.isCustomWeight ? "Peso (kg)" : "Qtd"}
+                      {item.product.isCustomWeight ? "Peso (kg)" : item.mix && item.mix.length > 0 ? "Caixas" : "Qtd"}
                     </label>
                     <input
                       type="number"
@@ -271,7 +340,7 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
                 >
                   <option value="">Adicionar produto...</option>
                     {[...products].sort((a, b) => compararTexto(a.name, b.name)).map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""})</option>
+                      <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2).replace(".", ",")}{p.isCustomWeight ? "/kg" : ""}{p.combo ? `, combo ${p.combo.total} un` : ""})</option>
                     ))}
                 </select>
                 <input
@@ -280,16 +349,17 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
                   min={addingWeight ? "0.1" : "1"}
                   value={addQty}
                   onChange={(e) => setAddQty(parseFloat(e.target.value.replace(",", ".")) || 1)}
-                  className="w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-2 text-xs text-white text-center outline-none focus:border-wine-500"
-                  title={addingWeight ? "Peso (kg)" : "Quantidade"}
+                  disabled={addingCombo}
+                  className="w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-2 text-xs text-white text-center outline-none focus:border-wine-500 disabled:opacity-40"
+                  title={addingCombo ? "Quantidade definida no mix" : addingWeight ? "Peso (kg)" : "Quantidade"}
                 />
                 <button
                   type="button"
-                  onClick={handleAddItem}
+                  onClick={() => (addingCombo ? iniciarAddCombo() : handleAddItem())}
                   disabled={!addProd}
                   className="rounded-lg bg-wine-500 px-3 py-2 text-xs font-semibold text-white hover:bg-wine-600 disabled:opacity-40"
                 >
-                  +
+                  {addingCombo ? "Montar" : "+"}
                 </button>
               </div>
             </div>
@@ -368,6 +438,91 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
           </button>
         </div>
       </div>
+      {mixEditIdx !== null && items[mixEditIdx]?.product.combo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">Editar mix — {items[mixEditIdx].product.name}</h3>
+                <p className="text-[11px] text-neutral-400">
+                  {items[mixEditIdx].product.combo!.total} docinhos por caixa
+                </p>
+              </div>
+              <button type="button" onClick={() => setMixEditIdx(null)} className="text-neutral-500 hover:text-white">
+                ✕
+              </button>
+            </div>
+            <ComboPicker
+              total={items[mixEditIdx].product.combo!.total}
+              sabores={saboresDoCombo(items[mixEditIdx].product.combo, products)}
+              mixes={mixEdicao}
+              onChange={setMixEdicao}
+              passo={items[mixEditIdx].product.combo!.passo}
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMixEditIdx(null)}
+                className="flex-1 rounded-lg border border-neutral-700 px-3 py-2.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={salvarMix}
+                disabled={!todosCompletos(mixEdicao, items[mixEditIdx].product.combo!.total)}
+                className="flex-1 rounded-lg bg-wine-500 px-3 py-2.5 text-xs font-semibold text-white hover:bg-wine-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Salvar ({mixEdicao.length} caixa(s))
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {comboAddProd && comboAddProd.combo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">Montar caixa — {comboAddProd.name}</h3>
+                <p className="text-[11px] text-neutral-400">
+                  {comboAddProd.combo.total} docinhos por caixa • {formatCurrency(comboAddProd.price)} por caixa
+                </p>
+              </div>
+              <button type="button" onClick={() => setComboAddProd(null)} className="text-neutral-500 hover:text-white">
+                ✕
+              </button>
+            </div>
+            <ComboPicker
+              total={comboAddProd.combo.total}
+              sabores={saboresDoCombo(comboAddProd.combo, products)}
+              mixes={comboAddMixes}
+              onChange={setComboAddMixes}
+              passo={comboAddProd.combo.passo}
+            />
+            {!todosCompletos(comboAddMixes, comboAddProd.combo.total) && (
+              <p className="mt-2 text-[11px] font-semibold text-amber-400">Complete o mix de todas as caixas.</p>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setComboAddProd(null)}
+                className="flex-1 rounded-lg border border-neutral-700 px-3 py-2.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarAddCombo}
+                disabled={!todosCompletos(comboAddMixes, comboAddProd.combo.total)}
+                className="flex-1 rounded-lg bg-wine-500 px-3 py-2.5 text-xs font-semibold text-white hover:bg-wine-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Adicionar {comboAddMixes.length} caixa(s)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -536,6 +691,16 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
                 <div key={idx} className="flex items-center justify-between gap-3 bg-neutral-900 p-2.5 rounded-lg border border-neutral-800">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-white truncate">{item.product.name}</p>
+                    {item.mix && item.mix.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {item.mix.map((m, mi) => (
+                          <p key={mi} className="text-[10px] text-neutral-400">
+                            {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                            {formatarMix(m)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {item.is_brinde && (
                       <span className="inline-block mt-0.5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 border border-emerald-500/30">
                         🎁 BRINDE FIDELIDADE — R$ 0,00
@@ -549,7 +714,7 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
                   </div>
                   <div className="w-24 text-center">
                     <label className="block text-[9px] text-neutral-400 mb-0.5">
-                      {item.product.isCustomWeight ? "Peso / Qtd (kg)" : "Qtd"}
+                      {item.product.isCustomWeight ? "Peso / Qtd (kg)" : item.mix && item.mix.length > 0 ? "Caixas" : "Qtd"}
                     </label>
                     {item.product.isCustomWeight ? (
                       <input
@@ -708,7 +873,7 @@ export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; ti
   const isRecusa = tipo === "recusar";
   const detalheSinal = detalheSinalPedido(order);
   const numeroPedido = order.orderNumber || order.id.slice(-6);
-  const itensLista = order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`).join(", ");
+  const itensResumo = order.items.map((i) => resumoItemPedido(i.product.name, i.quantity, i.mix, i.product.isCustomWeight));
   const preview = isRecusa
     ? montarRecusaPedido({ customerName: order.customerName, numeroPedido, items: order.items, motivo })
     : montarCancelamentoPedido({ customerName: order.customerName, numeroPedido, items: order.items });
@@ -747,7 +912,16 @@ export function EncerrarPedidoModal({ order, tipo, onClose }: { order: Order; ti
 
         <div className="p-6 space-y-4">
           <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3">
-            <p className="text-xs text-neutral-400">{itensLista}</p>
+            <div className="space-y-1">
+              {itensResumo.map((it, idx) => (
+                <div key={idx} className="text-xs text-neutral-400">
+                  <p>{it.texto}</p>
+                  {it.detalhes?.map((detalhe, di) => (
+                    <p key={di} className="pl-2 text-[11px] text-neutral-500">{detalhe}</p>
+                  ))}
+                </div>
+              ))}
+            </div>
             <p className="mt-1 text-sm font-bold text-emerald-400">{formatCurrency(order.total)}</p>
           </div>
 

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category, FinancialTransaction, FidelidadeEvento } from "@/types/database";
+import type { CartItem, MixCaixa, Product, Order, OrderStatus, Customer, Expense, Brand, FichaTecnica, Category, FinancialTransaction, FidelidadeEvento } from "@/types/database";
+import { ajustarMixParaQuantidade } from "./combo";
 import { PRODUCTS as INITIAL_PRODUCTS, CATEGORIES } from "@/lib/mockData";
 import { useCredoresStore } from "./credoresStore";
 import { montarTransacao, useFinanceiroStore } from "./financeiroStore";
@@ -540,9 +541,10 @@ export const useBrandStore = create<BrandState>()(
 interface CartState {
   items: CartItem[];
   isOpen: boolean;
-  addItem: (product: Product, weight?: number) => void;
+  addItem: (product: Product, weight?: number, mix?: MixCaixa[]) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateMix: (productId: string, mix: MixCaixa[]) => void;
   updateNotes: (productId: string, notes: string) => void;
   setBrinde: (product: Product) => void;
   clearBrinde: () => void;
@@ -564,7 +566,7 @@ export function totalItemsCount(items: CartItem[]): number {
 export const useCartStore = create<CartState>((set) => ({
   items: [],
   isOpen: false,
-  addItem: (product, weight) => {
+  addItem: (product, weight, mix) => {
     let toastMsg: string | null = null;
     set((state) => {
       if (product.ativo === false) {
@@ -575,11 +577,23 @@ export const useCartStore = create<CartState>((set) => ({
         toastMsg = `${product.name} está esgotado.`;
         return state;
       }
-      const addQty = product.isCustomWeight ? Math.max(1, Math.round((weight || 1) * 2) / 2) : 1;
+      const isCombo = !!(mix && mix.length > 0);
+      const addQty = isCombo
+        ? mix!.length
+        : product.isCustomWeight
+        ? Math.max(1, Math.round((weight || 1) * 2) / 2)
+        : 1;
       const existing = state.items.find((i) => i.product.id === product.id && !i.is_brinde);
       const currentQty = existing ? existing.quantity : 0;
       const pesoExtra = product.isCustomWeight ? { unidades: (existing?.unidades ?? 1) + 1 } : {};
       const pesoNovo = product.isCustomWeight ? { unidades: 1 } : {};
+      const camposExtras: Partial<CartItem> = isCombo
+        ? { mix: [...(existing?.mix ?? []), ...mix!] }
+        : product.isCustomWeight
+        ? existing
+          ? pesoExtra
+          : pesoNovo
+        : {};
 
       if (product.controlarEstoque) {
         const estoque = Math.max(0, product.estoque ?? 0);
@@ -590,10 +604,14 @@ export const useCartStore = create<CartState>((set) => ({
         if (currentQty >= estoque) {
           toastMsg = product.isCustomWeight
             ? `Apenas ${formatItemQty(estoque, true)} disponíveis em estoque.`
-            : `Apenas ${estoque} unidades disponíveis em estoque.`;
+            : `Apenas ${estoque} ${isCombo ? "caixa(s)" : "unidades"} disponíveis em estoque.`;
           return state;
         }
         const clampedAdd = Math.min(addQty, estoque - currentQty);
+        if (isCombo && clampedAdd < addQty) {
+          toastMsg = `Apenas ${estoque - currentQty} caixa(s) de ${product.name} disponíveis em estoque.`;
+          return state;
+        }
         if (clampedAdd < addQty) {
           toastMsg = product.isCustomWeight
             ? `Apenas ${formatItemQty(estoque - currentQty, true)} disponíveis em estoque.`
@@ -602,20 +620,20 @@ export const useCartStore = create<CartState>((set) => ({
         const next = existing
           ? state.items.map((i) =>
               i.product.id === product.id && !i.is_brinde
-                ? { ...i, quantity: i.quantity + clampedAdd, ...pesoExtra }
+                ? { ...i, quantity: i.quantity + clampedAdd, ...camposExtras }
                 : i
             )
-          : [...state.items, { product, quantity: clampedAdd, ...pesoNovo }];
+          : [...state.items, { product, quantity: clampedAdd, ...camposExtras }];
         return { items: enforceBrindeRule(next, { allowLoyalty: true }) };
       }
 
       const next = existing
         ? state.items.map((i) =>
             i.product.id === product.id && !i.is_brinde
-              ? { ...i, quantity: i.quantity + addQty, ...pesoExtra }
+              ? { ...i, quantity: i.quantity + addQty, ...camposExtras }
               : i
           )
-        : [...state.items, { product, quantity: addQty, ...pesoNovo }];
+        : [...state.items, { product, quantity: addQty, ...camposExtras }];
       return { items: enforceBrindeRule(next, { allowLoyalty: true }) };
     });
     if (toastMsg) notifyInfo("Estoque", toastMsg);
@@ -654,8 +672,50 @@ export const useCartStore = create<CartState>((set) => ({
           finalQty <= 0
             ? s.items.filter((i) => !(i.product.id === id && !i.is_brinde))
             : s.items.map((i) =>
-                i.product.id === id && !i.is_brinde ? { ...i, quantity: finalQty } : i
+                i.product.id === id && !i.is_brinde
+                  ? {
+                      ...i,
+                      quantity: finalQty,
+                      ...(i.mix && i.mix.length > 0
+                        ? { mix: ajustarMixParaQuantidade(i.mix, finalQty) }
+                        : {}),
+                    }
+                  : i
               ),
+          { allowLoyalty: true }
+        ),
+      };
+    });
+    if (toastMsg) notifyInfo("Estoque", toastMsg);
+  },
+  updateMix: (id, mix) => {
+    let toastMsg: string | null = null;
+    set((s) => {
+      const target = s.items.find((i) => i.product.id === id && !i.is_brinde);
+      if (!target) return s;
+      if (mix.length === 0) {
+        return {
+          items: enforceBrindeRule(
+            s.items.filter((i) => !(i.product.id === id && !i.is_brinde)),
+            { allowLoyalty: true }
+          ),
+        };
+      }
+      if (target.product.controlarEstoque) {
+        const estoque = Math.max(0, target.product.estoque ?? 0);
+        if (mix.length > estoque) {
+          toastMsg =
+            estoque > 0
+              ? `Apenas ${estoque} caixa(s) disponíveis em estoque.`
+              : `${target.product.name} está esgotado.`;
+          return s;
+        }
+      }
+      return {
+        items: enforceBrindeRule(
+          s.items.map((i) =>
+            i.product.id === id && !i.is_brinde ? { ...i, quantity: mix.length, mix } : i
+          ),
           { allowLoyalty: true }
         ),
       };
@@ -1080,7 +1140,7 @@ interface ProductState {
   restoreStock: (productId: string, quantity: number) => void;
   adjustStock: (productId: string, newQty: number) => void;
   addCategory: (name: string) => void;
-  updateCategory: (id: string, name: string) => void;
+  updateCategory: (id: string, name: string, image_url?: string | null) => void;
   deleteCategory: (id: string) => void;
 }
 
@@ -1221,7 +1281,7 @@ export const useProductStore = create<ProductState>()(
         }));
       },
 
-      updateCategory: (id: string, name: string) => {
+      updateCategory: (id: string, name: string, image_url?: string | null) => {
         const trimmed = name.trim();
         if (!trimmed) return;
         const norm = normalizeCatName(trimmed);
@@ -1234,12 +1294,14 @@ export const useProductStore = create<ProductState>()(
         }
         const slug = trimmed.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
         try {
-          updateDoc(doc(db, "categorias", id), { name: trimmed, slug });
+          const payload: { name: string; slug: string; image_url?: string | null } = { name: trimmed, slug };
+          if (image_url !== undefined) payload.image_url = image_url || null;
+          updateDoc(doc(db, "categorias", id), payload);
         } catch (err) {
           notifyError("Erro", "Não foi possível atualizar a categoria.");
         }
         set((s) => ({
-          categories: s.categories.map((c) => (c.id === id ? { ...c, name: trimmed, slug } : c)),
+          categories: s.categories.map((c) => (c.id === id ? { ...c, name: trimmed, slug, ...(image_url !== undefined ? { image_url: image_url || null } : {}) } : c)),
         }));
       },
 

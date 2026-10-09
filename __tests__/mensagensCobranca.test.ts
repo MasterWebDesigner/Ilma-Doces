@@ -175,13 +175,13 @@ describe("montarRecusaPedido", () => {
 
   it("monta a mensagem de recusa com nome, numero e itens", () => {
     expect(montarRecusaPedido({ customerName: "Maria", numeroPedido: "0042", items })).toBe(
-      "Olá, Maria! Infelizmente não conseguiremos atender ao seu pedido nº 0042 referente a: Bolo de Chocolate x2, Brigadeiro x1. Agradecemos a compreensão e ficamos à disposição!"
+      "Olá, Maria! Infelizmente não conseguiremos atender ao seu pedido nº 0042 referente a: Bolo de Chocolate x2\nBrigadeiro x1. Agradecemos a compreensão e ficamos à disposição!"
     );
   });
 
   it("inclui o motivo quando informado", () => {
     const msg = montarRecusaPedido({ customerName: "Maria", numeroPedido: "0042", items, motivo: "data indisponível" });
-    expect(msg).toContain("referente a: Bolo de Chocolate x2, Brigadeiro x1. Motivo: data indisponível. Agradecemos a compreensão e ficamos à disposição!");
+    expect(msg).toContain("referente a: Bolo de Chocolate x2\nBrigadeiro x1. Motivo: data indisponível. Agradecemos a compreensão e ficamos à disposição!");
   });
 
   it("omite o motivo quando vazio ou so espacos", () => {
@@ -196,7 +196,7 @@ describe("montarCancelamentoPedido", () => {
 
   it("monta a mensagem de cancelamento com nome, numero e itens", () => {
     expect(montarCancelamentoPedido({ customerName: "Maria", numeroPedido: "0042", items })).toBe(
-      "Olá, Maria! Seu pedido nº 0042 (Bolo de Chocolate x2, Brigadeiro x1) foi cancelado. Se tiver alguma dúvida ou precisar de ajuda com o estorno/reagendamento, entre em contato conosco por aqui."
+      "Olá, Maria! Seu pedido nº 0042 (Bolo de Chocolate x2\nBrigadeiro x1) foi cancelado. Se tiver alguma dúvida ou precisar de ajuda com o estorno/reagendamento, entre em contato conosco por aqui."
     );
   });
 });

@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useProductStore, useOrderStore, useCustomerStore } from "@/lib/store";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { validarEstoqueServidor, listarSemEstoque } from "@/lib/stockGuard";
 import { notifyInfo } from "@/lib/notifications";
 import { compararTexto, formatCurrency, getLocalDateStr, paymentLabelOf, formatItemQty } from "@/lib/utils";
-import { PaymentMethod, CartItem, CompraItem } from "@/types/database";
+import { PaymentMethod, CartItem, CompraItem, MixCaixa } from "@/types/database";
+import { ajustarMixParaQuantidade, criarMixVazio, ehCombo, formatarMix, saboresDoCombo, todosCompletos } from "@/lib/combo";
+import ComboPicker from "@/components/ComboPicker";
 import { OpcaoTelefone } from "@/lib/phoneBlur";
 import { isBrindeProduct } from "@/lib/brinde";
+import { useStoreConfig } from "@/lib/storeConfig";
+import { cidadeDoEndereco, montarPixPayload, normalizarChavePix } from "@/lib/pix";
 
 interface QuickSaleModalProps {
   isOpen: boolean;
@@ -26,8 +31,13 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
   const upsertCustomer = useCustomerStore((s) => s.upsertCustomer);
   const credores = useCredoresStore((s) => s.credores);
   const converterPedidoParaFiado = useCredoresStore((s) => s.converterPedidoParaFiado);
+  const config = useStoreConfig();
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [comboProd, setComboProd] = useState<typeof products[0] | null>(null);
+  const [comboMixes, setComboMixes] = useState<MixCaixa[]>([]);
+  const [pixSalt] = useState(() => Date.now().toString(36).toUpperCase());
+  const [pixGerado, setPixGerado] = useState(false);
   const [selectedClienteId, setSelectedClienteId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [cashGiven, setCashGiven] = useState("");
@@ -47,6 +57,32 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
   const valorBrinde = itensBrinde.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cashNum = parseFloat(cashGiven.replace(",", ".")) || 0;
   const change = paymentMethod === "dinheiro" && cashNum > total ? cashNum - total : 0;
+
+  const chavePixFinal = config.chavePix || config.pixKey;
+  const pixPayload =
+    paymentMethod === "pix" && total > 0 && chavePixFinal
+      ? montarPixPayload({
+          chave: chavePixFinal,
+          nome: config.storeName,
+          cidade: cidadeDoEndereco(config.storeAddress),
+          valor: total,
+          txid: ("ILMA" + pixSalt + Math.round(total * 100).toString(36).toUpperCase()).slice(0, 25),
+        })
+      : "";
+
+  function copiarPixCopiaECola() {
+    if (!pixPayload) return;
+    navigator.clipboard
+      .writeText(pixPayload)
+      .then(() => notifyInfo("Pix Copia e Cola", "Código copiado! Cole no app do banco para pagar."))
+      .catch(() => notifyInfo("Pix Copia e Cola", "Não foi possível copiar automaticamente."));
+  }
+
+  function fecharModal() {
+    setPixGerado(false);
+    setComboProd(null);
+    onClose();
+  }
 
   const isFiado = paymentMethod === "fiado";
   const cust = customers.find((c) => c.id === selectedClienteId);
@@ -92,7 +128,9 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     return Array.from(map, ([productId, quantity]) => ({ productId, quantity }));
   }
 
-  function handleAddProduct(product: typeof products[0]) {
+  function handleAddProduct(product: typeof products[0], mix?: MixCaixa[]) {
+    const temMix = !!(mix && mix.length > 0);
+    const addQty = temMix ? mix!.length : 1;
     const disponivel = estoqueDisponivel(product);
     if (disponivel !== null) {
       if (disponivel <= 0) {
@@ -100,10 +138,12 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
         return;
       }
       const totalNoCarrinho = qtyNoCarrinho(product.id);
-      if (totalNoCarrinho + 1 > disponivel) {
+      if (totalNoCarrinho + addQty > disponivel) {
         notifyInfo(
           "Estoque insuficiente",
-          product.isCustomWeight
+          temMix
+            ? `Apenas ${disponivel - totalNoCarrinho} caixa(s) disponíveis em estoque.`
+            : product.isCustomWeight
             ? `Apenas ${formatItemQty(disponivel - totalNoCarrinho, true)} disponíveis em estoque.`
             : `Apenas ${disponivel - totalNoCarrinho} unidades disponíveis em estoque.`
         );
@@ -112,11 +152,38 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
     }
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id && !i.is_brinde);
+      if (temMix) {
+        if (existing) {
+          return prev.map((i) =>
+            i === existing
+              ? { ...i, quantity: i.quantity + mix!.length, mix: [...(i.mix ?? []), ...mix!] }
+              : i
+          );
+        }
+        return [...prev, { product, quantity: mix!.length, mix: mix! }];
+      }
       if (existing) {
         return prev.map((i) => (i === existing ? { ...i, quantity: i.quantity + 1 } : i));
       }
       return [...prev, { product, quantity: 1 }];
     });
+  }
+
+  function abrirCombo(product: typeof products[0]) {
+    if (!product.combo) return;
+    const sabores = saboresDoCombo(product.combo, allProducts);
+    if (sabores.length < 2) {
+      notifyInfo("Combo indisponível", `${product.name} não tem sabores disponíveis (verifique a categoria do combo no cadastro).`);
+      return;
+    }
+    setComboMixes([criarMixVazio(sabores)]);
+    setComboProd(product);
+  }
+
+  function confirmarCombo() {
+    if (!comboProd) return;
+    handleAddProduct(comboProd, comboMixes);
+    setComboProd(null);
   }
 
   function handleToggleBrinde(productId: string) {
@@ -172,7 +239,14 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
           if (i.product.id === productId && !!i.is_brinde === !!linhaBrinde) {
             const newQty = i.quantity + delta;
             const rounded = i.product.isCustomWeight ? Math.round(newQty * 10) / 10 : newQty;
-            return (i.product.isCustomWeight ? rounded >= 0.1 : rounded > 0) ? { ...i, quantity: rounded } : null;
+            if (!(i.product.isCustomWeight ? rounded >= 0.1 : rounded > 0)) return null;
+            return {
+              ...i,
+              quantity: rounded,
+              ...(i.mix && i.mix.length > 0
+                ? { mix: ajustarMixParaQuantidade(i.mix, rounded) }
+                : {}),
+            };
           }
           return i;
         })
@@ -299,6 +373,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
         setSelectedClienteId("");
         setClienteBusca("");
         setCashGiven("");
+        setPixGerado(false);
         onClose();
       }, 1400);
     } catch (err) {
@@ -316,7 +391,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
             <h2 className="text-lg font-bold text-white">⚡ Venda Rápida / Balcão</h2>
             <p className="text-xs text-neutral-400">Saída expressa de estoque e caixa para múltiplos itens e clientes</p>
           </div>
-          <button onClick={onClose} className="text-neutral-500 hover:text-white text-xl">✕</button>
+          <button onClick={fecharModal} className="text-neutral-500 hover:text-white text-xl">✕</button>
         </div>
 
         {successMsg ? (
@@ -354,7 +429,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                       key={p.id}
                       type="button"
                       disabled={esgotado}
-                      onClick={() => handleAddProduct(p)}
+                      onClick={() => (ehCombo(p) ? abrirCombo(p) : handleAddProduct(p))}
                       className={`flex flex-col items-center justify-between rounded-xl border p-3 text-center transition-all group ${
                         esgotado
                           ? "cursor-not-allowed border-neutral-800 bg-neutral-950 opacity-50"
@@ -492,6 +567,16 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                               `${item.quantity}x • ${formatCurrency(item.product.price * item.quantity)}`
                             )}
                           </p>
+                          {item.mix && item.mix.length > 0 && (
+                            <div className="mt-1 space-y-0.5">
+                              {item.mix.map((m, mi) => (
+                                <p key={mi} className="text-[10px] text-neutral-400">
+                                  {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                                  {formatarMix(m)}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -544,7 +629,7 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setPaymentMethod(m.id as PaymentMethod)}
+                        onClick={() => { setPaymentMethod(m.id as PaymentMethod); setPixGerado(false); }}
                         className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${m.span ? "col-span-2" : ""} ${
                           paymentMethod === m.id
                             ? "border-wine-500 bg-wine-500/20 text-wine-300"
@@ -556,6 +641,56 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                     ))}
                   </div>
                 </div>
+
+                {paymentMethod === "pix" && cart.length > 0 && (
+                  <div className="space-y-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+                    {!chavePixFinal ? (
+                      <p className="rounded-lg border border-amber-600/40 bg-amber-950/40 px-3 py-2 text-[11px] text-amber-300">
+                        Cadastre a Chave PIX em Configurações para gerar o QR Code e liberar a finalização.
+                      </p>
+                    ) : !pixGerado ? (
+                      <button
+                        type="button"
+                        onClick={() => setPixGerado(true)}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-600/50 bg-emerald-950/40 px-3 py-3 text-xs font-bold text-emerald-300 transition-all hover:bg-emerald-900/50"
+                      >
+                        Gerar Pix — {formatCurrency(total)}
+                      </button>
+                    ) : pixPayload ? (
+                      <>
+                        <div className="flex flex-col items-center gap-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                            Pix QR Code — valor da venda
+                          </p>
+                          <div className="rounded-lg bg-white p-2">
+                            <QRCodeSVG value={pixPayload} size={168} level="M" bgColor="#ffffff" fgColor="#171717" />
+                          </div>
+                          <span className="text-lg font-bold text-emerald-400">{formatCurrency(total)}</span>
+                        </div>
+                        <input
+                          readOnly
+                          value={pixPayload}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[10px] text-neutral-500 outline-none"
+                        />
+                        <p className="text-center text-[10px] text-neutral-600">
+                          Chave: {normalizarChavePix(chavePixFinal)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={copiarPixCopiaECola}
+                          className="w-full rounded-lg border border-wine-500 bg-wine-500/15 px-3 py-2 text-xs font-bold text-wine-300 transition-all hover:bg-wine-500/25"
+                        >
+                          Copiar Pix Copia e Cola
+                        </button>
+                      </>
+                    ) : (
+                      <p className="rounded-lg border border-amber-600/40 bg-amber-950/40 px-3 py-2 text-[11px] text-amber-300">
+                        Não foi possível gerar o Pix para valor zero. Confira os itens da venda.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {paymentMethod === "dinheiro" && (
                   <div className="space-y-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
@@ -598,14 +733,14 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={fecharModal}
                     className="flex-1 rounded-xl border border-neutral-700 px-4 py-3 text-xs font-medium text-neutral-400 hover:bg-neutral-800"
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
-                    disabled={loading || cart.length === 0 || (isFiado && !selectedClienteId)}
+                    disabled={loading || cart.length === 0 || (isFiado && !selectedClienteId) || (paymentMethod === "pix" && (!pixGerado || !pixPayload))}
                     onClick={handleFinalizeSale}
                     className="flex-1 rounded-xl bg-wine-500 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-wine-500/20 hover:bg-wine-600 disabled:opacity-50"
                   >
@@ -617,6 +752,57 @@ export default function QuickSaleModal({ isOpen, onClose }: QuickSaleModalProps)
           </div>
         )}
       </div>
+      {comboProd && comboProd.combo && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="dark w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">Montar caixa — {comboProd.name}</h3>
+                <p className="text-[11px] text-neutral-400">
+                  {comboProd.combo.total} docinhos por caixa • {formatCurrency(comboProd.price)} por caixa
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setComboProd(null)}
+                className="text-neutral-500 hover:text-white"
+                title="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+            <ComboPicker
+              total={comboProd.combo.total}
+              sabores={saboresDoCombo(comboProd.combo, allProducts)}
+              mixes={comboMixes}
+              onChange={setComboMixes}
+              passo={comboProd.combo.passo}
+            />
+            {!todosCompletos(comboMixes, comboProd.combo.total) && (
+              <p className="mt-2 text-[11px] font-semibold text-amber-400">
+                Complete o mix de todas as caixas para adicionar.
+              </p>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setComboProd(null)}
+                className="flex-1 rounded-lg border border-neutral-700 px-3 py-2.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCombo}
+                disabled={!todosCompletos(comboMixes, comboProd.combo.total)}
+                className="flex-1 rounded-lg bg-wine-500 px-3 py-2.5 text-xs font-semibold text-white hover:bg-wine-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Adicionar {comboMixes.length} caixa(s) — {formatCurrency(comboProd.price * comboMixes.length)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

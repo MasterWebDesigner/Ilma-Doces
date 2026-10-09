@@ -6,6 +6,7 @@ import { confirmOrderWhatsApp, enviarMensagemStatus } from "@/lib/whatsapp";
 import { useNotificationStore, playNotificationSound, notifyError } from "@/lib/notifications";
 import type { GatilhoMensagem } from "@/lib/mensagensWhatsapp";
 import { classNames, formatCurrency, formatItemQty, paymentLabelOf } from "@/lib/utils";
+import { formatarMix } from "@/lib/combo";
 import { itemLineTotal } from "@/lib/brinde";
 import { detalheSinalPedido } from "@/lib/faturamento";
 import { formatarTelefone } from "@/lib/phone";
@@ -353,8 +354,18 @@ export function OrderDetailsDrawer({ order, onClose, onRegistrarSinal, onEditar,
                           🎁 BRINDE FIDELIDADE
                         </span>
                       )}
-                      {item.product.name} {formatItemQty(item.quantity, item.product.isCustomWeight)}
+                      {item.product.name} {item.mix && item.mix.length > 0 ? `${item.quantity} caixa(s)` : formatItemQty(item.quantity, item.product.isCustomWeight)}
                     </p>
+                    {item.mix && item.mix.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {item.mix.map((m, mi) => (
+                          <p key={mi} className="text-[11px] text-neutral-400">
+                            {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                            {formatarMix(m)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {item.notes && <p className="mt-0.5 text-xs text-amber-400/80">Obs: {item.notes}</p>}
                   </div>
                   {item.is_brinde ? (

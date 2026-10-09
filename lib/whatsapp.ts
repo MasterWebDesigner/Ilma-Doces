@@ -1,6 +1,7 @@
-import type { CartItem, CompraItem, Order } from "@/types/database";
+import type { CartItem, CompraItem, MixCaixa, Order } from "@/types/database";
 import { getStoreConfig, type StoreSettings } from "./storeConfig";
 import { formatItemQty } from "./utils";
+import { formatarMix } from "./combo";
 import { itemLineTotal, paidSubtotal } from "./brinde";
 import { exigeSinalPedido, valorSinalPedido } from "./faturamento";
 import {
@@ -83,13 +84,21 @@ function varsBase(cfg: StoreSettings): VariaveisMensagem {
   };
 }
 
+function linhasMix(mix?: MixCaixa[] | null): string {
+  if (!mix || mix.length === 0) return "";
+  return mix
+    .map((m, mi) => `\n   ↳ ${mix.length > 1 ? `Caixa ${mi + 1}: ` : ""}${formatarMix(m)}`)
+    .join("");
+}
+
 function itensNumerados(items: CartItem[]): string {
   return items
     .map((item, i) => {
       if (item.is_brinde) {
         return `${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — *BRINDE FIDELIDADE (R$ 0,00)*`;
       }
-      return `${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`;
+      const qtd = item.mix && item.mix.length > 0 ? `${item.quantity} caixa(s)` : formatItemQty(item.quantity, item.product.isCustomWeight);
+      return `${i + 1}. ${item.product.name} ${qtd}${linhasMix(item.mix)}`;
     })
     .join("\n");
 }
@@ -102,7 +111,8 @@ function blocItensLoja(items: CartItem[]): string {
         return `${i + 1}. 🎁 ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${original} → *GRÁTIS (R$ 0,00)* — BRINDE FIDELIDADE`;
       }
       const price = itemLineTotal(item).toFixed(2).replace(".", ",");
-      const linha = `${i + 1}. ${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)} — R$ ${price}`;
+      const qtd = item.mix && item.mix.length > 0 ? `${item.quantity} caixa(s)` : formatItemQty(item.quantity, item.product.isCustomWeight);
+      const linha = `${i + 1}. ${item.product.name} ${qtd} — R$ ${price}${linhasMix(item.mix)}`;
       return item.notes ? `${linha}\n   ↳ *obs:* ${item.notes}` : linha;
     })
     .join("\n");
@@ -297,8 +307,17 @@ export function montarAgradecimentoPagamento(d: {
 
 function listaSimplesItens(items: CartItem[]): string {
   return items
-    .map((item) => `${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`)
-    .join(", ");
+    .map((item) => {
+      if (item.mix && item.mix.length > 0) {
+        const cabecalho = `${item.product.name} ${item.quantity} caixa(s)`;
+        const linhas = item.mix
+          .map((m, mi) => `\n  ↳ ${item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}${formatarMix(m)}`)
+          .join("");
+        return cabecalho + linhas;
+      }
+      return `${item.product.name} ${formatItemQty(item.quantity, item.product.isCustomWeight)}`;
+    })
+    .join("\n");
 }
 
 export function montarRecusaPedido(d: {

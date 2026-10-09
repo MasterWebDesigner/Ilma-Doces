@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import type { ResumoItemPedido } from "@/lib/combo";
 
 interface ResumoItensProps {
-  itens: string[];
+  itens: ResumoItemPedido[];
   limite?: number;
   className?: string;
   classeItem?: string;
@@ -19,9 +20,14 @@ export default function ResumoItens({ itens, limite = 3, className = "", classeI
 
   return (
     <div className={className}>
-      {visiveis.map((texto, idx) => (
-        <span key={idx} className={`block truncate ${classeItem}`}>
-          {texto}
+      {visiveis.map((item, idx) => (
+        <span key={idx} className={`block ${classeItem}`}>
+          <span className="block truncate">{item.texto}</span>
+          {item.detalhes?.map((detalhe, di) => (
+            <span key={di} className="block truncate pl-2 text-[11px] leading-4 opacity-75">
+              {detalhe}
+            </span>
+          ))}
         </span>
       ))}
       {restantes > 0 && (

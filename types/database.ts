@@ -3,6 +3,14 @@ export interface Category {
   name: string;
   slug: string;
   display_order: number;
+  image_url?: string | null;
+}
+
+export interface ProductCombo {
+  total: number;
+  sabores: string[];
+  categoriaId?: string;
+  passo?: number;
 }
 
 export interface Product {
@@ -23,7 +31,10 @@ export interface Product {
   controlarEstoque?: boolean;
   precoCustoInicial?: number;
   cardapioRapido?: boolean;
+  combo?: ProductCombo | null;
 }
+
+export type MixCaixa = Record<string, number>;
 
 export interface CartItem {
   product: Product;
@@ -32,6 +43,7 @@ export interface CartItem {
   notes?: string;
   is_brinde?: boolean;
   preco_unitario?: number;
+  mix?: MixCaixa[];
 }
 
 export type OrderStatus = "pendente" | "confirmado" | "em_producao" | "pronto" | "saiu_entrega" | "concluido" | "recusado" | "cancelado";

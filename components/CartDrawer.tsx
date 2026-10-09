@@ -2,8 +2,10 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useCartStore, useOrderStore, useCustomerStore, useProductStore, totalItemsCount } from "@/lib/store";
-import type { Order, PaymentMethod, DeliveryType } from "@/types/database";
+import type { MixCaixa, Order, PaymentMethod, DeliveryType } from "@/types/database";
 import { formatCurrency, formatItemQty, formatWeightKg } from "@/lib/utils";
+import { formatarMix, saboresDoCombo, todosCompletos } from "@/lib/combo";
+import ComboPicker from "@/components/ComboPicker";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { useNotificationStore, playNotificationSound } from "@/lib/notifications";
 import { useStoreConfig, DEFAULT_SETTINGS } from "@/lib/storeConfig";
@@ -39,7 +41,7 @@ function hojeISO(): string {
 }
 
 export default function CartDrawer() {
-  const { items, isOpen, setOpen, removeItem, updateQuantity, updateNotes, setBrinde, clearBrinde, clearCart } = useCartStore();
+  const { items, isOpen, setOpen, removeItem, updateQuantity, updateMix, updateNotes, setBrinde, clearBrinde, clearCart } = useCartStore();
   const config = useStoreConfig();
   const products = useProductStore((s) => s.products);
   const categories = useProductStore((s) => s.categories);
@@ -47,6 +49,8 @@ export default function CartDrawer() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
+  const [editandoMix, setEditandoMix] = useState<string | null>(null);
+  const [mixEdicao, setMixEdicao] = useState<MixCaixa[]>([]);
   const [validationError, setValidationError] = useState("");
   const [flavorOpen, setFlavorOpen] = useState(false);
   const [phoneValue, setPhoneValue] = useState("");
@@ -528,6 +532,16 @@ export default function CartDrawer() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-neutral-900 dark:text-white">{item.product.name}</p>
+                          {item.mix && item.mix.length > 0 && (
+                            <div className="mt-1 space-y-0.5">
+                              {item.mix.map((m, mi) => (
+                                <p key={mi} className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                                  {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                                  {formatarMix(m)}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                           {item.is_brinde ? (
                             <p className="text-xs font-bold">
                               <span className="text-neutral-400 line-through">{formatCurrency(item.product.price)}</span>{" "}
@@ -590,23 +604,66 @@ export default function CartDrawer() {
                       </div>
 
                       {!item.is_brinde && (
-                        <div>
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             onClick={() => setExpandedNotes(expandedNotes === item.product.id ? null : item.product.id)}
-                            className="text-[11px] text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
+                            className="min-w-0 truncate text-[11px] text-neutral-400 transition-colors hover:text-neutral-700 dark:hover:text-neutral-200"
                           >
                             {item.notes ? `✎ ${item.notes}` : "+ Adicionar observação"}
                           </button>
-                          {expandedNotes === item.product.id && (
-                            <input
-                              type="text"
-                              placeholder="Ex: Sem açúcar, com cobertura extra..."
-                              value={item.notes || ""}
-                              onChange={(e) => updateNotes(item.product.id, e.target.value)}
-                              className="mt-2 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 placeholder-neutral-400 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-                              autoFocus
-                            />
+                          {item.mix && item.mix.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMixEdicao(item.mix!);
+                                setEditandoMix(item.product.id);
+                              }}
+                              className="shrink-0 text-[11px] font-semibold text-wine-600 transition-colors hover:text-wine-700 dark:text-wine-400 dark:hover:text-wine-300"
+                            >
+                              ✎ Editar caixas
+                            </button>
                           )}
+                        </div>
+                      )}
+                      {expandedNotes === item.product.id && !item.is_brinde && (
+                        <input
+                          type="text"
+                          placeholder="Ex: Sem açúcar, com cobertura extra..."
+                          value={item.notes || ""}
+                          onChange={(e) => updateNotes(item.product.id, e.target.value)}
+                          className="mt-2 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 placeholder-neutral-400 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                          autoFocus
+                        />
+                      )}
+                      {editandoMix === item.product.id && item.product.combo && (
+                        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-950">
+                          <ComboPicker
+                            total={item.product.combo.total}
+                            sabores={saboresDoCombo(item.product.combo, products)}
+                            mixes={mixEdicao}
+                            onChange={setMixEdicao}
+                            passo={item.product.combo.passo}
+                          />
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditandoMix(null)}
+                              className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-500 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateMix(item.product.id, mixEdicao);
+                                setEditandoMix(null);
+                              }}
+                              disabled={!todosCompletos(mixEdicao, item.product.combo.total)}
+                              className="flex-1 rounded-lg bg-wine-600 px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Salvar ({mixEdicao.length} caixa(s))
+                            </button>
+                          </div>
                         </div>
                       )}
                     </li>
@@ -641,7 +698,10 @@ export default function CartDrawer() {
                       <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
                         <span>
                           {item.is_brinde && "🎁 "}
-                          {item.product.name} {formatItemQty(item.quantity, item.product.isCustomWeight)}
+                          {item.product.name}{" "}
+                          {item.mix && item.mix.length > 0
+                            ? `${item.quantity} caixa(s)`
+                            : formatItemQty(item.quantity, item.product.isCustomWeight)}
                           {item.is_brinde && (
                             <span className="ml-1 rounded bg-emerald-500/15 px-1 py-0.5 text-[9px] font-bold text-emerald-600">
                               BRINDE
@@ -657,6 +717,16 @@ export default function CartDrawer() {
                           <span className="font-semibold">{formatCurrency(itemLineTotal(item))}</span>
                         )}
                       </div>
+                        {item.mix && item.mix.length > 0 && (
+                          <div className="pl-2">
+                            {item.mix.map((m, mi) => (
+                              <p key={mi} className="text-[10px] leading-4 text-neutral-400 dark:text-neutral-500">
+                                {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}
+                                {formatarMix(m)}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       {item.notes && (
                         <p className="pl-2 text-[11px] text-neutral-400">obs: {item.notes}</p>
                       )}

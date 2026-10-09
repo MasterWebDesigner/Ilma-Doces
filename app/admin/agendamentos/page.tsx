@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useOrderStore } from "@/lib/store";
 import { formatarTelefone } from "@/lib/phone";
-import { getLocalDateStr, formatItemQty } from "@/lib/utils";
+import { getLocalDateStr } from "@/lib/utils";
+import { resumoItemPedido } from "@/lib/combo";
 import type { Order, OrderStatus } from "@/types/database";
 import { OrderDetailsDrawer, STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 import { EditOrderModal, EncerrarPedidoModal, FinalizeOrderModal, RegistrarSinalModal } from "@/components/admin/OrderModals";
@@ -498,7 +499,7 @@ export default function AdminAgendamentos() {
                                 <span className="text-sm font-bold text-emerald-400">R$ {order.total.toFixed(2).replace(".", ",")}</span>
                               </div>
                               <ResumoItens
-                                itens={order.items.map((i) => `${i.product.name} ${formatItemQty(i.quantity, i.product.isCustomWeight)}`)}
+                                itens={order.items.map((i) => resumoItemPedido(i.product.name, i.quantity, i.mix, i.product.isCustomWeight))}
                                 className="mt-1 text-xs text-neutral-500"
                                 classeItem="leading-5"
                               />
