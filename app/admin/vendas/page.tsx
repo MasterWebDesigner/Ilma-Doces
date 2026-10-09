@@ -6,6 +6,7 @@ import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { useCredoresStore } from "@/lib/credoresStore";
 import { classNames, compararTexto, formatItemQty, getLocalDateStrFromISO, paymentLabelOf } from "@/lib/utils";
 import { filterPaidOrders, filterUnpaidOrders, orderRemaining, isOrderPaid, isFiadoPendente, formaPagamentoDoPedido, saldoPendenteDoPedido } from "@/lib/faturamento";
+import { desmembrarItemRanking } from "@/lib/combo";
 import { formatarTelefone } from "@/lib/phone";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -75,6 +76,7 @@ type ChartPoint = { key: string; label: string; total: number; count: number; to
 export default function AdminVendasPage() {
   const orders = useOrderStore((s) => s.orders);
   const categories = useProductStore((s) => s.categories);
+  const products = useProductStore((s) => s.products);
   const customers = useCustomerStore((s) => s.customers);
   const transactions = useFinanceiroStore((s) => s.transactions);
   const credores = useCredoresStore((s) => s.credores);
@@ -319,6 +321,15 @@ export default function AdminVendasPage() {
     ordersConcluidos.forEach((o) => o.items.forEach((item) => {
       const rev = lineRevenue(item);
       totalRevenue += rev;
+      if (item.mix && item.mix.length > 0) {
+        desmembrarItemRanking(item).forEach((linha) => {
+          const e = map.get(linha.nome) || { name: linha.nome, units: 0, kg: 0, revenue: 0 };
+          e.units += linha.units;
+          e.revenue += linha.revenue;
+          map.set(linha.nome, e);
+        });
+        return;
+      }
       const e = map.get(item.product.name) || { name: item.product.name, units: 0, kg: 0, revenue: 0 };
       e.units += lineUnits(item);
       e.kg += lineKg(item);
@@ -354,19 +365,40 @@ export default function AdminVendasPage() {
     categories.forEach((c) => catMap.set(c.name, { name: c.name, revenue: 0, units: 0, kg: 0, products: new Map() }));
 
     ordersConcluidos.forEach((o) => o.items.forEach((item) => {
-      const cat = categories.find((c) => c.id === item.product.category_id);
-      const catName = cat ? cat.name : "Outros";
-      if (!catMap.has(catName)) catMap.set(catName, { name: catName, revenue: 0, units: 0, kg: 0, products: new Map() });
-      const c = catMap.get(catName)!;
       const rev = lineRevenue(item);
-      c.revenue += rev;
-      c.units += lineUnits(item);
-      c.kg += lineKg(item);
-      const p = c.products.get(item.product.name) || { name: item.product.name, units: 0, kg: 0, revenue: 0 };
-      p.units += lineUnits(item);
-      p.kg += lineKg(item);
-      p.revenue += rev;
-      c.products.set(item.product.name, p);
+      const linhas =
+        item.mix && item.mix.length > 0
+          ? desmembrarItemRanking(item).map((linha) => {
+              const prodSabor = products.find((p) => p.name.trim() === linha.nome.trim());
+              return {
+                catId: prodSabor?.category_id ?? item.product.category_id,
+                nome: linha.nome,
+                units: linha.units,
+                kg: 0,
+                revenue: linha.revenue,
+              };
+            })
+          : [{
+              catId: item.product.category_id,
+              nome: item.product.name,
+              units: lineUnits(item),
+              kg: lineKg(item),
+              revenue: rev,
+            }];
+      linhas.forEach((linha) => {
+        const cat = categories.find((c) => c.id === linha.catId);
+        const catName = cat ? cat.name : "Outros";
+        if (!catMap.has(catName)) catMap.set(catName, { name: catName, revenue: 0, units: 0, kg: 0, products: new Map() });
+        const c = catMap.get(catName)!;
+        c.revenue += linha.revenue;
+        c.units += linha.units;
+        c.kg += linha.kg;
+        const p = c.products.get(linha.nome) || { name: linha.nome, units: 0, kg: 0, revenue: 0 };
+        p.units += linha.units;
+        p.kg += linha.kg;
+        p.revenue += linha.revenue;
+        c.products.set(linha.nome, p);
+      });
     }));
 
     return Array.from(catMap.values())
@@ -378,7 +410,7 @@ export default function AdminVendasPage() {
         products: Array.from(c.products.values()).sort((a, b) => b.units - a.units).slice(0, 5),
       }))
       .sort((a, b) => b.revenue - a.revenue || b.units - a.units);
-  }, [ordersConcluidos, categories]);
+  }, [ordersConcluidos, categories, products]);
 
   const paymentBreakdown = useMemo(() => {
     const map = new Map<string, { label: string; total: number; count: number }>();

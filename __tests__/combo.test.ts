@@ -4,6 +4,7 @@ import {
   ajustarMixParaQuantidade,
   alterarQtdMix,
   criarMixVazio,
+  desmembrarItemRanking,
   ehCombo,
   formatarMix,
   formatarMixes,
@@ -230,5 +231,64 @@ describe("combo: resumoItemPedido", () => {
   it("sem mix devolve apenas o texto", () => {
     expect(resumoItemPedido("Bolo de Chocolate", 2).texto).toBe("Bolo de Chocolate x2");
     expect(resumoItemPedido("Bolo", 1.5, [], true).texto).toBe("Bolo 1,5 kg");
+  });
+});
+
+describe("combo: desmembrarItemRanking", () => {
+  it("desmembra o combo em sabores somando unidades e rateando a receita", () => {
+    const linhas = desmembrarItemRanking({
+      quantity: 2,
+      mix: [
+        { Brigadeiro: 2, Beijinho: 2 },
+        { Brigadeiro: 1, Beijinho: 3 },
+      ],
+      product: { name: "Caixa de Docinhos (4 un)", price: 19.9 },
+    });
+    expect(linhas).toHaveLength(2);
+    const brigadeiro = linhas.find((l) => l.nome === "Brigadeiro")!;
+    const beijinho = linhas.find((l) => l.nome === "Beijinho")!;
+    expect(brigadeiro.units).toBe(3);
+    expect(beijinho.units).toBe(5);
+    const receitaTotal = 19.9 * 2;
+    expect(brigadeiro.revenue).toBeCloseTo(receitaTotal * (3 / 8));
+    expect(beijinho.revenue).toBeCloseTo(receitaTotal * (5 / 8));
+    expect(brigadeiro.revenue + beijinho.revenue).toBeCloseTo(receitaTotal);
+  });
+
+  it("sem mix mantem o produto original como unica linha", () => {
+    const linhas = desmembrarItemRanking({
+      quantity: 3,
+      product: { name: "Bolo de Chocolate", price: 89.9 },
+    });
+    expect(linhas).toEqual([{ nome: "Bolo de Chocolate", units: 3, revenue: 89.9 * 3 }]);
+  });
+
+  it("mix zerado cai no fallback do produto", () => {
+    const linhas = desmembrarItemRanking({
+      quantity: 1,
+      mix: [{ Brigadeiro: 0, Beijinho: 0 }],
+      product: { name: "Caixa", price: 20 },
+    });
+    expect(linhas).toEqual([{ nome: "Caixa", units: 1, revenue: 20 }]);
+  });
+
+  it("brinde entra zerado no ranking", () => {
+    const linhas = desmembrarItemRanking({
+      quantity: 1,
+      is_brinde: true,
+      mix: [{ Brigadeiro: 50 }],
+      product: { name: "Caixa", price: 89.9 },
+    });
+    expect(linhas).toEqual([{ nome: "Brigadeiro", units: 50, revenue: 0 }]);
+  });
+
+  it("respeita preco_unitario quando presente", () => {
+    const linhas = desmembrarItemRanking({
+      quantity: 1,
+      preco_unitario: 15,
+      mix: [{ Brigadeiro: 2, Beijinho: 2 }],
+      product: { name: "Caixa", price: 19.9 },
+    });
+    expect(linhas.find((l) => l.nome === "Brigadeiro")!.revenue).toBeCloseTo(15 * 0.5);
   });
 });

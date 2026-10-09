@@ -106,3 +106,35 @@ export function resumoItemPedido(nome: string, quantity: number, mix?: MixCaixa[
   }
   return { texto: `${nome} ${formatItemQty(quantity, isCustomWeight)}` };
 }
+
+export interface LinhaRanking {
+  nome: string;
+  units: number;
+  revenue: number;
+}
+
+export function desmembrarItemRanking(item: {
+  quantity: number;
+  mix?: MixCaixa[] | null;
+  is_brinde?: boolean;
+  preco_unitario?: number;
+  product: { name: string; price: number };
+}): LinhaRanking[] {
+  const revenue = item.is_brinde ? 0 : (item.preco_unitario ?? item.product.price) * item.quantity;
+  const porSabor = new Map<string, number>();
+  for (const caixa of item.mix ?? []) {
+    for (const [sabor, qtd] of Object.entries(caixa || {})) {
+      const q = Number(qtd) || 0;
+      if (q > 0 && sabor.trim()) porSabor.set(sabor, (porSabor.get(sabor) || 0) + q);
+    }
+  }
+  const totalUnidades = Array.from(porSabor.values()).reduce((a, b) => a + b, 0);
+  if (totalUnidades <= 0) {
+    return [{ nome: item.product.name, units: item.quantity, revenue }];
+  }
+  return Array.from(porSabor.entries()).map(([nome, units]) => ({
+    nome,
+    units,
+    revenue: (revenue * units) / totalUnidades,
+  }));
+}
