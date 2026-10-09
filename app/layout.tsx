@@ -15,7 +15,8 @@ export const metadata: Metadata = {
   description: "Cardápio online — bolos, doces finos e encomendas artesanais.",
 };
 
-const themeScript = `try{var t=localStorage.getItem("ilma-theme");if(t==="dark"){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark"}else{document.documentElement.classList.remove("dark");document.documentElement.style.colorScheme="light"}}catch(e){}`;
+const themeScript = `try{var t=localStorage.getItem("ilma-theme");if(t==="dark"){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark"}else{document.documentElement.classList.remove("dark");document.documentElement.style.colorScheme="light"}}catch(e){}// Analytics ja esta configurado
+`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
