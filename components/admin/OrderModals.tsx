@@ -209,7 +209,14 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
   }
 
   function iniciarEdicaoMix(idx: number) {
-    setMixEdicao(items[idx].mix ?? []);
+    const item = items[idx];
+    const atual = item.mix ?? [];
+    if (atual.length > 0) {
+      setMixEdicao(atual);
+    } else {
+      const sabores = saboresDoCombo(item.product.combo, products);
+      setMixEdicao(Array.from({ length: Math.max(1, Math.round(item.quantity)) }, () => criarMixVazio(sabores)));
+    }
     setMixEditIdx(idx);
   }
 
@@ -268,14 +275,16 @@ export function EditOrderModal({ order, onClose }: { order: Order; onClose: () =
                             {formatarMix(m)}
                           </p>
                         ))}
-                        <button
-                          type="button"
-                          onClick={() => iniciarEdicaoMix(idx)}
-                          className="text-[10px] font-semibold text-wine-400 hover:text-wine-300"
-                        >
-                          ✎ Editar mix
-                        </button>
                       </div>
+                    )}
+                    {ehCombo(item.product) && (
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicaoMix(idx)}
+                        className="mt-1 text-[10px] font-semibold text-wine-400 hover:text-wine-300"
+                      >
+                        {item.mix && item.mix.length > 0 ? "✎ Editar mix" : "✎ Definir sabores"}
+                      </button>
                     )}
                     {item.is_brinde && (
                       <span className="inline-block mt-0.5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 border border-emerald-500/30">
@@ -559,14 +568,19 @@ export function FinalizeOrderModal({ order, onClose }: { order: Order; onClose: 
   }
 
   function handleItemQuantityChange(idx: number, qty: number) {
-    const isWeight = items[idx].product.isCustomWeight;
+    const item = items[idx];
+    const isWeight = item.product.isCustomWeight;
+    const temMix = !!(item.mix && item.mix.length > 0);
     const safe = isWeight
       ? Math.max(0.1, Math.round((qty || 0.1) * 10) / 10)
+      : temMix
+      ? Math.max(1, Math.round(qty) || 1)
       : Math.max(0.1, qty);
     const updated = [...items];
     updated[idx] = {
-      ...updated[idx],
+      ...item,
       quantity: safe,
+      ...(temMix ? { mix: ajustarMixParaQuantidade(item.mix!, safe) } : {}),
     };
     setItems(updated);
     const newTotal = updated.reduce((acc, i) => acc + itemLineTotal(i), 0);

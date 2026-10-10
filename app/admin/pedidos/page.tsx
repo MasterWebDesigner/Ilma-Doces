@@ -8,11 +8,12 @@ import type { CompraItem } from "@/types/database";
 import { useFinanceiroStore } from "@/lib/financeiroStore";
 import { confirmOrderWhatsApp, montarRecusaPedido, montarCancelamentoPedido, urlWaMe } from "@/lib/whatsapp";
 import { compararTexto, formatCurrency, getLocalDateStr, getLocalDateStrFromISO, paymentLabelOf } from "@/lib/utils";
-import { resumoItemPedido } from "@/lib/combo";
+import { criarMixVazio, ehCombo, formatarMix, resumoItemPedido, saboresDoCombo, todosCompletos } from "@/lib/combo";
 import { itemLineTotal } from "@/lib/brinde";
 import { sumReceitasByDate, filterUnpaidOrders, orderRemaining } from "@/lib/faturamento";
-import type { Order, PaymentMethod, CartItem } from "@/types/database";
+import type { Order, PaymentMethod, CartItem, MixCaixa, Product } from "@/types/database";
 import { OpcaoTelefone } from "@/lib/phoneBlur";
+import ComboPicker from "@/components/ComboPicker";
 import { OrderDetailsDrawer, STATUS_CONFIG } from "@/components/admin/OrderDetailsDrawer";
 import { EditOrderModal, EncerrarPedidoModal, FinalizeOrderModal, RegistrarSinalModal } from "@/components/admin/OrderModals";
 import ResumoItens from "@/components/admin/ResumoItens";
@@ -48,14 +49,27 @@ export default function AdminPedidos() {
   const [valorSinalManual, setValorSinalManual] = useState("");
   const [formaSinalManual, setFormaSinalManual] = useState<PaymentMethod>("pix");
   const [generalNotes, setGeneralNotes] = useState("");
+  const [comboManualProd, setComboManualProd] = useState<Product | null>(null);
+  const [comboManualMixes, setComboManualMixes] = useState<MixCaixa[]>([]);
 
   const selectedProd = products.find((p) => p.id === selectedProdId);
   const addingWeight = !!selectedProd?.isCustomWeight;
+  const addingCombo = ehCombo(selectedProd ?? ({} as Product));
 
   function adicionarItemManual() {
     if (!selectedProdId) return;
     const prod = products.find((p) => p.id === selectedProdId);
     if (!prod) return;
+    if (ehCombo(prod)) {
+      const sabores = saboresDoCombo(prod.combo, products);
+      if (sabores.length < 2) {
+        alert(`${prod.name} não tem sabores disponíveis (verifique a categoria do combo no cadastro).`);
+        return;
+      }
+      setComboManualMixes([criarMixVazio(sabores)]);
+      setComboManualProd(prod);
+      return;
+    }
     const qty = prod.isCustomWeight ? Math.max(0.1, Math.round(qtdItem * 10) / 10) : Math.max(1, Math.round(qtdItem));
     setItensManual((prev) => {
       const existing = prev.find((i) => i.product.id === prod.id);
@@ -64,6 +78,25 @@ export default function AdminPedidos() {
       }
       return [...prev, { product: prod, quantity: qty }];
     });
+    setSelectedProdId("");
+    setQtdItem(1);
+  }
+
+  function confirmarComboManual() {
+    if (!comboManualProd) return;
+    const mixes = comboManualMixes;
+    setItensManual((prev) => {
+      const existing = prev.find((i) => i.product.id === comboManualProd.id && !i.is_brinde);
+      if (existing) {
+        return prev.map((i) =>
+          i.product.id === comboManualProd.id && !i.is_brinde
+            ? { ...i, quantity: i.quantity + mixes.length, mix: [...(i.mix ?? []), ...mixes] }
+            : i
+        );
+      }
+      return [...prev, { product: comboManualProd, quantity: mixes.length, mix: mixes }];
+    });
+    setComboManualProd(null);
     setSelectedProdId("");
     setQtdItem(1);
   }
@@ -373,8 +406,9 @@ export default function AdminPedidos() {
                       step={addingWeight ? "0.1" : "1"}
                       value={qtdItem}
                       onChange={(e) => setQtdItem(parseFloat(e.target.value.replace(",", ".")) || 1)}
-                      className="w-20 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white text-center outline-none"
-                      title={addingWeight ? "Peso (kg)" : "Quantidade"}
+                      disabled={addingCombo}
+                      className="w-20 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white text-center outline-none disabled:opacity-40"
+                      title={addingCombo ? "Quantidade definida no mix" : addingWeight ? "Peso (kg)" : "Quantidade"}
                       placeholder={addingWeight ? "kg" : "qtd"}
                     />
                     <button
@@ -382,7 +416,7 @@ export default function AdminPedidos() {
                       onClick={adicionarItemManual}
                       className="flex-1 rounded-lg bg-wine-500 px-3 py-2 text-xs font-semibold text-white hover:bg-wine-600"
                     >
-                      {addingWeight ? "+ Adicionar kg" : "+ Adicionar"}
+                      {addingCombo ? "Montar" : addingWeight ? "+ Adicionar kg" : "+ Adicionar"}
                     </button>
                   </div>
                 </div>
@@ -390,9 +424,22 @@ export default function AdminPedidos() {
                 {itensManual.length > 0 && (
                   <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3 space-y-2 max-h-40 overflow-y-auto">
                     {itensManual.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs text-neutral-300 bg-neutral-900 p-2 rounded-lg">
-                        <span>{item.product.isCustomWeight ? `${item.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : `${item.quantity}x`} {item.product.name} (R$ {itemLineTotal(item).toFixed(2).replace(".", ",")})</span>
-                        <button type="button" onClick={() => removerItemManual(item.product.id)} className="text-red-400 hover:text-red-300 text-xs">Excluir</button>
+                      <div key={idx} className="flex items-center justify-between gap-3 text-xs text-neutral-300 bg-neutral-900 p-2 rounded-lg">
+                        <div className="min-w-0 flex-1">
+                          <span>{item.product.isCustomWeight ? `${item.quantity.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg` : `${item.quantity}x`} {item.product.name} (R$ {itemLineTotal(item).toFixed(2).replace(".", ",")})</span>
+                          {item.mix && item.mix.length > 0 ? (
+                            <div className="mt-0.5 space-y-0.5">
+                              {item.mix.map((m, mi) => (
+                                <p key={mi} className="text-[10px] text-neutral-500">
+                                  {item.mix!.length > 1 ? `Caixa ${mi + 1}: ` : ""}{formatarMix(m)}
+                                </p>
+                              ))}
+                            </div>
+                          ) : ehCombo(item.product) ? (
+                            <p className="mt-0.5 text-[10px] font-semibold text-amber-400">Mix de sabores não definido</p>
+                          ) : null}
+                        </div>
+                        <button type="button" onClick={() => removerItemManual(item.product.id)} className="text-red-400 hover:text-red-300 text-xs self-start">Excluir</button>
                       </div>
                     ))}
                   </div>
@@ -480,6 +527,48 @@ export default function AdminPedidos() {
               </div>
             </form>
           </div>
+          {comboManualProd && comboManualProd.combo && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+              <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Montar caixa — {comboManualProd.name}</h3>
+                    <p className="text-[11px] text-neutral-400">
+                      {comboManualProd.combo.total} docinhos por caixa • R$ {comboManualProd.price.toFixed(2).replace(".", ",")} por caixa
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setComboManualProd(null)} className="text-neutral-500 hover:text-white">✕</button>
+                </div>
+                <ComboPicker
+                  total={comboManualProd.combo.total}
+                  sabores={saboresDoCombo(comboManualProd.combo, products)}
+                  mixes={comboManualMixes}
+                  onChange={setComboManualMixes}
+                  passo={comboManualProd.combo.passo}
+                />
+                {!todosCompletos(comboManualMixes, comboManualProd.combo.total) && (
+                  <p className="mt-2 text-[11px] font-semibold text-amber-400">Complete o mix de todas as caixas.</p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setComboManualProd(null)}
+                    className="flex-1 rounded-lg border border-neutral-700 px-3 py-2.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmarComboManual}
+                    disabled={!todosCompletos(comboManualMixes, comboManualProd.combo.total)}
+                    className="flex-1 rounded-lg bg-wine-500 px-3 py-2.5 text-xs font-semibold text-white hover:bg-wine-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Adicionar {comboManualMixes.length} caixa(s) — R$ {(comboManualProd.price * comboManualMixes.length).toFixed(2).replace(".", ",")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
