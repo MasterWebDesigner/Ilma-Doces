@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCartStore } from "@/lib/store";
 import CartBadge from "@/components/CartBadge";
 import ThemeToggle from "@/components/ThemeToggle";
-import InstallPwaButton from "@/components/InstallPwaButton";
 
 const NAV = [
   { href: "/", label: "HOME" },
@@ -39,7 +38,6 @@ export default function Header() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <InstallPwaButton />
           <ThemeToggle className="flex h-8 w-8 items-center justify-center rounded-full text-white/90 transition-opacity hover:opacity-80" />
           <button
             onClick={() => setOpen(true)}

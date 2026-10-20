@@ -7,7 +7,13 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-export default function InstallPwaButton() {
+export default function InstallPwaButton({
+  variant = "pill",
+  iconOnly = false,
+}: {
+  variant?: "pill" | "sidebar";
+  iconOnly?: boolean;
+}) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [installed, setInstalled] = useState(false);
@@ -62,13 +68,26 @@ export default function InstallPwaButton() {
 
   if (!visible || installed) return null;
 
+  const classes =
+    variant === "sidebar"
+      ? "mb-2 flex w-full items-center justify-center gap-2 rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
+      : "rounded-full border border-white/25 px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-80";
+
   return (
     <>
       <button
         onClick={() => (deferred ? handleInstall() : setShowIosHelp((v) => !v))}
-        className="rounded-full border border-white/25 px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-80"
+        title={variant === "sidebar" && iconOnly ? "Instalar App" : undefined}
+        className={classes}
       >
-        Instalar App
+        {variant === "sidebar" && (
+          <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        )}
+        {!(variant === "sidebar" && iconOnly) && "Instalar App"}
       </button>
       {showIosHelp && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onClick={() => setShowIosHelp(false)}>

@@ -8,6 +8,7 @@ import { useOrderStore } from "@/lib/store";
 import { sair, nomeConectado, useAuth } from "@/lib/auth";
 import NotificationToast from "@/components/NotificationToast";
 import ThemeToggle from "@/components/ThemeToggle";
+import InstallPwaButton from "@/components/InstallPwaButton";
 import { useBorracaoTelefones, definirBorracaoTelefones, sincronizarBorracaoTelefones } from "@/lib/phoneBlur";
 
 const nav = [
@@ -206,6 +207,7 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
             </svg>
             {!collapsed && "Sair"}
           </button>
+          <InstallPwaButton variant="sidebar" iconOnly={collapsed} />
           <div className="flex items-center gap-2">
             <ThemeToggle className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25 dark:bg-white/10 dark:hover:bg-white/20" />
             <Link
