@@ -15,9 +15,9 @@ export default function InstallPwaButton({
   iconOnly?: boolean;
 }) {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [visible, setVisible] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const [showIosHelp, setShowIosHelp] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     const isStandalone =
@@ -32,23 +32,17 @@ export default function InstallPwaButton({
     const handler = (event: Event) => {
       event.preventDefault();
       setDeferred(event as BeforeInstallPromptEvent);
-      setVisible(true);
     };
 
-    const onInstalled = () => {
-      setInstalled(true);
-      setVisible(false);
-      setDeferred(null);
-    };
+    const onInstalled = () => setInstalled(true);
 
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", onInstalled);
 
-    const isIos =
+    setIsIos(
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-    if (isIos) setVisible(true);
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
@@ -60,13 +54,10 @@ export default function InstallPwaButton({
     if (!deferred) return;
     await deferred.prompt();
     const choice = await deferred.userChoice;
-    if (choice.outcome === "accepted") {
-      setVisible(false);
-      setDeferred(null);
-    }
+    if (choice.outcome === "accepted") setInstalled(true);
   }
 
-  if (!visible || installed) return null;
+  if (installed) return null;
 
   const classes =
     variant === "sidebar"
@@ -76,7 +67,7 @@ export default function InstallPwaButton({
   return (
     <>
       <button
-        onClick={() => (deferred ? handleInstall() : setShowIosHelp((v) => !v))}
+        onClick={() => (deferred ? handleInstall() : setShowHelp(true))}
         title={variant === "sidebar" && iconOnly ? "Instalar App" : undefined}
         className={classes}
       >
@@ -89,20 +80,41 @@ export default function InstallPwaButton({
         )}
         {!(variant === "sidebar" && iconOnly) && "Instalar App"}
       </button>
-      {showIosHelp && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onClick={() => setShowIosHelp(false)}>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onClick={() => setShowHelp(false)}>
           <div
             className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-bold text-white">Instalar no iPhone/iPad</h3>
+            <h3 className="text-sm font-bold text-white">
+              {isIos ? "Instalar no iPhone/iPad" : "Instalar no navegador"}
+            </h3>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs text-neutral-300">
-              <li>Toque no botão <span className="font-bold text-white">Compartilhar</span> (quadrado com seta para cima) na barra do Safari.</li>
-              <li>Role para baixo e toque em <span className="font-bold text-white">Adicionar à Tela de Início</span>.</li>
-              <li>Confirme em <span className="font-bold text-white">Adicionar</span> e pronto — o app abre em tela cheia.</li>
+              {isIos ? (
+                <>
+                  <li>
+                    Toque no botão <span className="font-bold text-white">Compartilhar</span> (quadrado com seta para cima) na barra do Safari.
+                  </li>
+                  <li>
+                    Role para baixo e toque em <span className="font-bold text-white">Adicionar à Tela de Início</span>.
+                  </li>
+                  <li>Confirme em <span className="font-bold text-white">Adicionar</span> e pronto — o app abre em tela cheia.</li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    No Chrome ou Edge, procure o <span className="font-bold text-white">ícone de instalação</span> na barra de endereço (lado direito) e toque em <span className="font-bold text-white">Instalar</span>.
+                  </li>
+                  <li>
+                    Se não aparecer, abra o <span className="font-bold text-white">menu do navegador</span> (três pontos) e escolha <span className="font-bold text-white">Instalar app</span> / <span className="font-bold text-white">Adicionar à tela inicial</span>.
+                  </li>
+                  <li>Confirme em <span className="font-bold text-white">Instalar</span> e o app abre em tela cheia.</li>
+                </>
+              )}
             </ol>
             <button
-              onClick={() => setShowIosHelp(false)}
+              onClick={() => setShowHelp(false)}
               className="mt-4 w-full rounded-lg bg-wine-500 px-3 py-2.5 text-xs font-semibold text-white hover:bg-wine-600"
             >
               Entendi
