@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Ilma Doces | Confeitaria Artesanal",
     short_name: "Ilma Doces",
     description: "Cardápio online — bolos, doces finos e encomendas artesanais.",
-    start_url: "/",
+    start_url: "/admin/login",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
