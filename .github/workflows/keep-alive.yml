@@ -1,0 +1,30 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Query leve no banco do Supabase
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET na API REST do Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ANON_KEY: ${{ secrets.ANON_KEY }}
+        run: |
+          set -euo pipefail
+          http_code=$(curl -sS -o /tmp/resposta.json -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/keepalive?select=*&limit=1" \
+            -H "apikey: ${ANON_KEY}" \
+            -H "Authorization: Bearer ${ANON_KEY}")
+          echo "HTTP ${http_code}"
+          cat /tmp/resposta.json
+          echo ""
+          if [ "${http_code}" != "200" ]; then
+            echo "::error::Keep-alive falhou: esperado HTTP 200, recebido ${http_code}. Confira as secrets SUPABASE_URL/ANON_KEY e a tabela public.keepalive."
+            exit 1
+          fi
+          echo "Atividade registrada no banco do Supabase."
